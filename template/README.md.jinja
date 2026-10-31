@@ -36,8 +36,10 @@ uv run labkit runs list
 | `runs/<run_id>/` | 実験 1 回分（設定・来歴・指標・図） | × |
 | `docs/devlog/` | 開発ログ（1 日 1 ファイル） | ✓ |
 | `docs/decisions/` | ADR（設計判断の記録） | ✓ |
+| `docs/reviews/` | 独立レビューの記録（lab-reviewer agent が書く） | ✓ |
 | `literature/` | 書誌（bib）・ノート・サーベイ（PDF は管理外） | ✓ |
 | `jobs/` | HPC ジョブスクリプト | ✓ |
 | `prompts/` | LLM 用プロンプト | ✓ |
 | `notebooks/` | 探索用（結果を報告に使うなら scripts 化する） | ✓ |
 | `scratch/` | 自由な作業場所 | × |
+| `.lab/` | ハーネスの状態（flows/ は ✓、presence・queue・approvals は ×） | 一部 |
