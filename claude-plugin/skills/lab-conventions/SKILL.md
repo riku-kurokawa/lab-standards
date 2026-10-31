@@ -38,6 +38,7 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 | 読込 | `load(path, verify=True)` | `load(path; verify=true)` |
 | データパス | `datapath("processed", "f.parquet")` | `datapath("processed", "f.parquet")` |
 | 図 | `fig("figspecs/a.toml", run)` | `fig("figspecs/a.toml"; run=run)` |
+| 数値の引用 | `cite(run_id, "snr_db", digits=1, unit="dB")` | `cite(run_id, "snr_db"; digits=1, unit="dB")` |
 
 配列の軸: Python の shape (n_ch, n_t) は Julia でも size (n_ch, n_t)。HDF5 上の並びは labkit が揃える。
 

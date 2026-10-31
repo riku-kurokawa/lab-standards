@@ -166,7 +166,7 @@ triage【承認】 → branch → implement（必要なら link） → test【�
 ## テスト
 
 ```bash
-make test                      # 版の整合性 + labkit + hooks
+make test                      # 版の整合性 + lint（ruff check/format）+ labkit + hooks
 make test-julia
 make eval                      # 振る舞いの回帰テスト（API 費用。claude-plugin/evals/README.md）
 ```
