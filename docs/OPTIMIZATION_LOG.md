@@ -34,6 +34,7 @@
 | hooks が Claude に見せる文面（SessionStart / flow の拒否 / 承認待ち / Stop）を生成プロジェクトで実際に出して直す | 文面は明確で重複なし。flow の拒否が条件を内部名（`clean_tree; git_tag(name=...)`）で示すが `labkit flow status` を案内しており、hooks は標準ライブラリのみで評価器を持てない。表示パスの `\` は Windows の自然な表記 | 2026-11-01 |
 | 空白を含むパス（`sp ace x/my proj`）のプロジェクトで壊れる所を直す | 実測: 生成 → link → Python/Julia の例 → 図 3 枚 → Pkg.test / pytest / ruff / check、hooks（SessionStart・ゲートの拒否とキュー・flow の拒否・Stop）すべて正常。日本語パス（既出）と合わせ、パスの扱いに問題なし | 2026-11-01 |
 | Parquet（文字列・欠損・int・float/NaN・bool・日時）と attrs（入れ子の dict・配列）の Python↔Julia 往復で崩れる所を直す | 実測: 両方向とも型と値が保たれる（Python の NaN は Parquet の null として Julia で missing、Julia の NaN は Python で nan。Parquet2 は列を Union{Missing,T} で返す）。attrs の 1000.0 が Julia で 1000 と見えるのは既出の JSON3 の制約 | 2026-11-01 |
+| 未実行の CLI 経路（`adr --slug`、`devlog`、`standards unlink --to v0.2.0`、その後の `check`）で直す点を探す | 実測: ADR/devlog は LF で生成、unlink は GitHub の非公開 repo のタグ v0.2.0 に Python（uv）と Julia（Pkg）の両方で戻り、`status` が release v0.2.0、`check` は違反なし | 2026-11-01 |
 | use_julia=false のプロジェクトで Julia 由来の設定（sandbox の ~/.julia と julialang ドメイン）を条件分岐で消す | Python のみの生成を実測: jl/ 無し、link・status・pytest・check・example すべて正常。残るのは settings.json の 2 エントリで無害。JSON 内の jinja 分岐はカンマの扱いが脆いので見送り | 2026-11-01 |
 | 図テンプレート（8 種）の整理・統合 | `labkit fig list` の説明・必須 data・例が揃っていて重複なし。変更なし | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
