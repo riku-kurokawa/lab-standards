@@ -11,6 +11,7 @@
 | 承認の消費を PostToolUse へ移す | hook が 1 つ増える。失敗時は再キューで足りる（Q-015） | 2026-11-01 |
 | README の「人間が不在のときの動き」節を harness.md へのポインタに縮める | README（物語）・SETUP（操作）・harness.md（設計）で読者が違う。重複ではなく役割分担 | 2026-11-01 |
 | 雛形の各ディレクトリ README（docs/data/literature/notebooks/prompts、8〜24 行）を統合・削除 | 各々が配置だけでは分からない規則（不変性、citekey、nbstripout）を 1 画面で述べていて重複が無い。読む場所が増える害の方が大きい | 2026-11-01 |
+| 生成プロジェクト直下に現れた `uv-<hash>.lock` を .gitignore / L001 で除外する | 原因は検証用シェルで `TMP=`（Windows の一時ディレクトリ変数）を上書きしたこと。uv はロックを `env::temp_dir()` に置く（uv ソースで確認、TMP 上書きで再現）。雛形の問題ではない | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
 | Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
@@ -162,3 +163,13 @@
   `uv run ruff` の経路はまれ。ruff が無い場合も hook は従来どおり黙って何もしない。
 - 結論: 採用。
 - 規模: −7 行、テスト +18 行。「venv のツールを探す」実装 2 → 1。
+
+### 16. 2026-11-01 — 生成直後のプロジェクトが自分の `make lint` に落ちていた
+- 観点: 雛形から生成して実際に `make check` 相当を全部回す（サイクル 8・13 の後の回帰確認）。
+- 発見: `scripts/run_example.py.jinja` の `save(...)` 1 か所が ruff format 違反で、新規プロジェクトは生成直後から `make lint` が赤。
+  同時に見えた `uv-<hash>.lock` は検証シェルの `TMP=` 上書きが原因で雛形の問題ではなかった（棄却表に記録）。
+- 提案: 雛形を整形（ruff の出力どおり 1 ハンク）。再発防止は CI の既存の copier レンダリング工程に
+  `ruff format --check --config <生成 pyproject>` を 1 行足す（生成された設定を使い、第 2 の設定源を作らない）。
+- 監査: 採用。pytest で jinja を自前展開する案は第 2 のレンダラになるので却下。`ruff check` は first-party 判定で誤検出するため format のみ。
+- 結論: 採用。
+- 規模: 雛形 ±0（整形のみ）、CI +2 行。

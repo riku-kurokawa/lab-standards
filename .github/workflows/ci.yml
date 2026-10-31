@@ -30,6 +30,8 @@ jobs:
           uvx copier copy --defaults --vcs-ref HEAD -d project_name="CI project" -d author=ci . /tmp/ciproj
           test -f /tmp/ciproj/lab.toml && test -f /tmp/ciproj/.copier-answers.yml
           python3 -c "import json; json.load(open('/tmp/ciproj/.claude/settings.json'))"
+          # 生成コードは、雛形がプロジェクトに課す format 基準を満たす（設定は生成された pyproject を使う）
+          uvx ruff@0.17 format --check --config /tmp/ciproj/pyproject.toml /tmp/ciproj
 
   julia:
     runs-on: ubuntu-latest

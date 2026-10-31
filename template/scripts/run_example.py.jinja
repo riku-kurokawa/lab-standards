@@ -25,8 +25,12 @@ def main(config_path: str, overrides: list[str]) -> None:
             filt = lowpass(noisy, fs, cutoff, cfg["filter"]["order"])
             log_metric(run, "snr_db", snr_db(clean, filt), step=step)
         best = lowpass(noisy, fs, cfg["filter"]["cutoffs_hz"][-1], cfg["filter"]["order"])
-        save(runpath(run, "signal.h5"), {"t": t, "clean": clean, "noisy": noisy, "filtered": best},
-             attrs={"fs": fs, "unit": "a.u."}, description="合成信号とフィルタ結果")
+        save(
+            runpath(run, "signal.h5"),
+            {"t": t, "clean": clean, "noisy": noisy, "filtered": best},
+            attrs={"fs": fs, "unit": "a.u."},
+            description="合成信号とフィルタ結果",
+        )
         print(run.run_id)
 
 
