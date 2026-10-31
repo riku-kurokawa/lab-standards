@@ -26,24 +26,102 @@ FORBIDDEN = {"labkit_approve": "labkit approve / reject / answer（承認・回�
 
 # flow の forbid カテゴリ（stage.forbid）への対応
 FLOW_CATEGORY = {
-    "git_push": "release", "git_tag": "release", "git_merge": "release", "gh_merge": "release", "gh_release": "release",
-    "raw_freeze": "raw", "template": "template",
-    "link": "link", "experiments": "experiments",
+    "git_push": "release",
+    "git_tag": "release",
+    "git_merge": "release",
+    "gh_merge": "release",
+    "gh_release": "release",
+    "raw_freeze": "raw",
+    "template": "template",
+    "link": "link",
+    "experiments": "experiments",
 }
 
-GIT_GLOBAL_WITH_ARG = {"-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix",
-                       "--config-env", "--list-cmds"}
-GIT_GLOBAL_FLAGS = {"-p", "--paginate", "-P", "--no-pager", "--bare", "--no-replace-objects", "--literal-pathspecs",
-                    "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs", "--no-optional-locks",
-                    "--no-lazy-fetch", "--no-advice"}
-TAG_LIST_FLAGS = {"-l", "--list", "-n", "--contains", "--no-contains", "--points-at", "--merged", "--no-merged",
-                  "--sort", "--format", "--column", "--no-column", "-i", "--ignore-case", "--omit-empty"}
-UV_RUN_WITH_ARG = {"--project", "-p", "--with", "-w", "--extra", "--python", "--package", "--directory", "--group",
-                   "--only-group", "--with-editable", "--with-requirements", "--index", "--env-file", "--color",
-                   "--cache-dir", "--config-file", "--module", "-m"}
+GIT_GLOBAL_WITH_ARG = {
+    "-c",
+    "-C",
+    "--git-dir",
+    "--work-tree",
+    "--namespace",
+    "--exec-path",
+    "--super-prefix",
+    "--config-env",
+    "--list-cmds",
+}
+GIT_GLOBAL_FLAGS = {
+    "-p",
+    "--paginate",
+    "-P",
+    "--no-pager",
+    "--bare",
+    "--no-replace-objects",
+    "--literal-pathspecs",
+    "--glob-pathspecs",
+    "--noglob-pathspecs",
+    "--icase-pathspecs",
+    "--no-optional-locks",
+    "--no-lazy-fetch",
+    "--no-advice",
+}
+TAG_LIST_FLAGS = {
+    "-l",
+    "--list",
+    "-n",
+    "--contains",
+    "--no-contains",
+    "--points-at",
+    "--merged",
+    "--no-merged",
+    "--sort",
+    "--format",
+    "--column",
+    "--no-column",
+    "-i",
+    "--ignore-case",
+    "--omit-empty",
+}
+UV_RUN_WITH_ARG = {
+    "--project",
+    "-p",
+    "--with",
+    "-w",
+    "--extra",
+    "--python",
+    "--package",
+    "--directory",
+    "--group",
+    "--only-group",
+    "--with-editable",
+    "--with-requirements",
+    "--index",
+    "--env-file",
+    "--color",
+    "--cache-dir",
+    "--config-file",
+    "--module",
+    "-m",
+}
 SPLIT_RE = re.compile(r"&&|\|\||;|\||&|\n")
-WRAPPERS = ("command", "sudo", "time", "nohup", "exec", "builtin", "nice", "stdbuf", "caffeinate", "doas", "xargs",
-            "(", ")", "{", "}", "then", "do", "else")
+WRAPPERS = (
+    "command",
+    "sudo",
+    "time",
+    "nohup",
+    "exec",
+    "builtin",
+    "nice",
+    "stdbuf",
+    "caffeinate",
+    "doas",
+    "xargs",
+    "(",
+    ")",
+    "{",
+    "}",
+    "then",
+    "do",
+    "else",
+)
 
 
 @dataclass
@@ -119,7 +197,7 @@ def _git_subcommand(toks: list[str]) -> tuple[str | None, list[str], str | None]
         elif t.startswith("-"):
             i += 1
         else:
-            return t, toks[i + 1:], cdir
+            return t, toks[i + 1 :], cdir
     return None, [], cdir
 
 
@@ -135,7 +213,7 @@ def _labkit_args(toks: list[str]) -> list[str] | None:
         while i < len(toks):
             t = toks[i]
             if t in ("-m", "--module") and i + 1 < len(toks) and toks[i + 1] in ("labkit.cli", "labkit"):
-                return toks[i + 2:]
+                return toks[i + 2 :]
             if t in UV_RUN_WITH_ARG:
                 i += 2
             elif t.startswith("-"):
@@ -145,7 +223,12 @@ def _labkit_args(toks: list[str]) -> list[str] | None:
         rest = toks[i:]
         if rest and _basename(rest[0]).split("@")[0] == "labkit":
             return rest[1:]
-        if len(rest) > 2 and _basename(rest[0]).startswith("python") and rest[1] == "-m" and rest[2] in ("labkit.cli", "labkit"):
+        if (
+            len(rest) > 2
+            and _basename(rest[0]).startswith("python")
+            and rest[1] == "-m"
+            and rest[2] in ("labkit.cli", "labkit")
+        ):
             return rest[3:]
         return None
     if b == "uvx" and len(toks) > 1 and _basename(toks[1]).split("@")[0] == "labkit":
@@ -168,11 +251,17 @@ def classify_segment(seg: str, protected: list[str], current_branch: str | None)
             hits.append(Hit("git_push", seg, " ".join(args), cdir))
         elif sub == "tag":
             positional = [a for a in args if not a.startswith("-")]
-            listing = any(a in TAG_LIST_FLAGS or a.startswith(("--sort", "--format", "--contains", "--points-at",
-                                                                "--merged", "--no-merged", "-l", "-n"))
-                          for a in args)
-            writing = any(a in ("-d", "--delete", "-a", "-s", "-u", "-f", "--force", "-m", "-F", "--annotate", "--sign")
-                          for a in args)
+            listing = any(
+                a in TAG_LIST_FLAGS
+                or a.startswith(
+                    ("--sort", "--format", "--contains", "--points-at", "--merged", "--no-merged", "-l", "-n")
+                )
+                for a in args
+            )
+            writing = any(
+                a in ("-d", "--delete", "-a", "-s", "-u", "-f", "--force", "-m", "-F", "--annotate", "--sign")
+                for a in args
+            )
             # `git tag` / `git tag -l 'v*'` は一覧表示なので通す。引数付き（作成）や -d（削除）は対象
             if writing or (positional and not listing):
                 hits.append(Hit("git_tag", seg, " ".join(args), cdir))
@@ -254,13 +343,65 @@ def flow_hits(hits: list[Hit], forbid: list[str]) -> list[Hit]:
 
 
 # ---- lab-reviewer（レビュー agent）に許す読み取り専用コマンド（許可リスト。載っていないものは拒否） ----
-REVIEWER_ALLOWED = {"cat", "head", "tail", "ls", "wc", "grep", "rg", "find", "diff", "stat", "file", "tree", "echo",
-                    "pwd", "date", "which", "sort", "uniq", "cut", "awk", "jq", "du", "cd", "sed", "true", "test", "[",
-                    "pytest", "ruff"}
-GIT_READ = {"diff", "log", "status", "show", "rev-parse", "blame", "branch", "tag", "ls-files", "describe", "shortlog",
-            "grep"}
-LABKIT_READ = {("check",), ("runs",), ("cite",), ("review", "template"), ("paths",), ("fig", "list"), ("queue", "list"),
-               ("queue", "show"), ("flow", "status"), ("flow", "list"), ("standards", "status"), ("lit", "check")}
+REVIEWER_ALLOWED = {
+    "cat",
+    "head",
+    "tail",
+    "ls",
+    "wc",
+    "grep",
+    "rg",
+    "find",
+    "diff",
+    "stat",
+    "file",
+    "tree",
+    "echo",
+    "pwd",
+    "date",
+    "which",
+    "sort",
+    "uniq",
+    "cut",
+    "awk",
+    "jq",
+    "du",
+    "cd",
+    "sed",
+    "true",
+    "test",
+    "[",
+    "pytest",
+    "ruff",
+}
+GIT_READ = {
+    "diff",
+    "log",
+    "status",
+    "show",
+    "rev-parse",
+    "blame",
+    "branch",
+    "tag",
+    "ls-files",
+    "describe",
+    "shortlog",
+    "grep",
+}
+LABKIT_READ = {
+    ("check",),
+    ("runs",),
+    ("cite",),
+    ("review", "template"),
+    ("paths",),
+    ("fig", "list"),
+    ("queue", "list"),
+    ("queue", "show"),
+    ("flow", "status"),
+    ("flow", "list"),
+    ("standards", "status"),
+    ("lit", "check"),
+}
 
 
 def reviewer_allowed(seg: str) -> bool:
@@ -277,7 +418,7 @@ def reviewer_allowed(seg: str) -> bool:
     la = _labkit_args(toks)
     if la is not None:
         pos = tuple(a for a in la if not a.startswith("-"))
-        return any(pos[:len(p)] == p for p in LABKIT_READ)
+        return any(pos[: len(p)] == p for p in LABKIT_READ)
     if b == "uv" and len(toks) > 1 and toks[1] == "run":  # uv run [--opts] pytest / ruff check
         i = 2
         while i < len(toks) and toks[i].startswith("-"):
@@ -294,6 +435,12 @@ def reviewer_allowed(seg: str) -> bool:
 
 
 def reviewer_allowed_summary() -> str:
-    return ("lab-reviewer が実行できるのは読み取りだけ: " + " ".join(sorted(REVIEWER_ALLOWED)) + "; git {"
-            + ",".join(sorted(GIT_READ)) + "}; labkit {" + ", ".join(" ".join(p) for p in sorted(LABKIT_READ))
-            + "}。リダイレクト（>）不可。レビュー記録は Write で docs/reviews/ に書く。")
+    return (
+        "lab-reviewer が実行できるのは読み取りだけ: "
+        + " ".join(sorted(REVIEWER_ALLOWED))
+        + "; git {"
+        + ",".join(sorted(GIT_READ))
+        + "}; labkit {"
+        + ", ".join(" ".join(p) for p in sorted(LABKIT_READ))
+        + "}。リダイレクト（>）不可。レビュー記録は Write で docs/reviews/ に書く。"
+    )

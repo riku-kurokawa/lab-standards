@@ -14,8 +14,9 @@ PLUGIN_SCRIPTS = Path(__file__).resolve().parents[3] / "claude-plugin" / "script
 
 
 def git(cwd: Path, *args: str) -> str:
-    return subprocess.run(["git", "-c", "user.email=a@b", "-c", "user.name=t", *args], cwd=cwd, capture_output=True,
-                          text=True, check=True).stdout.strip()
+    return subprocess.run(
+        ["git", "-c", "user.email=a@b", "-c", "user.name=t", *args], cwd=cwd, capture_output=True, text=True, check=True
+    ).stdout.strip()
 
 
 @pytest.fixture
@@ -65,14 +66,14 @@ def test_approval_once_ttl_head(repo):
     assert state.find_valid_approval(repo, "git push origin main", head) is None
     rec = state.approve(repo, "Q001", ttl_hours=24, who={"by": "me", "tty": True})
     assert rec["expires_at"] > rec["approved_at"] and state.get_item(repo, "Q001")["status"] == "approved"
-    assert state.find_valid_approval(repo, "git push origin main --force", head) is None       # コマンド全文
-    assert state.find_valid_approval(repo, "git push origin main", "0" * 40) is None            # HEAD
+    assert state.find_valid_approval(repo, "git push origin main --force", head) is None  # コマンド全文
+    assert state.find_valid_approval(repo, "git push origin main", "0" * 40) is None  # HEAD
     later = dt.datetime.now().astimezone() + dt.timedelta(hours=25)
-    assert state.find_valid_approval(repo, "git push origin main", head, now=later) is None     # 期限
+    assert state.find_valid_approval(repo, "git push origin main", head, now=later) is None  # 期限
     got = state.find_valid_approval(repo, "git push origin main", head)
     assert got and got["id"] == "Q001"
     state.consume_approval(repo, got)
-    assert state.find_valid_approval(repo, "git push origin main", head) is None                # 1 回限り
+    assert state.find_valid_approval(repo, "git push origin main", head) is None  # 1 回限り
     assert state.get_item(repo, "Q001")["status"] == "executed"
     with pytest.raises(ValueError):
         state.approve(repo, "Q001", ttl_hours=1, who={})
@@ -90,7 +91,9 @@ def test_vendored_labstate_is_identical():
     import labkit._labstate as vendored
 
     src = (PLUGIN_SCRIPTS / "_labstate.py").read_bytes()
-    assert Path(vendored.__file__).read_bytes() == src, "cp claude-plugin/scripts/_labstate.py labkit/python/src/labkit/_labstate.py"
+    assert Path(vendored.__file__).read_bytes() == src, (
+        "cp claude-plugin/scripts/_labstate.py labkit/python/src/labkit/_labstate.py"
+    )
 
 
 def test_hook_and_labkit_load_lab_agree(project):
@@ -100,8 +103,9 @@ def test_hook_and_labkit_load_lab_agree(project):
 
     from labkit.config import load_lab
 
-    (project / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nbanned_formats = ["pickle"]\n[gate]\napproval_ttl_hours = 1\n',
-                                      encoding="utf-8")
+    (project / "lab.toml").write_text(
+        '[lab]\nproject = "t"\n[check]\nbanned_formats = ["pickle"]\n[gate]\napproval_ttl_hours = 1\n', encoding="utf-8"
+    )
     a, b = _labcommon.load_lab(project), load_lab(project)
     a["layout"]["writable"] = [w for w in a["layout"]["writable"] if w != ".lab/presence"]
     assert a == b and b["check"]["banned_formats"] == ["pickle"] and b["gate"]["approval_ttl_hours"] == 1
@@ -149,17 +153,17 @@ def test_flow_migrate_transitions_and_approval(repo):
         flow.advance(repo, "migrate")
     (repo / "scratch").mkdir(exist_ok=True)
     (repo / "scratch" / "migration-inventory.csv").write_text("old_path,kind,new_path,size,note\n")
-    with pytest.raises(SystemExit, match="承認待ち #Q001"):      # 承認が要る段階 → キューへ
+    with pytest.raises(SystemExit, match="承認待ち #Q001"):  # 承認が要る段階 → キューへ
         flow.advance(repo, "migrate")
     assert state.get_item(repo, "Q001")["command"] == "labkit flow advance migrate"
-    with pytest.raises(SystemExit, match="承認待ち #Q001"):      # 再実行しても同じ ID
+    with pytest.raises(SystemExit, match="承認待ち #Q001"):  # 再実行しても同じ ID
         flow.advance(repo, "migrate")
     state.approve(repo, "Q001", ttl_hours=1, who={})
     st, _ = flow.advance(repo, "migrate")
     assert st["stage"] == "apply-template" and state.get_item(repo, "Q001")["status"] == "executed"
     assert "apply-template" in flow.describe(repo, st)
     with pytest.raises(SystemExit):
-        flow.start(repo, "migrate")                                 # 二重開始不可
+        flow.start(repo, "migrate")  # 二重開始不可
     flow.abort(repo, "migrate")
     assert flow.active_flows(repo) == []
 
@@ -175,10 +179,13 @@ def test_flow_review_condition(repo):
     head = state.git_head(repo)
     p = repo / "docs" / "reviews" / "2026-11-01_migrate_reproduce.md"
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(reviews.template("migrate", "reproduce", head).replace("verdict: changes-requested", "verdict: pass")
-                 .replace('  - "<path>:<line> 指摘（根拠）"\n', ""))
+    p.write_text(
+        reviews.template("migrate", "reproduce", head)
+        .replace("verdict: changes-requested", "verdict: pass")
+        .replace('  - "<path>:<line> 指摘（根拠）"\n', "")
+    )
     assert flow.unmet(repo, st) == []
-    git(repo, "commit", "-q", "--allow-empty", "-m", "new head")   # HEAD が変わると無効
+    git(repo, "commit", "-q", "--allow-empty", "-m", "new head")  # HEAD が変わると無効
     assert len(flow.unmet(repo, st)) == 1
 
 
@@ -198,11 +205,11 @@ def test_linked_if_touched(repo, monkeypatch, tmp_path):
     (dev / "claude-plugin" / "h.py").write_text("x")
     git(dev, "add", "-A")
     git(dev, "commit", "-q", "-m", "hooks only")
-    assert flow.c_linked_if_touched(repo, st, c) is None            # hooks だけなら link 不要
+    assert flow.c_linked_if_touched(repo, st, c) is None  # hooks だけなら link 不要
     (dev / "labkit" / "python" / "x.py").write_text("y")
     git(dev, "add", "-A")
     git(dev, "commit", "-q", "-m", "labkit change")
-    assert "link" in flow.c_linked_if_touched(repo, st, c)           # labkit/ を変えたら必要
+    assert "link" in flow.c_linked_if_touched(repo, st, c)  # labkit/ を変えたら必要
 
 
 def test_flow_cli_works_before_lab_toml(tmp_path, monkeypatch, capsys):
@@ -226,7 +233,9 @@ def test_review_parsing_and_l035(repo):
     d.mkdir(parents=True)
     (d / "2026-11-01_migrate_test.md").write_text(reviews.template("migrate", "test", head))
     (d / "bad.md").write_text("no frontmatter\n")
-    (d / "2026-11-01_migrate_x.md").write_text("---\nreviewer: me\nflow: migrate\nstage: y\ncommit: abc\nverdict: maybe\nfindings: []\n---\n")
+    (d / "2026-11-01_migrate_x.md").write_text(
+        "---\nreviewer: me\nflow: migrate\nstage: y\ncommit: abc\nverdict: maybe\nfindings: []\n---\n"
+    )
     rs = reviews.list_reviews(repo)
     assert [r.path.name for r in rs if not r.errors] == ["2026-11-01_migrate_test.md"]
     assert ("L035", "error") in codes(repo)
@@ -241,20 +250,25 @@ def test_citations(repo):
         log_metric(run, "n", 2000)
     rid = run.run_id
     dev = repo / "docs" / "devlog" / "2026-11-01.md"
-    body = "\n".join(f"## {h}" for h in ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"])
+    body = "\n".join(
+        f"## {h}"
+        for h in ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"]
+    )
     ok = cite(rid, "snr_db", unit="dB")
     assert ok == f"{12.345:.4g} dB [run:{rid}:snr_db]"  # format_value と num_matches は同じ丸め
     assert cite(rid, "snr_db", digits=1) == f"12.3 [run:{rid}:snr_db]"
     assert cite(rid, "n") == f"2000 [run:{rid}:n]"
     dev.write_text(body + f"\n- {rid}: SNR は {cite(rid, 'snr_db', digits=1, unit='dB')} だった\n")
     assert not {c for c in codes(repo) if c[0] in ("L032", "L033")}
-    dev.write_text(body + f"\n- 12.9 dB [run:{rid}:snr_db]\n- 1.0 [run:{rid}:missing]\n- {rid} で SNR 12.3 dB\n"
-                   f"- 20260101-000000_ghost_abcdef0_0000 の結果\n")
+    dev.write_text(
+        body + f"\n- 12.9 dB [run:{rid}:snr_db]\n- 1.0 [run:{rid}:missing]\n- {rid} で SNR 12.3 dB\n"
+        f"- 20260101-000000_ghost_abcdef0_0000 の結果\n"
+    )
     found = {(i.code, i.severity, i.where.split(":")[-1]) for i in issues(repo) if i.code in ("L032", "L033")}
-    assert ("L033", "error", "8") in found       # 値が一致しない
-    assert ("L033", "error", "9") in found       # キーが無い
-    assert ("L033", "warn", "10") in found       # 書式のない数値
-    assert ("L032", "error", "11") in found      # 存在しない run
+    assert ("L033", "error", "8") in found  # 値が一致しない
+    assert ("L033", "error", "9") in found  # キーが無い
+    assert ("L033", "warn", "10") in found  # 書式のない数値
+    assert ("L032", "error", "11") in found  # 存在しない run
     (repo / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "strict"\ncite_bare_numbers = "off"\n')
     assert ("L033", "warn", "10") not in {(i.code, i.severity, i.where.split(":")[-1]) for i in issues(repo)}
     # failed run の引用は警告
@@ -267,11 +281,22 @@ def test_citations(repo):
         cite(rid, "nope")
 
 
-@pytest.mark.parametrize("text,value,ok", [
-    ("12.3", 12.34, True), ("12.3", 12.36, False), ("12.30", 12.3, True), ("12.30", 12.34, False),
-    ("2000", 2000.0, True), ("2000", 2000.4, True), ("2001", 2000.4, False), ("1.2e-3", 0.00123, True),
-    ("1.2e-3", 0.00131, False), ("-0.5", -0.49, True), ("x", 1, False),
-])
+@pytest.mark.parametrize(
+    "text,value,ok",
+    [
+        ("12.3", 12.34, True),
+        ("12.3", 12.36, False),
+        ("12.30", 12.3, True),
+        ("12.30", 12.34, False),
+        ("2000", 2000.0, True),
+        ("2000", 2000.4, True),
+        ("2001", 2000.4, False),
+        ("1.2e-3", 0.00123, True),
+        ("1.2e-3", 0.00131, False),
+        ("-0.5", -0.49, True),
+        ("x", 1, False),
+    ],
+)
 def test_num_matches(text, value, ok):
     assert num_matches(text, value) is ok
 
@@ -282,8 +307,11 @@ def test_check_severity_exit_code(repo, capsys):
     with Run("exp", {}) as run:
         log_metric(run, "a", 1.0)
     dev = repo / "docs" / "devlog" / "2026-11-01.md"
-    body = "\n".join(f"## {h}" for h in ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"])
-    dev.write_text(body + f"\n- {run.run_id} で 3 回試した\n")   # 警告のみ
-    assert main(["check"]) == 0                      # 警告だけなら strict でも成功
+    body = "\n".join(
+        f"## {h}"
+        for h in ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"]
+    )
+    dev.write_text(body + f"\n- {run.run_id} で 3 回試した\n")  # 警告のみ
+    assert main(["check"]) == 0  # 警告だけなら strict でも成功
     out = capsys.readouterr().out
     assert "L033  (warn)" in out and "0 件の違反" in out and "件の警告" in out

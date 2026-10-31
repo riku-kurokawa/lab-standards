@@ -18,7 +18,7 @@ GATE_LINES = [
     "- 承認ゲート: git push / git tag / 保護ブランチへの merge / gh pr merge / gh release / labkit raw freeze / copier は"
     " hooks が止める。presence=away（既定）では拒否して承認待ちキュー（.lab/queue）に記録される。"
     "拒否されたら、その操作に依存しない作業を続け、終了時の報告に承認待ち ID を挙げる。承認後は同じ cwd・同じ HEAD で同じコマンド全文を実行する。",
-    "- 判断が分かれる問いは質問ツールで止まらず `labkit queue ask \"<質問>\" --options A B --assumed \"<仮の判断と理由>\" --impact \"<変更時の影響>\"` で積み、"
+    '- 判断が分かれる問いは質問ツールで止まらず `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>" --impact "<変更時の影響>"` で積み、'
     "仮の判断で進む。`labkit approve/reject/answer` は人間専用で Claude は実行できない。",
 ]
 
@@ -46,7 +46,9 @@ def main() -> None:
     root, kind = sc
     lines: list[str] = []
     if kind == "standards":
-        lines.append("ここは lab-standards 本体。CLAUDE.md（メンテナンス規約）に従う。feat/* ブランチで作業し、main では作業しない。")
+        lines.append(
+            "ここは lab-standards 本体。CLAUDE.md（メンテナンス規約）に従う。feat/* ブランチで作業し、main では作業しない。"
+        )
         lines += GATE_LINES
         lines.append(f"- presence={get_presence(root)}。")
         lines += queue_context(root)
@@ -66,8 +68,10 @@ def main() -> None:
         if py.is_file():
             m = re.search(r'^labkit\s*=\s*\{[^}]*path\s*=\s*"([^"]+)"', py.read_text(encoding="utf-8"), re.M)
             if m:
-                lines.append(f"- 現在 lab-standards 本体を手元参照（link）中: {m.group(1)}。本体の改良は flow improve-standards の手順で進める。"
-                             "この状態では commit できない。")
+                lines.append(
+                    f"- 現在 lab-standards 本体を手元参照（link）中: {m.group(1)}。本体の改良は flow improve-standards の手順で進める。"
+                    "この状態では commit できない。"
+                )
         lines += flow_context(root)
         lines += queue_context(root)
         rr = recent_runs(root)

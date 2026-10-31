@@ -29,11 +29,37 @@ from pathlib import Path
 
 from labkit.config import find_root, load_lab
 
-SKIP_DIRS = {".git", ".venv", "__pycache__", ".mlflow", ".pytest_cache", ".ruff_cache", "node_modules",
-             ".ipynb_checkpoints"}
+SKIP_DIRS = {
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".mlflow",
+    ".pytest_cache",
+    ".ruff_cache",
+    "node_modules",
+    ".ipynb_checkpoints",
+}
 FIG_EXT = {".png", ".pdf", ".svg", ".eps", ".jpg", ".jpeg", ".tif", ".tiff"}
-DATA_EXT = {".h5", ".hdf5", ".parquet", ".npy", ".npz", ".mat", ".csv", ".tsv", ".pkl", ".pickle",
-            ".jld2", ".bson", ".feather", ".arrow", ".nc", ".zarr", ".pt", ".ckpt"}
+DATA_EXT = {
+    ".h5",
+    ".hdf5",
+    ".parquet",
+    ".npy",
+    ".npz",
+    ".mat",
+    ".csv",
+    ".tsv",
+    ".pkl",
+    ".pickle",
+    ".jld2",
+    ".bson",
+    ".feather",
+    ".arrow",
+    ".nc",
+    ".zarr",
+    ".pt",
+    ".ckpt",
+}
 
 
 @dataclass
@@ -53,7 +79,8 @@ RUN_ID_RE = re.compile(r"\b(\d{8}-\d{6}_[a-z0-9-]+_(?:[0-9a-f]{7}|nogit)_[0-9a-f
 # 数値の引用: <数値> [<単位>] [run:<run_id>:<key>]（`labkit cite` が出力する書式）
 CITE_RE = re.compile(
     r"(?P<num>[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*(?P<unit>[^\s\[\]\d][^\s\[\]]{0,11})?\s*"
-    r"\[run:(?P<run>[^:\]\s]+):(?P<key>[^\]\s]+)\]")
+    r"\[run:(?P<run>[^:\]\s]+):(?P<key>[^\]\s]+)\]"
+)
 NUMBER_RE = re.compile(r"(?<![\w./:-])[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?![\w./:-])")
 
 
@@ -76,9 +103,20 @@ class Checker:
         return [i for i in self.issues if i.severity == "error"]
 
     def run(self) -> list[Issue]:
-        for f in (self.layout, self.standards_link, self.rawdata, self.code_rules, self.stray_files,
-                  self.runs_meta, self.data_sidecars, self.devlog, self.adr, self.reviews, self.citations,
-                  self.literature):
+        for f in (
+            self.layout,
+            self.standards_link,
+            self.rawdata,
+            self.code_rules,
+            self.stray_files,
+            self.runs_meta,
+            self.data_sidecars,
+            self.devlog,
+            self.adr,
+            self.reviews,
+            self.citations,
+            self.literature,
+        ):
             try:
                 f()
             except Exception as e:  # チェッカー自身の失敗も報告する
@@ -90,7 +128,9 @@ class Checker:
         allowed = set(self.lab["layout"]["allowed"]) | {".lab"}  # v0.3.0 ハーネスの状態（古い lab.toml でも許す）
         for p in sorted(self.root.iterdir()):
             if p.name not in allowed:
-                self.add("L001", p, "トップレベルに置けません（lab.toml の layout.allowed 参照。一時ファイルは scratch/ へ）")
+                self.add(
+                    "L001", p, "トップレベルに置けません（lab.toml の layout.allowed 参照。一時ファイルは scratch/ へ）"
+                )
 
     def standards_link(self) -> None:
         if not (self.root / "pyproject.toml").is_file():
@@ -99,11 +139,19 @@ class Checker:
 
         st = status(self.root)
         if st.python_mode == "link":
-            self.add("L050", "pyproject.toml", f"labkit が手元の本体（{st.python_ref}）を参照中（link）。"
-                     "リリース後に `labkit standards unlink --to vX.Y.Z` で戻してから commit する")
+            self.add(
+                "L050",
+                "pyproject.toml",
+                f"labkit が手元の本体（{st.python_ref}）を参照中（link）。"
+                "リリース後に `labkit standards unlink --to vX.Y.Z` で戻してから commit する",
+            )
         if st.julia_mode == "link":
-            self.add("L050", "jl/Project.toml", f"LabKit が手元の本体（{st.julia_ref}）を参照中（link）。"
-                     "`labkit standards unlink --to vX.Y.Z` で戻してから commit する")
+            self.add(
+                "L050",
+                "jl/Project.toml",
+                f"LabKit が手元の本体（{st.julia_ref}）を参照中（link）。"
+                "`labkit standards unlink --to vX.Y.Z` で戻してから commit する",
+            )
 
     def rawdata(self) -> None:
         from labkit.rawdata import verify
@@ -140,8 +188,9 @@ class Checker:
             if p.suffix == ".ipynb":
                 try:
                     cells = json.loads(text).get("cells", [])
-                    text = "\n".join("".join(cell.get("source", [])) for cell in cells
-                                     if cell.get("cell_type") == "code")
+                    text = "\n".join(
+                        "".join(cell.get("source", [])) for cell in cells if cell.get("cell_type") == "code"
+                    )
                 except json.JSONDecodeError:
                     continue
             is_jl = p.suffix == ".jl"
@@ -151,21 +200,28 @@ class Checker:
 
             if not self._allowed(p, c["plot_import_allowed"]):
                 for m in (jl_plot if is_jl else py_plot).finditer(text):
-                    self.add("L010", line_of(m), f"{m.group(1)} の直接使用は禁止。図は figspecs/*.toml + `labkit fig` で作る")
+                    self.add(
+                        "L010", line_of(m), f"{m.group(1)} の直接使用は禁止。図は figspecs/*.toml + `labkit fig` で作る"
+                    )
             if not self._allowed(p, c["format_allowed"]):
                 for m in (jl_fmt if is_jl else py_fmt).finditer(text):
                     self.add("L013", line_of(m), f"{m.group(1)} は禁止形式。HDF5/Parquet（labkit.save）を使う")
             rel_parts = p.relative_to(self.root).parts
             if rel_parts[0] == "src" and not is_jl:
                 for m in py_dep.finditer(text):
-                    self.add("L011", line_of(m), "src から scripts/notebooks を import できません（依存は scripts → src の一方向）")
+                    self.add(
+                        "L011",
+                        line_of(m),
+                        "src から scripts/notebooks を import できません（依存は scripts → src の一方向）",
+                    )
             for m in abs_re.finditer(text):
                 self.add("L012", line_of(m), "絶対パスの直書き。configs/paths/*.toml と labkit.datapath を使う")
 
     def stray_files(self) -> None:
         c = self.lab["check"]
-        roots = [self.root / d for d in c["code_dirs"]] + [self.root / d for d in
-                 ("configs", "docs", "figspecs", "jobs", "prompts", "literature")]
+        roots = [self.root / d for d in c["code_dirs"]] + [
+            self.root / d for d in ("configs", "docs", "figspecs", "jobs", "prompts", "literature")
+        ]
         for base in roots:
             if not base.is_dir():
                 continue
@@ -263,7 +319,7 @@ class Checker:
             if p.name in {".gitkeep", "README.md"}:
                 continue
             if not re.match(r"^\d{4}-[a-z0-9-]+\.md$", p.name):
-                self.add("L031", p, "ADR は NNNN-kebab-case.md（`labkit adr \"タイトル\"` で作成）")
+                self.add("L031", p, 'ADR は NNNN-kebab-case.md（`labkit adr "タイトル"` で作成）')
                 continue
             text = p.read_text(encoding="utf-8")
             if not re.search(r"^- 状態:\s*(提案|採用|却下|廃止|置換)", text, re.M):
@@ -285,8 +341,12 @@ class Checker:
     def _doc_files(self):
         from labkit.reviews import REVIEW_DIR
 
-        dirs = [self.lab["devlog"]["dir"], self.lab["adr"]["dir"], REVIEW_DIR,
-                str(Path(self.lab["literature"]["dir"]) / "surveys")]
+        dirs = [
+            self.lab["devlog"]["dir"],
+            self.lab["adr"]["dir"],
+            REVIEW_DIR,
+            str(Path(self.lab["literature"]["dir"]) / "surveys"),
+        ]
         for d in dirs:
             base = self.root / d
             if base.is_dir():
@@ -331,15 +391,21 @@ class Checker:
                 ids = set(RUN_ID_RE.findall(line))
                 for rid in ids:  # L032: 引用された run の存在と状態
                     if rid not in runs:
-                        self.add("L032", where, f"run {rid} が runs/ にありません（HPC の run なら meta.json を同期する）")
+                        self.add(
+                            "L032", where, f"run {rid} が runs/ にありません（HPC の run なら meta.json を同期する）"
+                        )
                     elif runs[rid] is None:
                         self.add("L032", where, f"run {rid} に meta.json がありません")
                     else:
                         m = runs[rid]
                         if m.get("status") in ("failed", "interrupted", "running"):
-                            self.add("L032", where, f"run {rid} は status={m.get('status')}（結果として引用しない）", "warn")
+                            self.add(
+                                "L032", where, f"run {rid} は status={m.get('status')}（結果として引用しない）", "warn"
+                            )
                         if (m.get("labkit_source") or {}).get("mode") == "link":
-                            self.add("L032", where, f"run {rid} は link 中の labkit で実行（正式版の結果ではない）", "warn")
+                            self.add(
+                                "L032", where, f"run {rid} は link 中の labkit で実行（正式版の結果ではない）", "warn"
+                            )
                 rest = line
                 for m in CITE_RE.finditer(line):  # L033: 数値の引用を metrics.json と照合
                     rest = rest.replace(m.group(0), " ")
@@ -350,15 +416,23 @@ class Checker:
                     if key not in vals:
                         self.add("L033", where, f"run {rid} の metrics.json に {key} がありません")
                     elif not num_matches(num, vals[key]):
-                        self.add("L033", where, f"{num} は run {rid} の {key}={vals[key]} と一致しません（表示桁で丸めて比較）")
+                        self.add(
+                            "L033",
+                            where,
+                            f"{num} は run {rid} の {key}={vals[key]} と一致しません（表示桁で丸めて比較）",
+                        )
                 if ids and bare != "off" and not line.lstrip().startswith("#"):
                     for rid in ids:
                         rest = rest.replace(rid, " ")
                     rest = re.sub(r"\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?", " ", rest)  # 日付・時刻は除く
                     if NUMBER_RE.search(rest):
-                        self.add("L033", where, "run ID と同じ行に書式のない数値があります。`labkit cite <run_id> <key>` の "
-                                 "`値 [run:<run_id>:<key>]` 書式で書く（lab.toml の check.cite_bare_numbers = \"off\" で無効化）",
-                                 "warn")
+                        self.add(
+                            "L033",
+                            where,
+                            "run ID と同じ行に書式のない数値があります。`labkit cite <run_id> <key>` の "
+                            '`値 [run:<run_id>:<key>]` 書式で書く（lab.toml の check.cite_bare_numbers = "off" で無効化）',
+                            "warn",
+                        )
 
     def literature(self) -> None:
         from labkit.literature import check_literature

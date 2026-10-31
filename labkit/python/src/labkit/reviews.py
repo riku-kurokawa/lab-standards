@@ -104,7 +104,7 @@ def template(flow: str, stage: str, commit: str) -> str:
         f"commit: {commit}\n"
         "verdict: changes-requested   # pass | changes-requested\n"
         "findings:\n"
-        "  - \"<path>:<line> 指摘（根拠）\"\n"
+        '  - "<path>:<line> 指摘（根拠）"\n'
         "---\n\n"
         f"# レビュー: {flow} / {stage}\n\n"
         "## 概要\n\n## labkit check\n\n## 要修正\n\n## 確認推奨\n\n## 問題なし\n"

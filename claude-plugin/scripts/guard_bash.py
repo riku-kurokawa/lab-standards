@@ -49,7 +49,8 @@ def raw_write(s: str) -> bool:
 def harness_state_write(s: str) -> bool:
     """承認記録・キュー・flow の状態を Bash で直接書き換えようとしているか."""
     if re.search(r"\.lab/(?:approvals|queue|flows)", s) and re.search(
-            r">{1,2}|\btee\b|\bsed\s+-i|\b(?:rm|mv|cp|touch|install|truncate|python[0-9.]*\s+-c|perl|ruby|node\s+-e)\b", s):
+        r">{1,2}|\btee\b|\bsed\s+-i|\b(?:rm|mv|cp|touch|install|truncate|python[0-9.]*\s+-c|perl|ruby|node\s+-e)\b", s
+    ):
         return True
     return False
 
@@ -63,7 +64,9 @@ def gate_check(data: dict, cmd: str, root, kind: str) -> None:
     hits = gate.classify(cmd, conf.get("protected_branches", ["main", "master"]), git_branch(cwd))
 
     for h in gate.forbidden(hits):
-        block(f"{h.description} は Claude が実行できません。人間に依頼してください（`labkit queue list` で ID を伝える）。")
+        block(
+            f"{h.description} は Claude が実行できません。人間に依頼してください（`labkit queue list` で ID を伝える）。"
+        )
 
     if kind == "project":
         for st in active_flows(root):
@@ -72,10 +75,14 @@ def gate_check(data: dict, cmd: str, root, kind: str) -> None:
             if bad:
                 from _labcommon import describe_condition
 
-                conds = "; ".join(describe_condition(c) for c in s.get("done", [])) or "（この段階の作業を終えて advance）"
-                block(f"今は flow {st['flow']} の段階「{s['name']}」で、{bad[0].description}（カテゴリ "
-                      f"{gate.FLOW_CATEGORY.get(bad[0].category)}）は禁止です。先に {conds} が必要"
-                      f"（`labkit flow status` → `labkit flow advance`）。")
+                conds = (
+                    "; ".join(describe_condition(c) for c in s.get("done", [])) or "（この段階の作業を終えて advance）"
+                )
+                block(
+                    f"今は flow {st['flow']} の段階「{s['name']}」で、{bad[0].description}（カテゴリ "
+                    f"{gate.FLOW_CATEGORY.get(bad[0].category)}）は禁止です。先に {conds} が必要"
+                    f"（`labkit flow status` → `labkit flow advance`）。"
+                )
 
     if not conf.get("enabled", True):
         return
@@ -99,11 +106,19 @@ def gate_check(data: dict, cmd: str, root, kind: str) -> None:
     mode = str(data.get("permission_mode") or "")
     if presence == "here" and mode not in NO_PROMPT_MODES:
         decide("ask", f"{what}。承認ゲートの対象です。実行してよいか確認してください。")
-    item = request_approval(root, command, cwd=target, session_id=str(data.get("session_id") or ""),
-                            reason=what + ("" if presence == "away" else f"（presence=here だが permission_mode={mode} では確認画面が出ないため）"))
-    block(f"{what} は人間の承認が必要です（presence={presence}）。承認待ち #{item['id']} として記録しました。"
-          f"この操作に依存しない作業を続け、終了時の報告に挙げてください。人間が `labkit approve {item['id']}` した後、"
-          f"同じディレクトリ・同じ HEAD（{(head or '')[:7]}）で同じコマンド全文を実行すると通ります。")
+    item = request_approval(
+        root,
+        command,
+        cwd=target,
+        session_id=str(data.get("session_id") or ""),
+        reason=what
+        + ("" if presence == "away" else f"（presence=here だが permission_mode={mode} では確認画面が出ないため）"),
+    )
+    block(
+        f"{what} は人間の承認が必要です（presence={presence}）。承認待ち #{item['id']} として記録しました。"
+        f"この操作に依存しない作業を続け、終了時の報告に挙げてください。人間が `labkit approve {item['id']}` した後、"
+        f"同じディレクトリ・同じ HEAD（{(head or '')[:7]}）で同じコマンド全文を実行すると通ります。"
+    )
 
 
 def main() -> None:
@@ -121,8 +136,10 @@ def main() -> None:
 
     for seg in gate.segments(cmd):
         if harness_state_write(seg):
-            block(".lab/approvals・.lab/queue・.lab/flows は直接書き換えません。labkit のコマンド"
-                  "（queue / flow）を使ってください。承認・却下・回答は人間だけが行います。")
+            block(
+                ".lab/approvals・.lab/queue・.lab/flows は直接書き換えません。labkit のコマンド"
+                "（queue / flow）を使ってください。承認・却下・回答は人間だけが行います。"
+            )
 
     gate_check(data, cmd, root, kind)
 
@@ -137,7 +154,9 @@ def main() -> None:
         if re.search(r"\bgit\s+(?:checkout|restore)\b.*\bdata/raw\b", s):
             block("data/raw を git で書き換える操作は禁止です。")
         if "data/raw" in s and raw_write(s):
-            block("data/raw を変更・削除する操作は禁止です（生データは不変）。生データの追加は人間が行い `labkit raw freeze` で登録します。")
+            block(
+                "data/raw を変更・削除する操作は禁止です（生データは不変）。生データの追加は人間が行い `labkit raw freeze` で登録します。"
+            )
         for ro in readonly:
             if ro != "data/raw" and ro in s and raw_write(s):
                 block(f"{ro} は読み取り専用領域です。変更・削除はしません。")

@@ -21,8 +21,9 @@ from _labstate import pending_summary
 
 def changed_code(root: Path) -> list[str]:
     try:
-        out = subprocess.run(["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True,
-                             check=True).stdout
+        out = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True, check=True
+        ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
     files = [line[3:].strip() for line in out.splitlines() if len(line) > 3]
@@ -50,16 +51,24 @@ def main() -> None:
     mine = [i for i in pend if session and i.get("session_id") == session]
     if mine:
         ids = ", ".join(f"#{i['id']}" for i in mine)
-        print(json.dumps({"systemMessage": f"[lab-rules] 承認待ち {ids} があるため終了を許可します。"
-                                           f"人間: `labkit queue list` → `labkit approve <ID>`"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "systemMessage": f"[lab-rules] 承認待ち {ids} があるため終了を許可します。"
+                    f"人間: `labkit queue list` → `labkit approve <ID>`"
+                },
+                ensure_ascii=False,
+            )
+        )
         return
 
     problems: list[str] = []
     cmd = labkit_cmd(root)
     if cmd:
         # L050（本体を link 中）は改良作業中の正常な状態なので、ここでは止めない（commit 時に pre-commit が止める）
-        res = subprocess.run([*cmd, "check", "--ignore", "L050"], cwd=root, capture_output=True, text=True,
-                             check=False, timeout=240)
+        res = subprocess.run(
+            [*cmd, "check", "--ignore", "L050"], cwd=root, capture_output=True, text=True, check=False, timeout=240
+        )
         if res.returncode != 0:
             problems.append("`labkit check` の違反:\n" + (res.stdout + res.stderr).strip()[-3500:])
     else:
@@ -70,9 +79,11 @@ def main() -> None:
         today = _dt.date.today().isoformat()
         devlog = root / lab.get("devlog", {}).get("dir", "docs/devlog") / f"{today}.md"
         if changed and not devlog.exists():
-            problems.append(f"コードを変更しましたが今日の開発ログがありません。`labkit devlog` で {devlog.relative_to(root)} を作り、"
-                            f"必須見出しに沿って今回の作業を記録してください（変更: {', '.join(changed[:8])}）。"
-                            "run の数値は `labkit cite <run_id> <key>` の書式で書く。")
+            problems.append(
+                f"コードを変更しましたが今日の開発ログがありません。`labkit devlog` で {devlog.relative_to(root)} を作り、"
+                f"必須見出しに沿って今回の作業を記録してください（変更: {', '.join(changed[:8])}）。"
+                "run の数値は `labkit cite <run_id> <key>` の書式で書く。"
+            )
 
     cf = counter_file(session)
     state = json.loads(cf.read_text()) if cf.exists() else {"blocks": 0}
@@ -82,13 +93,21 @@ def main() -> None:
     limit = int(lab.get("claude", {}).get("max_stop_blocks", 3))
     if state["blocks"] >= limit:
         cf.unlink(missing_ok=True)
-        print(json.dumps({"systemMessage": f"[lab-rules] 規約違反が {limit} 回の修正で解消しませんでした。人間の確認が必要です。"},
-                         ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "systemMessage": f"[lab-rules] 規約違反が {limit} 回の修正で解消しませんでした。人間の確認が必要です。"
+                },
+                ensure_ascii=False,
+            )
+        )
         return
     state["blocks"] += 1
     cf.write_text(json.dumps(state))
-    print("[lab-rules] 作業完了の条件を満たしていません。以下を解消してから終了してください:\n\n" + "\n\n".join(problems),
-          file=sys.stderr)
+    print(
+        "[lab-rules] 作業完了の条件を満たしていません。以下を解消してから終了してください:\n\n" + "\n\n".join(problems),
+        file=sys.stderr,
+    )
     sys.exit(2)
 
 

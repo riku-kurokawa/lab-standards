@@ -33,9 +33,9 @@ TAG_RE = re.compile(r"^v\d+\.\d+\.\d+([.-][0-9A-Za-z.]+)?$")
 
 @dataclass
 class Status:
-    python_mode: str          # release | link | unknown
-    python_ref: str           # タグ or ローカルパス
-    julia_mode: str | None    # release | link | unknown | None（Julia 不使用）
+    python_mode: str  # release | link | unknown
+    python_ref: str  # タグ or ローカルパス
+    julia_mode: str | None  # release | link | unknown | None（Julia 不使用）
     julia_ref: str | None
     template_commit: str | None
     standards_repo: str | None
@@ -114,17 +114,23 @@ def sync(root: Path, julia: bool = True) -> None:
 def link(path: str | None = None, root: Path | None = None, do_sync: bool = True) -> Status:
     root = root or find_root()
     dev = dev_checkout(path)
-    _replace(root / "pyproject.toml", PY_LINE,
-             f'labkit = {{ path = "{(dev / "labkit" / "python").as_posix()}", editable = true }}', "labkit")
+    _replace(
+        root / "pyproject.toml",
+        PY_LINE,
+        f'labkit = {{ path = "{(dev / "labkit" / "python").as_posix()}", editable = true }}',
+        "labkit",
+    )
     jl = root / "jl" / "Project.toml"
     if jl.is_file():
         _replace(jl, JL_LINE, f'LabKit = {{ path = "{(dev / "labkit" / "julia" / "LabKit").as_posix()}" }}', "LabKit")
     if do_sync:
         sync(root)
     st = status(root)
-    print(f"\nlink しました: {dev}\n"
-          "本体（labkit/python, labkit/julia/LabKit）の編集がこのプロジェクトに即座に反映されます。\n"
-          "この状態では commit できません（labkit check L050）。リリース後に `labkit standards unlink --to vX.Y.Z`。")
+    print(
+        f"\nlink しました: {dev}\n"
+        "本体（labkit/python, labkit/julia/LabKit）の編集がこのプロジェクトに即座に反映されます。\n"
+        "この状態では commit できません（labkit check L050）。リリース後に `labkit standards unlink --to vX.Y.Z`。"
+    )
     return st
 
 
@@ -135,18 +141,26 @@ def unlink(to: str, root: Path | None = None, do_sync: bool = True) -> Status:
     repo = _answers(root).get("standards_repo")
     if not repo:
         raise SystemExit(".copier-answers.yml に standards_repo がありません")
-    _replace(root / "pyproject.toml", PY_LINE,
-             f'labkit = {{ git = "https://github.com/{repo}.git", tag = "{to}", subdirectory = "labkit/python" }}',
-             "labkit")
+    _replace(
+        root / "pyproject.toml",
+        PY_LINE,
+        f'labkit = {{ git = "https://github.com/{repo}.git", tag = "{to}", subdirectory = "labkit/python" }}',
+        "labkit",
+    )
     jl = root / "jl" / "Project.toml"
     if jl.is_file():
-        _replace(jl, JL_LINE,
-                 f'LabKit = {{ url = "https://github.com/{repo}.git", subdir = "labkit/julia/LabKit", rev = "{to}" }}',
-                 "LabKit")
+        _replace(
+            jl,
+            JL_LINE,
+            f'LabKit = {{ url = "https://github.com/{repo}.git", subdir = "labkit/julia/LabKit", rev = "{to}" }}',
+            "LabKit",
+        )
     if do_sync:
         sync(root)
-    print(f"\nリリース版 {to} を参照するように戻しました。\n"
-          f"次: 変更を commit → `labkit standards template --ref {to}` で雛形の差分を取り込む → commit")
+    print(
+        f"\nリリース版 {to} を参照するように戻しました。\n"
+        f"次: 変更を commit → `labkit standards template --ref {to}` で雛形の差分を取り込む → commit"
+    )
     return status(root)
 
 
@@ -170,8 +184,9 @@ def template(ref: str, root: Path | None = None) -> int:
 
 def latest_local_tag(dev: Path) -> str | None:
     try:
-        out = subprocess.run(["git", "tag", "--list", "v*", "--sort=-v:refname"], cwd=dev,
-                             capture_output=True, text=True, check=True).stdout.split()
+        out = subprocess.run(
+            ["git", "tag", "--list", "v*", "--sort=-v:refname"], cwd=dev, capture_output=True, text=True, check=True
+        ).stdout.split()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
     return out[0] if out else None

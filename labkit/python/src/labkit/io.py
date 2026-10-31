@@ -183,10 +183,10 @@ def writer(
 ) -> Iterator[Path]:
     """任意のライブラリで書く大規模ファイル用。一時パスを渡し、成功時に rename + サイドカー.
 
-        with writer(datapath("interim", "big.h5")) as tmp:
-            with h5py.File(tmp, "w") as f:
-                ds = f.create_dataset("x", shape=(n, m), chunks=(1, m))
-                for i in range(n): ds[i] = compute(i)
+    with writer(datapath("interim", "big.h5")) as tmp:
+        with h5py.File(tmp, "w") as f:
+            ds = f.create_dataset("x", shape=(n, m), chunks=(1, m))
+            for i in range(n): ds[i] = compute(i)
     """
     p = Path(path)
     root = find_root(p.parent if p.parent.exists() else None)

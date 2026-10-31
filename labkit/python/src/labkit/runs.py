@@ -205,9 +205,11 @@ class Run:
         write_json_atomic(self.dir / "metrics.json", self._last)
         skip = {"meta.json"}
         self.meta["outputs"] = sorted(
-            ({"path": str(p.relative_to(self.dir)), "size": p.stat().st_size}
-             for p in self.dir.rglob("*")
-             if p.is_file() and p.name not in skip and "figures" not in p.relative_to(self.dir).parts),
+            (
+                {"path": str(p.relative_to(self.dir)), "size": p.stat().st_size}
+                for p in self.dir.rglob("*")
+                if p.is_file() and p.name not in skip and "figures" not in p.relative_to(self.dir).parts
+            ),
             key=lambda d: d["path"],
         )
         write_json_atomic(self.dir / "meta.json", self.meta)

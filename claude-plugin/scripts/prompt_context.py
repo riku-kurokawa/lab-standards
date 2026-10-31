@@ -22,8 +22,11 @@ def main() -> None:
     if not lines:
         return
     ctx = "[lab-rules] 承認キューと手順の状態:\n" + "\n".join(lines)
-    print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": ctx}},
-                     ensure_ascii=False))
+    print(
+        json.dumps(
+            {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}, ensure_ascii=False
+        )
+    )
 
 
 if __name__ == "__main__":

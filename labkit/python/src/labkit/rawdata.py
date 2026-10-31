@@ -18,8 +18,7 @@ IGNORE = {MANIFEST, ".gitkeep", "README.md"}
 
 
 def _files(raw: Path) -> list[Path]:
-    return sorted(p for p in raw.rglob("*") if p.is_file() and p.name not in IGNORE
-                  and not p.name.startswith("."))
+    return sorted(p for p in raw.rglob("*") if p.is_file() and p.name not in IGNORE and not p.name.startswith("."))
 
 
 def read_manifest(raw: Path) -> dict[str, tuple[str, int]]:
@@ -53,8 +52,7 @@ def freeze(root: Path | None = None, chmod: bool = True, progress=print) -> Path
     if mf.exists():
         os.chmod(mf, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
     header = f"# labkit raw manifest — updated {now_iso()}\n"
-    mf.write_text(header + "\n".join(sorted(lines, key=lambda s: s.split(None, 2)[2])) + "\n",
-                  encoding="utf-8")
+    mf.write_text(header + "\n".join(sorted(lines, key=lambda s: s.split(None, 2)[2])) + "\n", encoding="utf-8")
     if chmod:
         ro = stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
         for p in _files(raw):

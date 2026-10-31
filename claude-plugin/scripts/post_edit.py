@@ -36,11 +36,14 @@ def main() -> None:
         return
     subprocess.run([*ruff, "format", "--quiet", str(p)], cwd=root, check=False)
     subprocess.run([*ruff, "check", "--fix", "--quiet", str(p)], cwd=root, check=False, capture_output=True)
-    res = subprocess.run([*ruff, "check", "--output-format", "concise", str(p)], cwd=root,
-                         capture_output=True, text=True, check=False)
+    res = subprocess.run(
+        [*ruff, "check", "--output-format", "concise", str(p)], cwd=root, capture_output=True, text=True, check=False
+    )
     if res.returncode != 0 and res.stdout.strip():
-        print(f"[lab-rules] {rel} に lint 違反が残っています。修正してください:\n{res.stdout.strip()[:3000]}",
-              file=sys.stderr)
+        print(
+            f"[lab-rules] {rel} に lint 違反が残っています。修正してください:\n{res.stdout.strip()[:3000]}",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
 

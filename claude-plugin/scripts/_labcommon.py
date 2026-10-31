@@ -68,8 +68,13 @@ def block(message: str) -> None:
 
 def decide(decision: str, reason: str, extra: dict | None = None) -> None:
     """PreToolUse の JSON 出力（allow / ask / deny）で終了する."""
-    out = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": decision,
-                                  "permissionDecisionReason": f"[lab-rules] {reason}"}}
+    out = {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": decision,
+            "permissionDecisionReason": f"[lab-rules] {reason}",
+        }
+    }
     if extra:
         out.update(extra)
     print(json.dumps(out, ensure_ascii=False))
@@ -116,8 +121,11 @@ def flow_context(root: Path) -> list[str]:
         if s.get("forbid"):
             lines.append(f"  この段階で禁止の操作: {', '.join(s['forbid'])}（hooks が拒否する）")
         if s.get("done"):
-            lines.append("  次へ進む条件: " + "; ".join(describe_condition(c) for c in s["done"])
-                         + "。`labkit flow status` で未達を確認し、満たしたら `labkit flow advance`")
+            lines.append(
+                "  次へ進む条件: "
+                + "; ".join(describe_condition(c) for c in s["done"])
+                + "。`labkit flow status` で未達を確認し、満たしたら `labkit flow advance`"
+            )
         if s.get("approval"):
             lines.append("  この段階から進むには人間の承認が要る（advance がキューに積む）")
     return lines
@@ -129,14 +137,20 @@ def queue_context(root: Path) -> list[str]:
     s = pending_summary(root)
     lines = []
     for it in s["approved"]:
-        lines.append(f"- 承認済み・未実行 #{it['id']}: `{it['command']}`（cwd {it.get('cwd')}, HEAD {(it.get('head') or '')[:7]}）"
-                     "→ 同じディレクトリ・同じ HEAD で、同じコマンド全文をそのまま実行する（1 回限り）")
+        lines.append(
+            f"- 承認済み・未実行 #{it['id']}: `{it['command']}`（cwd {it.get('cwd')}, HEAD {(it.get('head') or '')[:7]}）"
+            "→ 同じディレクトリ・同じ HEAD で、同じコマンド全文をそのまま実行する（1 回限り）"
+        )
     for it in s["pending"]:
-        lines.append(f"- 承認待ち #{it['id']}: `{it['command']}` — 人間の `labkit approve {it['id']}` を待つ。"
-                     "依存しない作業を続け、終了時の報告に挙げる")
+        lines.append(
+            f"- 承認待ち #{it['id']}: `{it['command']}` — 人間の `labkit approve {it['id']}` を待つ。"
+            "依存しない作業を続け、終了時の報告に挙げる"
+        )
     for it in s["answered"]:
-        lines.append(f"- 回答あり #{it['id']}: 質問「{it.get('question')}」→ 回答「{it.get('answer')}」"
-                     f"（仮の判断は「{it.get('assumed')}」）。取り込んだら `labkit queue done {it['id']}`")
+        lines.append(
+            f"- 回答あり #{it['id']}: 質問「{it.get('question')}」→ 回答「{it.get('answer')}」"
+            f"（仮の判断は「{it.get('assumed')}」）。取り込んだら `labkit queue done {it['id']}`"
+        )
     for it in s["open_questions"]:
         lines.append(f"- 未回答の質問 #{it['id']}: 「{it.get('question')}」仮の判断「{it.get('assumed')}」で進行中")
     return lines

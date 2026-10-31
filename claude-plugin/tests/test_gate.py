@@ -15,13 +15,19 @@ import _labstate as st  # noqa: E402
 
 
 def run(script: str, payload: dict) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, str(SCRIPTS / script)], input=json.dumps(payload),
-                          capture_output=True, text=True)
+    return subprocess.run(
+        [sys.executable, str(SCRIPTS / script)], input=json.dumps(payload), capture_output=True, text=True
+    )
 
 
 def bash(cwd: Path, cmd: str, **extra) -> subprocess.CompletedProcess:
-    payload = {"cwd": str(cwd), "tool_name": "Bash", "tool_input": {"command": cmd}, "permission_mode": "default",
-               "session_id": "s1"}
+    payload = {
+        "cwd": str(cwd),
+        "tool_name": "Bash",
+        "tool_input": {"command": cmd},
+        "permission_mode": "default",
+        "session_id": "s1",
+    }
     payload.update(extra)
     return run("guard_bash.py", payload)
 
@@ -35,8 +41,9 @@ def decision(res: subprocess.CompletedProcess) -> str:
 
 
 def git(cwd: Path, *args: str) -> str:
-    return subprocess.run(["git", "-c", "user.email=a@b", "-c", "user.name=t", *args], cwd=cwd, capture_output=True,
-                          text=True, check=True).stdout.strip()
+    return subprocess.run(
+        ["git", "-c", "user.email=a@b", "-c", "user.name=t", *args], cwd=cwd, capture_output=True, text=True, check=True
+    ).stdout.strip()
 
 
 @pytest.fixture
@@ -60,57 +67,60 @@ def standards(tmp_path: Path) -> Path:
 
 
 # ---- 分類 ----
-@pytest.mark.parametrize("cmd,cats", [
-    ("git push", {"git_push"}),
-    ("git push origin main --tags", {"git_push"}),
-    ("git -c core.x=1 -C /tmp/x push", {"git_push"}),
-    ("command git push", {"git_push"}),
-    ("sudo -u me git push", {"git_push"}),
-    ("FOO=1 git push", {"git_push"}),
-    ("env FOO=1 git push", {"git_push"}),
-    ("/usr/bin/git push", {"git_push"}),
-    ("ls && git push", {"git_push"}),
-    ("git add -A; git commit -m x; git push", {"git_push"}),
-    ("ls & git push", {"git_push"}),
-    ("(git push)", {"git_push"}),
-    ("{ git push; }", {"git_push"}),
-    ("if true; then git push; fi", {"git_push"}),
-    ("echo origin | xargs git push", {"git_push"}),
-    ("uv run -m labkit.cli approve Q1", {"labkit_approve"}),
-    ("uv tool run labkit raw freeze", {"raw_freeze"}),
-    ("uvx copier@9.19 copy gh:x/y .", {"template"}),
-    ("echo ok | git push", {"git_push"}),
-    ("git tag v0.3.0", {"git_tag"}),
-    ("git tag -a v1 -m msg", {"git_tag"}),
-    ("git tag -d v1", {"git_tag"}),
-    ("git tag", set()),
-    ("git tag -l 'v*'", set()),
-    ("git tag --list", set()),
-    ("git merge feat/x", {"git_merge"}),            # 現在ブランチが main（保護）
-    ("gh pr merge 12 --squash", {"gh_merge"}),
-    ("gh release create v1", {"gh_release"}),
-    ("gh release list", set()),
-    ("labkit raw freeze", {"raw_freeze"}),
-    ("uv run labkit raw freeze", {"raw_freeze"}),
-    ("uv run --project ../x --quiet labkit raw freeze", {"raw_freeze"}),
-    ("python -m labkit.cli raw freeze", {"raw_freeze"}),
-    ("make raw-freeze", {"raw_freeze"}),             # 旧雛形の Makefile
-    ("make -C proj raw-freeze", {"raw_freeze"}),
-    ("copier copy gh:me/x .", {"template"}),
-    ("uvx copier update", {"template"}),
-    ("uv run labkit standards template --ref v1", {"template"}),
-    ("make std-template REF=v1", {"template"}),
-    ("labkit approve Q001", {"labkit_approve"}),
-    ("uv run labkit reject Q001 --yes", {"labkit_approve"}),
-    ("uv run labkit answer Q001 'x'", {"labkit_approve"}),
-    ("uv run labkit standards link", {"link"}),
-    ("uv run python scripts/run_example.py configs/e.toml", {"experiments"}),
-    ("julia --project=jl jl/scripts/run_example.jl c.toml", {"experiments"}),
-    ("sbatch jobs/x.sh", {"experiments"}),
-    ("git status && git log --oneline", set()),
-    ("uv run pytest -q", set()),
-    ("labkit flow advance migrate", set()),
-])
+@pytest.mark.parametrize(
+    "cmd,cats",
+    [
+        ("git push", {"git_push"}),
+        ("git push origin main --tags", {"git_push"}),
+        ("git -c core.x=1 -C /tmp/x push", {"git_push"}),
+        ("command git push", {"git_push"}),
+        ("sudo -u me git push", {"git_push"}),
+        ("FOO=1 git push", {"git_push"}),
+        ("env FOO=1 git push", {"git_push"}),
+        ("/usr/bin/git push", {"git_push"}),
+        ("ls && git push", {"git_push"}),
+        ("git add -A; git commit -m x; git push", {"git_push"}),
+        ("ls & git push", {"git_push"}),
+        ("(git push)", {"git_push"}),
+        ("{ git push; }", {"git_push"}),
+        ("if true; then git push; fi", {"git_push"}),
+        ("echo origin | xargs git push", {"git_push"}),
+        ("uv run -m labkit.cli approve Q1", {"labkit_approve"}),
+        ("uv tool run labkit raw freeze", {"raw_freeze"}),
+        ("uvx copier@9.19 copy gh:x/y .", {"template"}),
+        ("echo ok | git push", {"git_push"}),
+        ("git tag v0.3.0", {"git_tag"}),
+        ("git tag -a v1 -m msg", {"git_tag"}),
+        ("git tag -d v1", {"git_tag"}),
+        ("git tag", set()),
+        ("git tag -l 'v*'", set()),
+        ("git tag --list", set()),
+        ("git merge feat/x", {"git_merge"}),  # 現在ブランチが main（保護）
+        ("gh pr merge 12 --squash", {"gh_merge"}),
+        ("gh release create v1", {"gh_release"}),
+        ("gh release list", set()),
+        ("labkit raw freeze", {"raw_freeze"}),
+        ("uv run labkit raw freeze", {"raw_freeze"}),
+        ("uv run --project ../x --quiet labkit raw freeze", {"raw_freeze"}),
+        ("python -m labkit.cli raw freeze", {"raw_freeze"}),
+        ("make raw-freeze", {"raw_freeze"}),  # 旧雛形の Makefile
+        ("make -C proj raw-freeze", {"raw_freeze"}),
+        ("copier copy gh:me/x .", {"template"}),
+        ("uvx copier update", {"template"}),
+        ("uv run labkit standards template --ref v1", {"template"}),
+        ("make std-template REF=v1", {"template"}),
+        ("labkit approve Q001", {"labkit_approve"}),
+        ("uv run labkit reject Q001 --yes", {"labkit_approve"}),
+        ("uv run labkit answer Q001 'x'", {"labkit_approve"}),
+        ("uv run labkit standards link", {"link"}),
+        ("uv run python scripts/run_example.py configs/e.toml", {"experiments"}),
+        ("julia --project=jl jl/scripts/run_example.jl c.toml", {"experiments"}),
+        ("sbatch jobs/x.sh", {"experiments"}),
+        ("git status && git log --oneline", set()),
+        ("uv run pytest -q", set()),
+        ("labkit flow advance migrate", set()),
+    ],
+)
 def test_classify(cmd, cats):
     hits = gate.classify(cmd, ["main", "master"], current_branch="main")
     assert {h.category for h in hits} == cats, hits
@@ -143,7 +153,7 @@ def test_here_asks_but_not_in_bypass(proj):
     (proj / ".lab").mkdir()
     (proj / ".lab" / "presence").write_text("here\n")
     assert decision(bash(proj, "git push")) == "ask"
-    assert decision(bash(proj, "git push", permission_mode="auto")) == "ask"   # auto でも ask は確認画面に出る
+    assert decision(bash(proj, "git push", permission_mode="auto")) == "ask"  # auto でも ask は確認画面に出る
     for mode in ("bypassPermissions", "dontAsk"):
         assert decision(bash(proj, "git push", permission_mode=mode)) == "deny"
     assert len(st.list_queue(proj)) == 1
@@ -152,9 +162,15 @@ def test_here_asks_but_not_in_bypass(proj):
 def _approve(root: Path, qid: str, *, command=None, head=None, hours=24.0, used=None):
     it = json.loads((root / ".lab" / "queue" / f"{qid}.json").read_text())
     now = dt.datetime.now().astimezone()
-    rec = {"id": qid, "command": command or it["command"], "head": head or it["head"], "cwd": it["cwd"],
-           "approved_at": now.isoformat(timespec="seconds"),
-           "expires_at": (now + dt.timedelta(hours=hours)).isoformat(timespec="seconds"), "used_at": used}
+    rec = {
+        "id": qid,
+        "command": command or it["command"],
+        "head": head or it["head"],
+        "cwd": it["cwd"],
+        "approved_at": now.isoformat(timespec="seconds"),
+        "expires_at": (now + dt.timedelta(hours=hours)).isoformat(timespec="seconds"),
+        "used_at": used,
+    }
     (root / ".lab" / "approvals").mkdir(exist_ok=True)
     (root / ".lab" / "approvals" / f"{qid}.json").write_text(json.dumps(rec))
     return rec
@@ -163,12 +179,12 @@ def _approve(root: Path, qid: str, *, command=None, head=None, hours=24.0, used=
 def test_approval_is_exact_once_and_bound_to_head(proj):
     bash(proj, "git push origin main")
     _approve(proj, "Q001")
-    assert decision(bash(proj, "git push origin main --force")) == "deny"      # コマンドが違う
-    assert decision(bash(proj, "git push origin main")) == "allow"             # 一致 → 通る
+    assert decision(bash(proj, "git push origin main --force")) == "deny"  # コマンドが違う
+    assert decision(bash(proj, "git push origin main")) == "allow"  # 一致 → 通る
     rec = json.loads((proj / ".lab" / "approvals" / "Q001.json").read_text())
-    assert rec["used_at"]                                                       # 使用済み
+    assert rec["used_at"]  # 使用済み
     assert json.loads((proj / ".lab" / "queue" / "Q001.json").read_text())["status"] == "executed"
-    assert decision(bash(proj, "git push origin main")) == "deny"              # 2 回目は通らない
+    assert decision(bash(proj, "git push origin main")) == "deny"  # 2 回目は通らない
 
 
 def test_approval_expired_or_other_head(proj):
@@ -182,15 +198,33 @@ def test_approval_expired_or_other_head(proj):
 
 
 def test_claude_cannot_approve(proj):
-    for cmd in ("labkit approve Q001", "uv run labkit approve Q001 --yes", "labkit reject Q001", "labkit answer Q001 x",
-                "echo x > .lab/approvals/Q001.json", "python -c 'open(\".lab/approvals/Q9.json\",\"w\")'",
-                "sed -i s/pending/approved/ .lab/queue/Q001.json"):
+    for cmd in (
+        "labkit approve Q001",
+        "uv run labkit approve Q001 --yes",
+        "labkit reject Q001",
+        "labkit answer Q001 x",
+        "echo x > .lab/approvals/Q001.json",
+        'python -c \'open(".lab/approvals/Q9.json","w")\'',
+        "sed -i s/pending/approved/ .lab/queue/Q001.json",
+    ):
         assert decision(bash(proj, cmd)) == "deny", cmd
-    w = run("guard_write.py", {"tool_name": "Write", "cwd": str(proj),
-                               "tool_input": {"file_path": str(proj / ".lab/approvals/Q001.json"), "content": "{}"}})
+    w = run(
+        "guard_write.py",
+        {
+            "tool_name": "Write",
+            "cwd": str(proj),
+            "tool_input": {"file_path": str(proj / ".lab/approvals/Q001.json"), "content": "{}"},
+        },
+    )
     assert w.returncode == 2
-    w = run("guard_write.py", {"tool_name": "Write", "cwd": str(proj),
-                               "tool_input": {"file_path": str(proj / ".lab/presence"), "content": "here"}})
+    w = run(
+        "guard_write.py",
+        {
+            "tool_name": "Write",
+            "cwd": str(proj),
+            "tool_input": {"file_path": str(proj / ".lab/presence"), "content": "here"},
+        },
+    )
     assert w.returncode == 0  # presence は Claude が切り替えてよい
 
 
@@ -204,11 +238,23 @@ def test_standards_root_gate_only(standards):
     assert decision(bash(standards, "git push origin main")) == "deny"
     assert (standards / ".lab" / "queue" / "Q001.json").is_file()
     assert decision(bash(standards, "rm -rf data/raw/x")) == "pass"  # 配置規約は適用しない
-    w = run("guard_write.py", {"tool_name": "Write", "cwd": str(standards),
-                               "tool_input": {"file_path": str(standards / "whatever/x.py"), "content": "import pickle"}})
+    w = run(
+        "guard_write.py",
+        {
+            "tool_name": "Write",
+            "cwd": str(standards),
+            "tool_input": {"file_path": str(standards / "whatever/x.py"), "content": "import pickle"},
+        },
+    )
     assert w.returncode == 0
-    w = run("guard_write.py", {"tool_name": "Write", "cwd": str(standards),
-                               "tool_input": {"file_path": str(standards / ".lab/queue/Q001.json"), "content": "{}"}})
+    w = run(
+        "guard_write.py",
+        {
+            "tool_name": "Write",
+            "cwd": str(standards),
+            "tool_input": {"file_path": str(standards / ".lab/queue/Q001.json"), "content": "{}"},
+        },
+    )
     assert w.returncode == 2
     out = run("session_context.py", {"cwd": str(standards)}).stdout
     assert "承認待ち #Q001" in out and "本体" in out
@@ -217,10 +263,24 @@ def test_standards_root_gate_only(standards):
 # ---- flow の禁止 ----
 def _flow(root: Path, stage: str, forbid: list[str]):
     (root / ".lab" / "flows").mkdir(parents=True, exist_ok=True)
-    (root / ".lab" / "flows" / "migrate.json").write_text(json.dumps({
-        "flow": "migrate", "status": "active", "stage": stage,
-        "stages": [{"name": stage, "description": "d", "approval": False, "forbid": forbid,
-                    "done": [{"type": "git_tag", "name": "pre-migration"}]}]}))
+    (root / ".lab" / "flows" / "migrate.json").write_text(
+        json.dumps(
+            {
+                "flow": "migrate",
+                "status": "active",
+                "stage": stage,
+                "stages": [
+                    {
+                        "name": stage,
+                        "description": "d",
+                        "approval": False,
+                        "forbid": forbid,
+                        "done": [{"type": "git_tag", "name": "pre-migration"}],
+                    }
+                ],
+            }
+        )
+    )
 
 
 def test_flow_forbids(proj):
@@ -228,11 +288,23 @@ def test_flow_forbids(proj):
     res = bash(proj, "uv run python scripts/run_example.py c.toml")
     assert res.returncode == 2 and "freeze" in res.stderr and "git_tag" in res.stderr
     assert bash(proj, "uv run pytest -q").returncode == 0
-    w = run("guard_write.py", {"tool_name": "Write", "cwd": str(proj),
-                               "tool_input": {"file_path": str(proj / "src/a.py"), "content": "x = 1"}})
+    w = run(
+        "guard_write.py",
+        {
+            "tool_name": "Write",
+            "cwd": str(proj),
+            "tool_input": {"file_path": str(proj / "src/a.py"), "content": "x = 1"},
+        },
+    )
     assert w.returncode == 2 and "freeze" in w.stderr
-    w = run("guard_write.py", {"tool_name": "Write", "cwd": str(proj),
-                               "tool_input": {"file_path": str(proj / "scratch/a.py"), "content": "x = 1"}})
+    w = run(
+        "guard_write.py",
+        {
+            "tool_name": "Write",
+            "cwd": str(proj),
+            "tool_input": {"file_path": str(proj / "scratch/a.py"), "content": "x = 1"},
+        },
+    )
     assert w.returncode == 0
     assert "flow=migrate" in run("prompt_context.py", {"cwd": str(proj)}).stdout
 
@@ -252,23 +324,46 @@ def _write(root: Path, rel: str, agent_type=None):
 
 
 def test_review_records_only_by_reviewer(proj):
-    assert _write(proj, "docs/reviews/2026-11-01_migrate_reproduce.md") == 2             # メインは書けない
+    assert _write(proj, "docs/reviews/2026-11-01_migrate_reproduce.md") == 2  # メインは書けない
     assert _write(proj, "docs/reviews/2026-11-01_migrate_reproduce.md", "lab-reviewer") == 0
     assert _write(proj, "docs/reviews/x.md", "lab-rules:lab-reviewer") == 0
-    assert _write(proj, "src/a.py", "lab-reviewer") == 2                                 # reviewer は他を書けない
+    assert _write(proj, "src/a.py", "lab-reviewer") == 2  # reviewer は他を書けない
     assert _write(proj, "docs/devlog/2026-11-01.md", "lab-reviewer") == 2
     assert _write(proj, "docs/devlog/2026-11-01.md") == 0
 
 
 def test_reviewer_bash_is_read_only(proj):
-    for cmd in ("git commit -am x", "echo x > src/a.py", "uv run labkit flow advance", "rm -rf scratch/x",
-                "python - <<EOF", "uv run python scripts/x.py", "git worktree add ../w",
-                "sed -i s/a/b/ f", "grep x f > out", "git tag -d v1", "git branch -D x", "perl -i -pe s/a/b/ f",
-                "uv run labkit approve Q1", "curl -o f http://x"):
+    for cmd in (
+        "git commit -am x",
+        "echo x > src/a.py",
+        "uv run labkit flow advance",
+        "rm -rf scratch/x",
+        "python - <<EOF",
+        "uv run python scripts/x.py",
+        "git worktree add ../w",
+        "sed -i s/a/b/ f",
+        "grep x f > out",
+        "git tag -d v1",
+        "git branch -D x",
+        "perl -i -pe s/a/b/ f",
+        "uv run labkit approve Q1",
+        "curl -o f http://x",
+    ):
         assert bash(proj, cmd, agent_type="lab-reviewer").returncode == 2, cmd
-    for cmd in ("git diff", "uv run labkit check --full", "uv run labkit runs list", "cat src/a.py", "cd src && git log -3",
-                "uv run --extra dev pytest -q", "uv run labkit review template migrate reproduce", "git rev-parse HEAD",
-                "sed -n 1,5p src/a.py", "ls -la | head", "uv run ruff check src", "python -m pytest -q"):
+    for cmd in (
+        "git diff",
+        "uv run labkit check --full",
+        "uv run labkit runs list",
+        "cat src/a.py",
+        "cd src && git log -3",
+        "uv run --extra dev pytest -q",
+        "uv run labkit review template migrate reproduce",
+        "git rev-parse HEAD",
+        "sed -n 1,5p src/a.py",
+        "ls -la | head",
+        "uv run ruff check src",
+        "python -m pytest -q",
+    ):
         assert bash(proj, cmd, agent_type="lab-reviewer").returncode == 0, cmd
     res = bash(proj, "touch x", agent_type="lab-reviewer")
     assert res.returncode == 2 and "git {" in res.stderr  # 拒否メッセージに許可リストが載る

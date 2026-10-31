@@ -96,12 +96,20 @@ def start(root: Path, name: str) -> dict:
         raise SystemExit(f"flow {name} は既に進行中（段階 {cur['stage']}）。`labkit flow status` / `labkit flow abort`")
     d = defs[name]
     st = {
-        "flow": name, "description": d.get("description", ""), "status": "active",
-        "stage": d["stage"][0]["name"], "started": now_iso(),
+        "flow": name,
+        "description": d.get("description", ""),
+        "status": "active",
+        "stage": d["stage"][0]["name"],
+        "started": now_iso(),
         "history": [{"stage": d["stage"][0]["name"], "at": now_iso(), "event": "start"}],
         "stages": [
-            {"name": s["name"], "description": s.get("description", ""), "approval": bool(s.get("approval", False)),
-             "forbid": list(s.get("forbid", [])), "done": list(s.get("done", []))}
+            {
+                "name": s["name"],
+                "description": s.get("description", ""),
+                "approval": bool(s.get("approval", False)),
+                "forbid": list(s.get("forbid", [])),
+                "done": list(s.get("done", [])),
+            }
             for s in d["stage"]
         ],
     }
@@ -153,18 +161,26 @@ def advance(root: Path, name: str, session_id: str = "") -> tuple[dict, str]:
         raise SystemExit(f"flow {name} は最終段階 {cur['name']} です")
     missing = unmet(root, st)
     if missing:
-        raise SystemExit(f"段階 {cur['name']} の完了条件が満たされていません:\n" + "\n".join(f"  - {m}" for m in missing))
+        raise SystemExit(
+            f"段階 {cur['name']} の完了条件が満たされていません:\n" + "\n".join(f"  - {m}" for m in missing)
+        )
     if cur["approval"]:
         cmd = ADVANCE_COMMAND.format(name=name)
         head = state.git_head(root)
         rec = state.find_valid_approval(root, cmd, head)
         if rec is None:
             session_id = session_id or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
-            item = state.request_approval(root, cmd, cwd=root, session_id=session_id,
-                                          reason=f"flow {name}: 段階 {cur['name']} → {nxt['name']} の承認")
+            item = state.request_approval(
+                root,
+                cmd,
+                cwd=root,
+                session_id=session_id,
+                reason=f"flow {name}: 段階 {cur['name']} → {nxt['name']} の承認",
+            )
             raise SystemExit(
                 f"段階 {cur['name']} から進むには人間の承認が必要です。承認待ち #{item['id']} として記録しました。\n"
-                f"この操作に依存しない作業を続け、終了時の報告に挙げてください。人間: `labkit approve {item['id']}`")
+                f"この操作に依存しない作業を続け、終了時の報告に挙げてください。人間: `labkit approve {item['id']}`"
+            )
         state.consume_approval(root, rec)
     st["stage"] = nxt["name"]
     st["history"].append({"stage": nxt["name"], "at": now_iso(), "event": "advance", "head": state.git_head(root)})
@@ -282,8 +298,14 @@ def c_review(root, st, c):
             return "lab-standards 本体のチェックアウトが見つかりません"
     head = state.git_head(target)
     r = latest_pass(root, st["flow"], stage, head)
-    return None if r else (f"{'本体' if target != root else '現在'}の HEAD（{(head or '')[:7]}）に対する lab-reviewer の pass 記録がありません"
-                           f"（docs/reviews/<date>_{st['flow']}_{stage}.md）")
+    return (
+        None
+        if r
+        else (
+            f"{'本体' if target != root else '現在'}の HEAD（{(head or '')[:7]}）に対する lab-reviewer の pass 記録がありません"
+            f"（docs/reviews/<date>_{st['flow']}_{stage}.md）"
+        )
+    )
 
 
 def c_devlog_today(root, st, c):
@@ -301,7 +323,9 @@ def c_linked(root, st, c):
     want = bool(c.get("value", True))
     if s.linked == want:
         return None
-    return "labkit standards link が必要です" if want else "link が残っています（`labkit standards unlink --to vX.Y.Z`）"
+    return (
+        "labkit standards link が必要です" if want else "link が残っています（`labkit standards unlink --to vX.Y.Z`）"
+    )
 
 
 def c_linked_if_touched(root, st, c):
@@ -319,7 +343,11 @@ def c_linked_if_touched(root, st, c):
         linked = status(root).linked
     except (FileNotFoundError, OSError):  # pyproject.toml が無い＝link していない
         linked = False
-    return None if linked else f"本体の {'/'.join(prefixes)} を変えているので `labkit standards link` でこのプロジェクトから試す必要があります"
+    return (
+        None
+        if linked
+        else f"本体の {'/'.join(prefixes)} を変えているので `labkit standards link` でこのプロジェクトから試す必要があります"
+    )
 
 
 def c_standards_branch(root, st, c):
@@ -327,7 +355,11 @@ def c_standards_branch(root, st, c):
     if dev is None:
         return "lab-standards 本体のチェックアウトが見つかりません（$LAB_STANDARDS_DEV か ~/dev/lab-standards）"
     br = _git(dev, "rev-parse", "--abbrev-ref", "HEAD") or ""
-    return None if br.startswith(c.get("prefix", "feat/")) else f"本体のブランチが {br!r}（{c.get('prefix', 'feat/')}* で作業する）"
+    return (
+        None
+        if br.startswith(c.get("prefix", "feat/"))
+        else f"本体のブランチが {br!r}（{c.get('prefix', 'feat/')}* で作業する）"
+    )
 
 
 def c_standards_ahead(root, st, c):
@@ -347,8 +379,20 @@ def c_standards_tests(root, st, c):
     if dev is None:
         return "lab-standards 本体のチェックアウトが見つかりません"
     cmds = [
-        (["uv", "run", "--project", str(dev / "labkit" / "python"), "--extra", "dev", "pytest", "-q",
-          str(dev / "labkit" / "python" / "tests")], dev),
+        (
+            [
+                "uv",
+                "run",
+                "--project",
+                str(dev / "labkit" / "python"),
+                "--extra",
+                "dev",
+                "pytest",
+                "-q",
+                str(dev / "labkit" / "python" / "tests"),
+            ],
+            dev,
+        ),
         (["uv", "run", "--with", "pytest", "pytest", "-q", str(dev / "claude-plugin" / "tests")], dev),
     ]
     for cmd, cwd in cmds:

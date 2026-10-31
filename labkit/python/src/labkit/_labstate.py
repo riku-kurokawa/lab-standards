@@ -17,8 +17,7 @@ LAB_DIR = ".lab"
 DEFAULT_PRESENCE = "away"
 STANDARDS_MARKER = ".lab-standards-root"
 GITIGNORE = (
-    "# labkit が生成。presence・queue・approvals は手元だけの状態（flows/ は git 管理）\n"
-    "presence\nqueue/\napprovals/\n"
+    "# labkit が生成。presence・queue・approvals は手元だけの状態（flows/ は git 管理）\npresence\nqueue/\napprovals/\n"
 )
 
 
@@ -27,32 +26,92 @@ DEFAULTS: dict = {
     "lab": {"project": ""},
     "layout": {
         "allowed": [
-            "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile",
-            ".gitignore", ".gitattributes", ".pre-commit-config.yaml", ".copier-answers.yml",
-            ".python-version", ".claude", ".git", ".venv", ".mlflow", ".pytest_cache",
-            ".ruff_cache", "src", "scripts", "jl", "configs", "tests", "data", "runs",
-            "notebooks", "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "legacy", ".lab",
+            "README.md",
+            "CLAUDE.md",
+            "lab.toml",
+            "pyproject.toml",
+            "uv.lock",
+            "Makefile",
+            ".gitignore",
+            ".gitattributes",
+            ".pre-commit-config.yaml",
+            ".copier-answers.yml",
+            ".python-version",
+            ".claude",
+            ".git",
+            ".venv",
+            ".mlflow",
+            ".pytest_cache",
+            ".ruff_cache",
+            "src",
+            "scripts",
+            "jl",
+            "configs",
+            "tests",
+            "data",
+            "runs",
+            "notebooks",
+            "figspecs",
+            "jobs",
+            "docs",
+            "literature",
+            "prompts",
+            "scratch",
+            "legacy",
+            ".lab",
         ],
         "writable": [
-            "src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs",
-            "literature", "prompts", "scratch", "notebooks", "README.md", "CLAUDE.md",
-            "pyproject.toml", "Makefile", ".gitignore",
+            "src",
+            "scripts",
+            "jl",
+            "configs",
+            "tests",
+            "figspecs",
+            "jobs",
+            "docs",
+            "literature",
+            "prompts",
+            "scratch",
+            "notebooks",
+            "README.md",
+            "CLAUDE.md",
+            "pyproject.toml",
+            "Makefile",
+            ".gitignore",
         ],
         "readonly": ["data/raw", "legacy"],
     },
     "check": {
         "mode": "strict",
         "banned_plot_imports": [
-            "matplotlib", "seaborn", "plotly", "bokeh", "altair", "pylab",
-            "Plots", "Makie", "CairoMakie", "GLMakie", "WGLMakie", "PyPlot", "Gadfly",
-            "UnicodePlots", "PlotlyJS",
+            "matplotlib",
+            "seaborn",
+            "plotly",
+            "bokeh",
+            "altair",
+            "pylab",
+            "Plots",
+            "Makie",
+            "CairoMakie",
+            "GLMakie",
+            "WGLMakie",
+            "PyPlot",
+            "Gadfly",
+            "UnicodePlots",
+            "PlotlyJS",
         ],
         "plot_import_allowed": [],
         "banned_formats": ["pickle", "cPickle", "dill", "joblib", "cloudpickle", "JLD2", "BSON"],
         "format_allowed": [],
         "abs_path_patterns": [
-            r"/home/\w", r"/Users/\w", r"[A-Za-z]:\\\\", r"/lustre", r"/gpfs", r"/scratch/",
-            r"/work/", r"/groups/",
+            r"/home/\w",
+            r"/Users/\w",
+            r"[A-Za-z]:\\\\",
+            r"/lustre",
+            r"/gpfs",
+            r"/scratch/",
+            r"/work/",
+            r"/groups/",
         ],
         "code_dirs": ["src", "scripts", "jl", "tests", "notebooks"],
         "figure_ok_dirs": ["docs/assets", "literature/pdfs", "literature/inbox", "scratch"],
@@ -64,7 +123,12 @@ DEFAULTS: dict = {
     "devlog": {
         "dir": "docs/devlog",
         "required_headings": [
-            "目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由",
+            "目的",
+            "実施内容",
+            "変更ファイル",
+            "実行した run",
+            "結果・観察",
+            "判断と理由",
             "未解決・次の作業",
         ],
     },
@@ -149,8 +213,9 @@ def get_presence(root: Path) -> str:
 
 def git(cwd: Path, *args: str) -> str | None:
     try:
-        return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True,
-                              timeout=10).stdout.strip()
+        return subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, text=True, check=True, timeout=10
+        ).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return None
 
@@ -187,25 +252,35 @@ def next_id(root: Path) -> str:
 def request_approval(root: Path, command: str, *, cwd: Path, reason: str, session_id: str = "") -> dict:
     head = git_head(cwd)
     for it in list_queue(root):
-        if (it.get("kind") == "approval" and it.get("status") == "pending" and it.get("command") == command
-                and it.get("head") == head):
+        if (
+            it.get("kind") == "approval"
+            and it.get("status") == "pending"
+            and it.get("command") == command
+            and it.get("head") == head
+        ):
             return it
     diff = git(cwd, "diff", "--stat", "HEAD") or ""
     lines = diff.splitlines()
-    summary = (lines[-1].strip() if lines else "変更なし")
+    summary = lines[-1].strip() if lines else "変更なし"
     log = git(cwd, "log", "--oneline", "-3") or ""
     item = {
-        "id": next_id(root), "kind": "approval", "status": "pending",
-        "command": command, "cwd": str(cwd), "branch": git_branch(cwd), "head": head,
+        "id": next_id(root),
+        "kind": "approval",
+        "status": "pending",
+        "command": command,
+        "cwd": str(cwd),
+        "branch": git_branch(cwd),
+        "head": head,
         "diff_summary": f"作業ツリー: {summary}; 直近の commit: {log.replace(chr(10), ' / ')}",
-        "reason": reason, "created": _iso(_now()), "session_id": session_id,
+        "reason": reason,
+        "created": _iso(_now()),
+        "session_id": session_id,
     }
     _write_json(lab_dir(root) / "queue" / f"{item['id']}.json", item)
     return item
 
 
-def find_valid_approval(root: Path, command: str, head: str | None,
-                        now: _dt.datetime | None = None) -> dict | None:
+def find_valid_approval(root: Path, command: str, head: str | None, now: _dt.datetime | None = None) -> dict | None:
     """コマンド全文と HEAD が一致し、未使用かつ期限内の承認を返す."""
     d = root / LAB_DIR / "approvals"
     if not d.is_dir():

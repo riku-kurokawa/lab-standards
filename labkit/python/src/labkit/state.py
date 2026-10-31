@@ -70,12 +70,19 @@ def save_item(root: Path, item: dict) -> Path:
     return p
 
 
-def ask_question(root: Path, question: str, *, options: list[str], assumed: str, impact: str = "",
-                 session_id: str = "") -> dict:
+def ask_question(
+    root: Path, question: str, *, options: list[str], assumed: str, impact: str = "", session_id: str = ""
+) -> dict:
     item = {
-        "id": next_id(root), "kind": "question", "status": "open",
-        "question": question, "options": options, "assumed": assumed, "impact": impact,
-        "answer": None, "created": _iso(_now()),
+        "id": next_id(root),
+        "kind": "question",
+        "status": "open",
+        "question": question,
+        "options": options,
+        "assumed": assumed,
+        "impact": impact,
+        "answer": None,
+        "created": _iso(_now()),
         "session_id": session_id or os.environ.get("CLAUDE_CODE_SESSION_ID", ""),
     }
     save_item(root, item)
@@ -123,9 +130,14 @@ def approve(root: Path, qid: str, *, ttl_hours: float, who: dict) -> dict:
         raise ValueError(f"{qid} は {it.get('status')} です（pending のみ承認できます）")
     now = _now()
     rec = {
-        "id": qid, "command": it["command"], "head": it.get("head"), "cwd": it.get("cwd"),
-        "approved_at": _iso(now), "expires_at": _iso(now + _dt.timedelta(hours=ttl_hours)),
-        "used_at": None, **who,
+        "id": qid,
+        "command": it["command"],
+        "head": it.get("head"),
+        "cwd": it.get("cwd"),
+        "approved_at": _iso(now),
+        "expires_at": _iso(now + _dt.timedelta(hours=ttl_hours)),
+        "used_at": None,
+        **who,
     }
     d = lab_dir(root) / "approvals"
     d.mkdir(exist_ok=True)

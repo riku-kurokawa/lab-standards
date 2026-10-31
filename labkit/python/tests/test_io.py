@@ -15,8 +15,11 @@ from labkit.io import ReadOnlyAreaError  # noqa: E402
 
 def test_h5_roundtrip_and_sidecar(project):
     x = np.arange(12.0).reshape(3, 4)
-    p = save(datapath("processed", "a.h5"), {"x": x, "grp": {"y": np.ones(3)}, "label": "ok"},
-             attrs={"fs": 1000.0, "unit": "V"})
+    p = save(
+        datapath("processed", "a.h5"),
+        {"x": x, "grp": {"y": np.ones(3)}, "label": "ok"},
+        attrs={"fs": 1000.0, "unit": "V"},
+    )
     d = load(p, verify=True)
     assert np.array_equal(d["x"], x) and d["grp"]["y"].shape == (3,) and d["label"] == "ok"
     meta = load_meta(p)

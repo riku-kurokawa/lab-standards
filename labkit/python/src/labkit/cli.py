@@ -33,7 +33,9 @@ def cmd_check(a) -> int:
         for i in issues:
             print(i)
         if issues:
-            print(f"\nlabkit check: {len(errors)} 件の違反、{len(warns)} 件の警告（mode={mode}{', full' if a.full else ''}）")
+            print(
+                f"\nlabkit check: {len(errors)} 件の違反、{len(warns)} 件の警告（mode={mode}{', full' if a.full else ''}）"
+            )
         else:
             print("labkit check: 違反なし ✓")
     return 1 if errors and mode == "strict" else 0
@@ -71,15 +73,19 @@ def cmd_presence(a) -> int:
 def _print_item(it: dict) -> None:
     if it.get("kind") == "approval":
         print(f"{it['id']}  [{it.get('status')}]  {it.get('command')}")
-        print(f"      cwd={it.get('cwd')} branch={it.get('branch')} head={(it.get('head') or '')[:7]} "
-              f"created={it.get('created')}")
+        print(
+            f"      cwd={it.get('cwd')} branch={it.get('branch')} head={(it.get('head') or '')[:7]} "
+            f"created={it.get('created')}"
+        )
         if it.get("reason"):
             print(f"      理由: {it['reason']}")
     elif it.get("kind") == "question":
         print(f"{it['id']}  [{it.get('status')}]  質問: {it.get('question')}")
         if it.get("options"):
             print(f"      選択肢: {' / '.join(it['options'])}")
-        print(f"      仮の判断: {it.get('assumed')}" + (f"（変更時の影響: {it['impact']}）" if it.get("impact") else ""))
+        print(
+            f"      仮の判断: {it.get('assumed')}" + (f"（変更時の影響: {it['impact']}）" if it.get("impact") else "")
+        )
         if it.get("answer"):
             print(f"      回答: {it['answer']}")
     else:
@@ -102,7 +108,9 @@ def cmd_queue(a) -> int:
         if not a.text or not a.assumed:
             raise SystemExit("queue ask <質問> --assumed <仮の判断> [--options A B ...] [--impact ...]")
         it = state.ask_question(root, a.text, options=a.options or [], assumed=a.assumed, impact=a.impact or "")
-        print(f"質問 #{it['id']} を積みました。仮の判断（{a.assumed}）で先に進んでください。人間: `labkit answer {it['id']} \"...\"`")
+        print(
+            f'質問 #{it["id"]} を積みました。仮の判断（{a.assumed}）で先に進んでください。人間: `labkit answer {it["id"]} "..."`'
+        )
     elif a.action == "done":
         if not a.text:
             raise SystemExit("queue done <ID>")
@@ -129,8 +137,10 @@ def _confirm_human(qid: str, yes: bool) -> dict:
         if typed != qid:
             raise SystemExit("ID が一致しません。中止")
     elif not yes:
-        raise SystemExit("対話端末ではありません。人間が実行していることを示すため --yes を付けてください"
-                         "（Claude Code の `!` 実行からも可）")
+        raise SystemExit(
+            "対話端末ではありません。人間が実行していることを示すため --yes を付けてください"
+            "（Claude Code の `!` 実行からも可）"
+        )
     return who
 
 
@@ -140,7 +150,9 @@ def cmd_approve(a) -> int:
     root = _scope_root()
     who = _confirm_human(a.id, a.yes)
     rec = state.approve(root, a.id, ttl_hours=float(_gate_conf(root)["approval_ttl_hours"]), who=who)
-    print(f"承認しました: {rec['id']}  {rec['command']}\n  HEAD={(rec['head'] or '')[:7]}  期限={rec['expires_at']}  1 回限り")
+    print(
+        f"承認しました: {rec['id']}  {rec['command']}\n  HEAD={(rec['head'] or '')[:7]}  期限={rec['expires_at']}  1 回限り"
+    )
     if who["claude_shell"] and not who["tty"]:
         print("  注意: Claude Code のシェル環境から承認しました（記録に claude_shell=true）")
     return 0
@@ -161,7 +173,9 @@ def cmd_answer(a) -> int:
 
     root = _scope_root()
     it = state.answer_question(root, a.id, a.text)
-    print(f"回答を記録しました: {it['id']}（Claude は次のプロンプトで文脈に受け取り、取り込んだら `labkit queue done {it['id']}`）")
+    print(
+        f"回答を記録しました: {it['id']}（Claude は次のプロンプトで文脈に受け取り、取り込んだら `labkit queue done {it['id']}`）"
+    )
     return 0
 
 
@@ -276,8 +290,13 @@ def cmd_adr(a) -> int:
     num = f"{(max(nums) + 1) if nums else 1:04d}"
     slug = a.slug or slugify(a.title)
     p = d / f"{num}-{slug}.md"
-    p.write_text(_tpl("adr.md").replace("{{number}}", num).replace("{{title}}", a.title)
-                 .replace("{{date}}", _dt.date.today().isoformat()), encoding="utf-8")
+    p.write_text(
+        _tpl("adr.md")
+        .replace("{{number}}", num)
+        .replace("{{title}}", a.title)
+        .replace("{{date}}", _dt.date.today().isoformat()),
+        encoding="utf-8",
+    )
     print(p)
     return 0
 
@@ -301,8 +320,7 @@ def cmd_lit(a) -> int:
         if p.exists():
             raise SystemExit(f"既に存在します: {p}")
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(_tpl("survey.md").replace("{{date}}", date).replace("{{question}}", a.question),
-                     encoding="utf-8")
+        p.write_text(_tpl("survey.md").replace("{{date}}", date).replace("{{question}}", a.question), encoding="utf-8")
         print(p)
     elif a.action == "index":
         print(lit.build_index(root, lab))
@@ -326,8 +344,10 @@ def cmd_runs(a) -> int:
             if a.status and m.get("status") != a.status:
                 continue
             dirty = "*" if (m.get("git") or {}).get("dirty") else ""
-            print(f"{m.get('run_id')}  {m.get('status', '?'):11s} {m.get('language', '?'):6s} "
-                  f"{m.get('duration_s') or '-':>8}s {dirty}")
+            print(
+                f"{m.get('run_id')}  {m.get('status', '?'):11s} {m.get('language', '?'):6s} "
+                f"{m.get('duration_s') or '-':>8}s {dirty}"
+            )
     else:
         d = find_run(a.run_id)
         print((d / "meta.json").read_text(encoding="utf-8"))

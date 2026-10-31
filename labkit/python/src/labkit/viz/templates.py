@@ -235,8 +235,7 @@ def scatter(spec, ctx):
     if hasattr(data, "columns"):
         groups = [(None, data)] if not d.get("hue") else list(data.groupby(d["hue"], sort=True))
         for h, g in groups:
-            ax.scatter(g[d["x"]], g[d["y"]], s=4, alpha=0.7, label=None if h is None else str(h),
-                       edgecolors="none")
+            ax.scatter(g[d["x"]], g[d["y"]], s=4, alpha=0.7, label=None if h is None else str(h), edgecolors="none")
         n = len(groups)
         xs = np.asarray(data[d["x"]])
         ys = np.asarray(data[d["y"]])
@@ -296,8 +295,9 @@ def histogram(spec, ctx):
     vals = _as_list(d["values"])
     for v in vals:
         arr = np.asarray(data[v]) if hasattr(data, "columns") else _get(data, v)
-        ax.hist(arr[np.isfinite(arr)], bins=d.get("bins", 50), density=d.get("density", False),
-                histtype="step", label=v)
+        ax.hist(
+            arr[np.isfinite(arr)], bins=d.get("bins", 50), density=d.get("density", False), histtype="step", label=v
+        )
     _labels(ax, spec, vals[0] if len(vals) == 1 else "value", "density" if d.get("density") else "count")
     _options(ax, spec)
     _legend(ax, spec, len(vals))

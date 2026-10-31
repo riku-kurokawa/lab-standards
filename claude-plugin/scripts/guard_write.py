@@ -42,16 +42,22 @@ def new_text(tool: str, ti: dict) -> str:
 
 def harness_rules(data: dict, r: str) -> None:
     if r == ".lab-standards-root" or any(r == d or r.startswith(d + "/") for d in HARNESS_STATE_DIRS):
-        block(f"{r} はハーネスの状態です。直接書かず labkit のコマンド（queue ask/done, flow start/advance）を使います。"
-              "承認・却下・回答は人間だけが行います。")
+        block(
+            f"{r} はハーネスの状態です。直接書かず labkit のコマンド（queue ask/done, flow start/advance）を使います。"
+            "承認・却下・回答は人間だけが行います。"
+        )
     in_reviews = r == REVIEW_DIR or r.startswith(REVIEW_DIR + "/")
     if is_reviewer(data):
         if not in_reviews:
-            block(f"lab-reviewer が書けるのはレビュー記録（{REVIEW_DIR}/YYYY-MM-DD_<flow>_<段階>.md）だけです。{r} には書けません。")
+            block(
+                f"lab-reviewer が書けるのはレビュー記録（{REVIEW_DIR}/YYYY-MM-DD_<flow>_<段階>.md）だけです。{r} には書けません。"
+            )
         return
     if in_reviews:
-        block(f"{r} はレビュー記録です。独立した lab-reviewer agent だけが書けます（自己採点の防止）。"
-              "Agent ツールで lab-reviewer を起動し、レビュー記録を書かせてください。")
+        block(
+            f"{r} はレビュー記録です。独立した lab-reviewer agent だけが書けます（自己採点の防止）。"
+            "Agent ツールで lab-reviewer を起動し、レビュー記録を書かせてください。"
+        )
 
 
 def main() -> None:
@@ -85,20 +91,30 @@ def main() -> None:
         s = current_stage(st)
         if "code" in s.get("forbid", []) and top in CODE_DIRS:
             conds = "; ".join(describe_condition(c) for c in s.get("done", []))
-            block(f"今は flow {st['flow']} の段階「{s['name']}」で、コードの変更（{top}/）は禁止です。"
-                  f"先に {conds or 'この段階の作業'} が必要（`labkit flow status`）。下書きは scratch/ へ。")
+            block(
+                f"今は flow {st['flow']} の段階「{s['name']}」で、コードの変更（{top}/）は禁止です。"
+                f"先に {conds or 'この段階の作業'} が必要（`labkit flow status`）。下書きは scratch/ へ。"
+            )
 
     if r in PROTECTED_FILES:
         block(f"{r} は規約ファイルです。変更が必要なら、理由と差分案を人間に提示してください（Claude は編集しない）。")
     for ro in layout["readonly"]:
         if r == ro or r.startswith(ro.rstrip("/") + "/"):
-            block(f"{r} は読み取り専用領域（{ro}）です。生データは不変。派生データは scripts から labkit.save で data/interim か data/processed に作ってください。")
+            block(
+                f"{r} は読み取り専用領域（{ro}）です。生データは不変。派生データは scripts から labkit.save で data/interim か data/processed に作ってください。"
+            )
     if top == "runs":
-        block("runs/ はスクリプト（labkit の Run）だけが作ります。結果を変えたいならコード/設定を直して新しい run を実行してください。")
+        block(
+            "runs/ はスクリプト（labkit の Run）だけが作ります。結果を変えたいならコード/設定を直して新しい run を実行してください。"
+        )
     if top == "data":
-        block("data/ のファイルは手で書きません。scripts から labkit.save / labkit.writer 経由で生成してください（来歴サイドカーが付きます）。")
+        block(
+            "data/ のファイルは手で書きません。scripts から labkit.save / labkit.writer 経由で生成してください（来歴サイドカーが付きます）。"
+        )
     if top not in layout["writable"] and r not in layout["writable"]:
-        block(f"{r} は書き込み可能な場所ではありません。可能: {', '.join(layout['writable'])}。一時ファイルは scratch/ へ。新しい置き場所が必要なら人間に相談してください。")
+        block(
+            f"{r} は書き込み可能な場所ではありません。可能: {', '.join(layout['writable'])}。一時ファイルは scratch/ へ。新しい置き場所が必要なら人間に相談してください。"
+        )
 
     if p.suffix not in {".py", ".jl", ".ipynb"}:
         return
@@ -114,7 +130,9 @@ def main() -> None:
         pat = rf"^\s*(?:using|import)\s+[^#\n]*\b({mods})\b" if is_jl else rf"^\s*(?:import|from)\s+({mods})\b"
         m = re.search(pat, text, re.M)
         if m:
-            block(f"{m.group(1)} を直接使って図を作ることは禁止です。figspecs/<name>.toml を書いて `labkit fig figspecs/<name>.toml --run <run_id>` を使ってください（`labkit fig list` でテンプレート一覧）。合うテンプレートが無ければ、skill add-figure-template に従って人間に提案してください。")
+            block(
+                f"{m.group(1)} を直接使って図を作ることは禁止です。figspecs/<name>.toml を書いて `labkit fig figspecs/<name>.toml --run <run_id>` を使ってください（`labkit fig list` でテンプレート一覧）。合うテンプレートが無ければ、skill add-figure-template に従って人間に提案してください。"
+            )
     if not allowed("format_allowed"):
         mods = "|".join(map(re.escape, c["banned_formats"]))
         pat = rf"^\s*(?:using|import)\s+[^#\n]*\b({mods})\b" if is_jl else rf"^\s*(?:import|from)\s+({mods})\b"

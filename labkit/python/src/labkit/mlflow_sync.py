@@ -65,15 +65,20 @@ def sync(force: bool = False, root: Path | None = None, progress=print) -> int:
         cfg = json.loads((rdir / "config.json").read_text()) if (rdir / "config.json").exists() else {}
         git = meta.get("git") or {}
         tags = {
-            "labkit.run_id": rid, "labkit.name": meta.get("name", ""), "labkit.language": meta.get("language", ""),
-            "labkit.status": meta.get("status", ""), "labkit.host": meta.get("host", ""),
-            "labkit.lab_env": meta.get("lab_env", ""), "mlflow.source.git.commit": git.get("commit", ""),
+            "labkit.run_id": rid,
+            "labkit.name": meta.get("name", ""),
+            "labkit.language": meta.get("language", ""),
+            "labkit.status": meta.get("status", ""),
+            "labkit.host": meta.get("host", ""),
+            "labkit.lab_env": meta.get("lab_env", ""),
+            "mlflow.source.git.commit": git.get("commit", ""),
             "labkit.git_dirty": str(git.get("dirty", "")),
             "labkit.slurm_job": str((meta.get("slurm") or {}).get("job_id", "")),
             **{f"tag.{k}": str(v) for k, v in (meta.get("tags") or {}).items()},
         }
-        run = client.create_run(exp_id, run_name=rid, start_time=_ms(meta.get("created")),
-                                tags={k: v for k, v in tags.items() if v != ""})
+        run = client.create_run(
+            exp_id, run_name=rid, start_time=_ms(meta.get("created")), tags={k: v for k, v in tags.items() if v != ""}
+        )
         params = [Param(k, str(v)[:6000]) for k, v in flatten(cfg).items()]
         metrics = []
         mfile = rdir / "metrics.jsonl"
@@ -84,9 +89,9 @@ def sync(force: bool = False, root: Path | None = None, progress=print) -> int:
                     metrics.append(Metric(r["key"], float(r["value"]), int(r["time"] * 1000), int(r["step"] or 0)))
         client.log_batch(run.info.run_id, tags=[RunTag("labkit.synced", "1")])
         for i in range(0, len(params), 100):  # MLflow の 1 回あたり上限: params 100, metrics 1000
-            client.log_batch(run.info.run_id, params=params[i:i + 100])
+            client.log_batch(run.info.run_id, params=params[i : i + 100])
         for i in range(0, len(metrics), 1000):
-            client.log_batch(run.info.run_id, metrics=metrics[i:i + 1000])
+            client.log_batch(run.info.run_id, metrics=metrics[i : i + 1000])
         for name in ("meta.json", "config.json"):
             if (rdir / name).exists():
                 client.log_artifact(run.info.run_id, str(rdir / name))
@@ -107,7 +112,19 @@ def ui(port: int = 5000, root: Path | None = None) -> None:
     root = root or find_root()
     uri, art = _setup(root)
     env = {**os.environ, **PRIVACY_ENV}
-    cmd = [sys.executable, "-m", "mlflow", "ui", "--backend-store-uri", uri,
-           "--default-artifact-root", art.as_uri(), "--host", "127.0.0.1", "--port", str(port)]
+    cmd = [
+        sys.executable,
+        "-m",
+        "mlflow",
+        "ui",
+        "--backend-store-uri",
+        uri,
+        "--default-artifact-root",
+        art.as_uri(),
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+    ]
     print(f"http://127.0.0.1:{port} （Ctrl-C で終了。外部には公開されません）")
     subprocess.run(cmd, env=env, check=False)
