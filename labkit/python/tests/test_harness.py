@@ -53,7 +53,13 @@ def test_question_roundtrip(repo):
     state.answer_question(repo, "Q001", "lz4")
     assert state.pending_summary(repo)["answered"][0]["answer"] == "lz4"
     state.mark_done(repo, "Q001")
-    assert state.pending_summary(repo) == {"pending": [], "approved": [], "open_questions": [], "answered": []}
+    assert state.pending_summary(repo) == {
+        "pending": [],
+        "approved": [],
+        "open_questions": [],
+        "answered": [],
+        "rejected": [],
+    }
     with pytest.raises(ValueError):
         state.approve(repo, "Q001", ttl_hours=1, who={})  # 質問は承認できない
 

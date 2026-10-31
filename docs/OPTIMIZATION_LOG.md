@@ -173,3 +173,13 @@
 - 監査: 採用。pytest で jinja を自前展開する案は第 2 のレンダラになるので却下。`ruff check` は first-party 判定で誤検出するため format のみ。
 - 結論: 採用。
 - 規模: 雛形 ±0（整形のみ）、CI +2 行。
+
+### 17. 2026-11-01 — UserPromptSubmit の注入を「人間の操作による差分」だけに
+- 観点: 認知負荷と毎プロンプトのコスト。flow 1 つ + キュー 2 件の状態で、毎回の入力に 425 文字・6 行（承認待ち・未回答の質問・
+  flow の段階と条件）が繰り返し添えられていた。いずれもセッションが既に知っている情報。
+- 提案: UserPromptSubmit は承認済み・未実行 / 回答あり だけ（人間が `labkit approve` / `answer` したことで生じた差分）。
+  承認待ち・未回答・flow は SessionStart（compact 含む）と拒否時の hook が伝える。
+- 監査: 採用。加えて「却下」がどこにも表示されない穴を発見（人間が `labkit reject` しても Claude は待ち続ける）。
+  却下も差分に含め、`labkit queue done` で確認済みにする。外部からの flow advance は hooks の forbid が守るので省いてよい。
+- 結論: 採用（accept-with-changes）。
+- 規模: 通常のプロンプトの注入は 0 行に。_labcommon +12 行（却下の表示）、prompt_context −3 行、テスト +18 行。

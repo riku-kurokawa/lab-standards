@@ -136,7 +136,8 @@ def flow_context(root: Path) -> list[str]:
     return lines
 
 
-def queue_context(root: Path) -> list[str]:
+def queue_delta_context(root: Path) -> list[str]:
+    """人間の操作で生じた、Claude が反応すべき差分だけ（承認済み・未実行 / 回答あり / 却下）."""
     from _labstate import pending_summary
 
     s = pending_summary(root)
@@ -146,15 +147,30 @@ def queue_context(root: Path) -> list[str]:
             f"- 承認済み・未実行 #{it['id']}: `{it['command']}`（cwd {it.get('cwd')}, HEAD {(it.get('head') or '')[:7]}）"
             "→ 同じディレクトリ・同じ HEAD で、同じコマンド全文をそのまま実行する（1 回限り）"
         )
-    for it in s["pending"]:
-        lines.append(
-            f"- 承認待ち #{it['id']}: `{it['command']}` — 人間の `labkit approve {it['id']}` を待つ。"
-            "依存しない作業を続け、終了時の報告に挙げる"
-        )
     for it in s["answered"]:
         lines.append(
             f"- 回答あり #{it['id']}: 質問「{it.get('question')}」→ 回答「{it.get('answer')}」"
             f"（仮の判断は「{it.get('assumed')}」）。取り込んだら `labkit queue done {it['id']}`"
+        )
+    for it in s["rejected"]:
+        lines.append(
+            f"- 却下 #{it['id']}: `{it['command']}`"
+            + (f"（理由: {it['note']}）" if it.get("note") else "")
+            + f" → 実行しない。別の手段を取るか報告し、確認したら `labkit queue done {it['id']}`"
+        )
+    return lines
+
+
+def queue_context(root: Path) -> list[str]:
+    """SessionStart 用: 差分に加えて、承認待ちと未回答の質問も（会話が無い状態から再開するため）."""
+    from _labstate import pending_summary
+
+    s = pending_summary(root)
+    lines = queue_delta_context(root)
+    for it in s["pending"]:
+        lines.append(
+            f"- 承認待ち #{it['id']}: `{it['command']}` — 人間の `labkit approve {it['id']}` を待つ。"
+            "依存しない作業を続け、終了時の報告に挙げる"
         )
     for it in s["open_questions"]:
         lines.append(f"- 未回答の質問 #{it['id']}: 「{it.get('question')}」仮の判断「{it.get('assumed')}」で進行中")

@@ -306,7 +306,7 @@ def test_flow_forbids(proj):
         },
     )
     assert w.returncode == 0
-    assert "flow=migrate" in run("prompt_context.py", {"cwd": str(proj)}).stdout
+    assert "flow=migrate" in run("session_context.py", {"cwd": str(proj)}).stdout  # 段階は SessionStart が伝える
 
 
 def test_flow_allows_after_stage(proj):
@@ -380,3 +380,24 @@ def test_stop_not_blocking_when_waiting_for_approval(proj, monkeypatch, tmp_path
     assert res.returncode == 0 and "承認待ち" in res.stdout
     res = run("stop_check.py", {"cwd": str(proj), "session_id": "other"})  # 他セッションの承認待ちでは緩めない
     assert res.returncode == 2
+
+
+def test_prompt_context_only_deltas(proj):
+    """UserPromptSubmit は人間の操作による差分（承認・回答・却下）だけを添える。承認待ち・flow は毎回繰り返さない."""
+    bash(proj, "git push")  # 承認待ち #Q001
+    _flow(proj, "freeze", ["code"])
+    assert run("prompt_context.py", {"cwd": str(proj)}).stdout.strip() == ""  # 何も無ければ 0 行
+    _approve(proj, "Q001")
+    item = json.loads((proj / ".lab/queue/Q001.json").read_text())
+    item["status"] = "approved"  # labkit approve が行う状態更新
+    (proj / ".lab/queue/Q001.json").write_text(json.dumps(item))
+    out = run("prompt_context.py", {"cwd": str(proj)}).stdout
+    assert "承認済み・未実行 #Q001" in out and "承認待ち" not in out and "flow=" not in out
+    item = json.loads((proj / ".lab/queue/Q001.json").read_text())
+    item["status"] = "rejected"
+    item["note"] = "まだ早い"
+    (proj / ".lab/queue/Q001.json").write_text(json.dumps(item))
+    (proj / ".lab/approvals/Q001.json").unlink()
+    out = run("prompt_context.py", {"cwd": str(proj)}).stdout
+    assert "却下 #Q001" in out and "まだ早い" in out
+    assert "却下 #Q001" in run("session_context.py", {"cwd": str(proj)}).stdout  # SessionStart にも出る

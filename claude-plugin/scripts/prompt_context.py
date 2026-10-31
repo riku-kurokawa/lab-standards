@@ -1,14 +1,14 @@
-"""UserPromptSubmit: 承認済み・未実行の要求、未回答／回答済みの質問、進行中の手順を毎回の入力に添える.
+"""UserPromptSubmit: 人間の操作で生じた差分（承認済み・未実行 / 回答あり / 却下）だけを添える.
 
-人間が戻って「承認したので続けて」と言えば、どの ID が承認済みかを Claude が知っている状態にする。
-何も無ければ何も出さない。
+承認待ち・未回答の質問・手順の段階は SessionStart（compact 含む）と拒否時の hook が既に伝えているので繰り返さない。
+何も無ければ何も出さない（通常のプロンプトでは 0 行）。
 """
 
 from __future__ import annotations
 
 import json
 
-from _labcommon import flow_context, queue_context, read_input
+from _labcommon import queue_delta_context, read_input
 from _labstate import find_scope
 
 
@@ -18,10 +18,10 @@ def main() -> None:
     if sc is None:
         return
     root, _kind = sc
-    lines = queue_context(root) + flow_context(root)
+    lines = queue_delta_context(root)
     if not lines:
         return
-    ctx = "[lab-rules] 承認キューと手順の状態:\n" + "\n".join(lines)
+    ctx = "[lab-rules] 人間の操作による更新:\n" + "\n".join(lines)
     print(
         json.dumps(
             {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}, ensure_ascii=False

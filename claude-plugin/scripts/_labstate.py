@@ -344,6 +344,7 @@ def pending_summary(root: Path) -> dict[str, list[dict]]:
         "approved": [i for i in q if i.get("kind") == "approval" and i.get("status") == "approved"],
         "open_questions": [i for i in q if i.get("kind") == "question" and i.get("status") == "open"],
         "answered": [i for i in q if i.get("kind") == "question" and i.get("status") == "answered"],
+        "rejected": [i for i in q if i.get("kind") == "approval" and i.get("status") == "rejected"],
     }
 
 
