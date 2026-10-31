@@ -459,14 +459,7 @@ def num_matches(text: str, value) -> bool:
 def format_value(value, digits: int | None) -> str:
     """`labkit cite` 用。digits 指定なら小数点以下をその桁に丸める。未指定は有効数字 4 桁."""
     v = float(value)
-    if digits is not None:
-        return f"{v:.{digits}f}"
-    if v == 0:
-        return "0"
-    if 1e-3 <= abs(v) < 1e6:
-        s = f"{v:.4g}"
-        return s if "e" not in s else f"{v:.6f}".rstrip("0").rstrip(".")
-    return f"{v:.3e}"
+    return f"{v:.{digits}f}" if digits is not None else f"{v:.4g}"
 
 
 def cite(run_id: str, key: str, digits: int | None = None, unit: str = "", root: Path | None = None) -> str:

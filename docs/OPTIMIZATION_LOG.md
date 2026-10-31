@@ -19,6 +19,7 @@
 | Stop hook（labkit check + ruff check）を軽くする | 実測: 生成プロジェクトで初回 0.9 s、以後 0.3 s。十分に軽い | 2026-11-01 |
 | 雛形の Slurm ジョブ（jobs/slurm_example.sh）を skill hpc-job の要件に合わせて直す | 読み合わせた結果、`set -euo pipefail`・未コミット検査・`LAB_ENV=hpc`・配列ジョブの上書き引数が揃っていて差異なし | 2026-11-01 |
 | Julia の `read_json`（JSON3.read）が Python 製 JSON の `100.0` を Int に読む非対称を直す | JSON3 は数値型を保持できず（`numbertype=Float64` は逆に整数を浮動小数にする）、Julia 側の利用は数値比較だけで実害なし。書き込み側はサイクル 32 で修正済み | 2026-11-01 |
+| 図の figmeta.json と literature/INDEX.md のパス区切りも直す | figmeta は `rel_or_abs`（サイクル 34 で `/` 化済み）、INDEX はファイル名のみ。追加の修正箇所なし | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
 | Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
@@ -341,3 +342,12 @@
   「同じディレクトリの sha256 が Python と Julia で一致（a-b/ と a/、大文字の並び順を含む）」と MANIFEST に `\` が無いことを追加。
 - 結論: 採用。
 - 規模: Python 6 行の置換、Julia +6 行（posixrel）、テスト +33 行。
+
+### 35. 2026-11-01 — `labkit cite` の既定表示を 1 規則に
+- 観点: 研究者が引用する数値。大小さまざまな値で既定表示を見ると、12.345 は 4 桁（12.35）なのに 123456.789 は全桁、という不揃いがあった
+  （`.4g` が指数になると全桁に戻す分岐のため）。
+- 提案: 既定は `f"{v:.4g}"` の 1 行に（`--digits` は従来どおり）。
+- 監査: 採用。全ての出力が L033 の照合を通ることを実測で確認。`repr` の最短表現は 0.30000000000000004 のような雑音を論文に持ち込むので不採用。
+  1 万以上の整数が指数表示になる点は CHANGELOG に明記。
+- 結論: 採用。
+- 規模: check.py −7 行、テスト +12 行（9 値を固定）。

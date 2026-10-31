@@ -328,6 +328,27 @@ def test_num_matches(text, value, ok):
     assert num_matches(text, value) is ok
 
 
+@pytest.mark.parametrize(
+    "value,shown",
+    [
+        (12.345, "12.35"),
+        (0.000123456, "0.0001235"),
+        (123456.789, "1.235e+05"),
+        (2000, "2000"),
+        (2.0, "2"),
+        (20000, "2e+04"),
+        (1e-7, "1e-07"),
+        (0.1 + 0.2, "0.3"),
+        (0, "0"),
+    ],
+)
+def test_format_value_is_four_significant_digits(value, shown):
+    """cite の既定は有効数字 4 桁の 1 規則。どの出力も L033 の照合を通る."""
+    from labkit.check import format_value
+
+    assert format_value(value, None) == shown and num_matches(shown, value)
+
+
 def test_check_severity_exit_code(repo, capsys):
     from labkit.cli import main
 
