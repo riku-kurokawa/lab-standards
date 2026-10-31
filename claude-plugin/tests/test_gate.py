@@ -401,3 +401,16 @@ def test_prompt_context_only_deltas(proj):
     out = run("prompt_context.py", {"cwd": str(proj)}).stdout
     assert "却下 #Q001" in out and "まだ早い" in out
     assert "却下 #Q001" in run("session_context.py", {"cwd": str(proj)}).stdout  # SessionStart にも出る
+
+
+def test_stop_ignores_julia_env_files(proj, monkeypatch, tmp_path_factory):
+    """standards link / Pkg.instantiate が書き換える jl/Project.toml・Manifest.toml はコード変更と見なさない."""
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path_factory.mktemp("plugin-data")))
+    (proj / "jl").mkdir()
+    (proj / "jl" / "Project.toml").write_text('[deps]\nX = "1"\n')
+    (proj / "jl" / "Manifest.toml").write_text("# v2\n")
+    assert "開発ログ" not in run("stop_check.py", {"cwd": str(proj), "session_id": "s7"}).stderr
+    (proj / "jl" / "src").mkdir()
+    (proj / "jl" / "src" / "x.jl").write_text("x = 1\n")  # 本物のコード変更 → 開発ログを求めて止める
+    res = run("stop_check.py", {"cwd": str(proj), "session_id": "s7"})
+    assert res.returncode == 2 and "開発ログ" in res.stderr and "jl/src/x.jl" in res.stderr

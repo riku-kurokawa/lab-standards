@@ -22,12 +22,21 @@ from _labstate import pending_summary
 def changed_code(root: Path) -> list[str]:
     try:
         out = subprocess.run(
-            ["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True, check=True
+            ["git", "status", "--porcelain", "--untracked-files=all"],  # 未追跡もファイル単位で見る
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
     files = [line[3:].strip() for line in out.splitlines() if len(line) > 3]
-    return [f for f in files if f.startswith(("src/", "scripts/", "jl/", "configs/", "figspecs/", "jobs/"))]
+    env_files = {"Project.toml", "Manifest.toml"}  # Julia の環境ファイル。standards link / Pkg.instantiate が書き換える
+    return [
+        f
+        for f in files
+        if f.startswith(("src/", "scripts/", "jl/", "configs/", "figspecs/", "jobs/")) and Path(f).name not in env_files
+    ]
 
 
 def counter_file(session: str) -> Path:
