@@ -4,9 +4,10 @@ const ARRAY_EXT = (".h5", ".hdf5")
 const TABLE_EXT = (".parquet",)
 
 function _check_writable(path::AbstractString, root::AbstractString)
-    p = abspath(path)
+    p = normpath(abspath(path))
     for ro in readonly_roots(root)
-        (p == ro || startswith(p, rstrip(ro, '/') * "/")) &&
+        ro = normpath(ro)
+        (p == ro || startswith(p, joinpath(ro, ""))) &&
             error("$p は読み取り専用領域（$ro）です。派生データは interim/processed か run へ。")
     end
 end
@@ -70,6 +71,7 @@ function save(path::AbstractString, data; attrs::AbstractDict=Dict{String,Any}()
     mkpath(dirname(abspath(path)))
     ext = _ext(path)
     tmp = tmp_sibling(abspath(path))
+    local fmt
     try
         if ext in ARRAY_EXT
             data isa AbstractDict || error("HDF5 には Dict(名前 => 配列) を渡してください")
@@ -155,7 +157,15 @@ function load(path::AbstractString; verify::Bool=false)
     end
     ext = _ext(path)
     ext in ARRAY_EXT && return h5open(_get, path, "r")
-    ext in TABLE_EXT && return DataFrame(Parquet2.Dataset(path); copycols=true)
+    if ext in TABLE_EXT
+        # mmap を使わない: mmap は GC までファイルを掴み続け、Windows では削除・上書きできなくなる
+        ds = Parquet2.Dataset(path; use_mmap=false)
+        try
+            return DataFrame(ds; copycols=true)
+        finally
+            close(ds)
+        end
+    end
     error("load() が扱わない拡張子です: $ext")
 end
 

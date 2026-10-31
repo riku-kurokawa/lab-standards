@@ -15,6 +15,17 @@
 - 本体用 `CLAUDE.md`（メンテナンス規約）、`tools/release.py`（版の一括更新と整合性検査）
 - SessionStart hook: link 中であることと improve-standards の存在を文脈に入れる
 
+### 修正
+- labkit（Python）`standards link`: Windows のパス（`\` 区切り）を書き込むと `re.sub` の置換文字列として
+  解釈されて失敗した。パスは `/` 区切り（`Path.as_posix()`）で書き、置換はリテラルで行うようにした
+  （`/` 区切りのパスは TOML・uv・Pkg のいずれでも OS を問わず有効）
+- LabKit.jl `save()`: `fmt` を `try` ブロック内で代入していたため、ブロックの外で未定義になり
+  `UndefVarError: fmt` で常に失敗していた（`local fmt` を追加）
+- LabKit.jl `_check_writable()`: 読み取り専用領域の判定が `/` 区切り固定で、Windows では `data/raw` への
+  書き込みを拒否できなかった。`normpath` と `joinpath` で OS のセパレータに合わせた
+- LabKit.jl `load()`（Parquet）: mmap で開いたファイルが GC まで解放されず、Windows では読み込んだ直後に
+  削除・上書きできなかった。`use_mmap=false` で読むようにした
+
 ### 移行（v0.1.0 のプロジェクト）
 ```bash
 uv run labkit standards unlink --to v0.2.0 && git commit -am "lab-standards v0.2.0"

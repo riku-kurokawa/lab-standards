@@ -90,7 +90,7 @@ def _replace(path: Path, pattern: re.Pattern, new_line: str, what: str) -> None:
     text = path.read_text(encoding="utf-8")
     if not pattern.search(text):
         raise SystemExit(f"{path} に {what} の参照行が見つかりません（雛形から生成したファイルか確認してください）")
-    path.write_text(pattern.sub(new_line, text, count=1), encoding="utf-8")
+    path.write_text(pattern.sub(lambda _m: new_line, text, count=1), encoding="utf-8")
 
 
 def _run(cmd: list[str], cwd: Path, check: bool = True) -> int:
@@ -114,10 +114,10 @@ def link(path: str | None = None, root: Path | None = None, do_sync: bool = True
     root = root or find_root()
     dev = dev_checkout(path)
     _replace(root / "pyproject.toml", PY_LINE,
-             f'labkit = {{ path = "{dev / "labkit" / "python"}", editable = true }}', "labkit")
+             f'labkit = {{ path = "{(dev / "labkit" / "python").as_posix()}", editable = true }}', "labkit")
     jl = root / "jl" / "Project.toml"
     if jl.is_file():
-        _replace(jl, JL_LINE, f'LabKit = {{ path = "{dev / "labkit" / "julia" / "LabKit"}" }}', "LabKit")
+        _replace(jl, JL_LINE, f'LabKit = {{ path = "{(dev / "labkit" / "julia" / "LabKit").as_posix()}" }}', "LabKit")
     if do_sync:
         sync(root)
     st = status(root)
