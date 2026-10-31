@@ -41,6 +41,7 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 | 数値の引用 | `cite(run_id, "snr_db", digits=1, unit="dB")` | `cite(run_id, "snr_db"; digits=1, unit="dB")` |
 
 配列の軸: Python の shape (n_ch, n_t) は Julia でも size (n_ch, n_t)。HDF5 上の並びは labkit が揃える。
+bool 配列: HDF5 上は uint8 + データセット属性 `labkit_dtype="bool"`（両言語で bool に戻る。h5py/HDF5.jl/MATLAB で直接読むと 0/1）。
 
 ## 禁止事項（hooks がブロックする）
 

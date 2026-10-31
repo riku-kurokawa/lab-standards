@@ -568,3 +568,15 @@
 - 監査: 仕様の確認を独立エージェントに依頼（上記）。変更は 1 行 + 文書で、JSON の妥当性を確認。
 - 結論: 採用。
 - 規模: settings.json.jinja +1 行、SETUP.md +7 行、CHANGELOG +1 行。
+
+### 62. 2026-11-01 — bool 配列が言語をまたぐと整数になっていた
+- 観点: 利用者の分野（音響）で使う dtype の往復: complex / float32 / int32 / bool / 2 次元 / 文字列 / 入れ子を Python→Julia、Julia→Python で読む。
+- 発見: complex を含め他はすべて型・形が保たれるが、bool だけ Python→Julia で Int8、Julia→Python で uint8（h5py は enum、HDF5.jl は独自の
+  Bool 型で書き、相手が戻せない）。マスクが黙って整数になる。
+- 提案: 両言語とも uint8 + データセット属性 `labkit_dtype="bool"` で書き、読む側が属性を見て bool に戻す（配列・スカラー）。旧ファイルの読み込みは
+  従来どおり（h5py は自分の enum を bool に、HDF5.jl は自分の Bool を Bool に戻す。相手言語では従来と同じ整数）。
+- 監査: 採用（変更付き）: Julia が Python 製の 0 次元 bool で MethodError（`Array{Bool}(0x01)`）→ スカラーは `Bool(v)`。Julia のスカラー Bool も
+  属性付きで書く。skill lab-conventions に 1 文、CHANGELOG にディスク形式の変更として記載（h5py/HDF5.jl/MATLAB で直接読むと 0/1）。
+  監査が実測: HDF5.jl 0.17.4 で `attrs(g[k])` は `g[k] = arr` 直後に使える、N 次元も `_from_c` 後に変換されるので正しい。
+- 結論: 採用。
+- 規模: io.py +7 行、io.jl +8 行、テスト 3 スイートに追加。labkit 65 / LabKit.jl 16 passed。

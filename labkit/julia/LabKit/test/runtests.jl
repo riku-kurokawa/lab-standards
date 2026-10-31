@@ -14,7 +14,7 @@ using Test, LabKit, DataFrames, JSON3
 
             x = reshape(collect(1.0:12.0), 3, 4)
             run = Run("jl test", cfg) do run
-                save(runpath(run, "a.h5"), Dict("x" => x, "v" => collect(1:2000)); attrs=Dict("fs" => 100.0))
+                save(runpath(run, "a.h5"), Dict("x" => x, "v" => collect(1:2000), "b" => [true, false], "bb" => trues(2000), "flag" => true); attrs=Dict("fs" => 100.0))
                 log_metric(run, "loss", 0.5; step=1)
                 write(datapath("raw", "in.bin"), "abc")
                 add_input(run, datapath("raw", "in.bin"))
@@ -34,6 +34,7 @@ using Test, LabKit, DataFrames, JSON3
             @test JSON3.read(txt, Dict{String,Any})["s"] == "a\"{b"
             d = load(joinpath(run.dir, "a.h5"); verify=true)
             @test d["x"] == x && length(d["v"]) == 2000
+            @test d["b"] isa Vector{Bool} && d["b"] == [true, false] && d["bb"] isa Vector{Bool} && all(d["bb"]) && d["flag"] === true  # Bool は UInt8 + 属性で往復
             @test load_meta(joinpath(run.dir, "a.h5"))["attrs"]["fs"] == 100.0
             # 完了した run はコピーを通常の手段で削除できる（Windows の ACL 問題の回帰テスト）
             tmp = joinpath(dir, "copy"); cp(run.dir, tmp); rm(tmp; recursive=true, force=true)

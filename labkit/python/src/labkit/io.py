@@ -100,7 +100,12 @@ def _write_h5(tmp: Path, data: dict, attrs: dict) -> None:
             else:
                 arr = np.asarray(v)
                 kw = {"compression": "gzip", "compression_opts": 4, "chunks": True} if arr.size > 1024 else {}
-                group.create_dataset(k, data=arr, **kw)
+                # bool は HDF5 に無い型（h5py は enum、HDF5.jl は UInt8 で書き、相手が Bool に戻せない）。
+                # uint8 + 属性 labkit_dtype="bool" で書き、読む側（Python / Julia とも）が bool に戻す
+                is_bool = arr.dtype == np.bool_
+                ds = group.create_dataset(k, data=arr.astype(np.uint8) if is_bool else arr, **kw)
+                if is_bool:
+                    ds.attrs["labkit_dtype"] = "bool"
 
     with h5py.File(tmp, "w") as f:
         f.attrs["labkit_array_order"] = "C"
@@ -230,6 +235,9 @@ def _read_h5(path: Path) -> dict:
                 out[k] = get(v)
             else:
                 val = v[()]
+                tag = v.attrs.get("labkit_dtype")
+                if (tag.decode() if isinstance(tag, bytes) else tag) == "bool":  # HDF5.jl は固定長の bytes で書く
+                    val = val.astype(bool)
                 out[k] = val.decode() if isinstance(val, bytes) else val
         return out
 

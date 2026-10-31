@@ -16,13 +16,16 @@ from labkit.io import ReadOnlyAreaError  # noqa: E402
 
 def test_h5_roundtrip_and_sidecar(project):
     x = np.arange(12.0).reshape(3, 4)
+    mask = np.array([True, False, True])
     p = save(
         datapath("processed", "a.h5"),
-        {"x": x, "grp": {"y": np.ones(3)}, "label": "ok"},
+        {"x": x, "grp": {"y": np.ones(3)}, "label": "ok", "mask": mask, "big_mask": np.ones(2000, dtype=bool)},
         attrs={"fs": 1000.0, "unit": "V"},
     )
     d = load(p, verify=True)
     assert np.array_equal(d["x"], x) and d["grp"]["y"].shape == (3,) and d["label"] == "ok"
+    assert d["mask"].dtype == np.bool_ and np.array_equal(d["mask"], mask)  # bool は uint8 + 属性で往復する
+    assert d["big_mask"].dtype == np.bool_ and d["big_mask"].all()
     meta = load_meta(p)
     assert meta["format"] == "hdf5" and meta["attrs"]["fs"] == 1000.0
     with h5py.File(p) as f:

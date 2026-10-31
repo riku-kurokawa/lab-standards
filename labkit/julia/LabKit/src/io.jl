@@ -35,6 +35,8 @@ end
 
 # Julia（列優先）と Python（行優先）で同じ shape に見えるよう、2 次元以上は軸を反転して保存
 _to_c(a::AbstractArray) = ndims(a) > 1 ? permutedims(a, ndims(a):-1:1) : a
+# bool は HDF5 に無い型。uint8 + 属性 labkit_dtype="bool" で書き、読む側（Python / Julia とも）が Bool に戻す（Python 側と同じ規約）
+_storable(a::AbstractArray) = eltype(a) == Bool ? UInt8.(a) : a
 _from_c(a) = a isa AbstractArray && ndims(a) > 1 ? permutedims(a, ndims(a):-1:1) : a
 
 function _put!(g, d::AbstractDict)
@@ -43,12 +45,17 @@ function _put!(g, d::AbstractDict)
         if v isa AbstractDict
             _put!(create_group(g, k), v)
         elseif v isa AbstractArray && length(v) > 1024 && isbitstype(eltype(v))
-            arr = _to_c(v)
+            arr = _to_c(_storable(v))
             chunk = map(s -> min(s, 4096), size(arr))
             ds = create_dataset(g, k, eltype(arr), size(arr); chunk=chunk, deflate=4)
             write(ds, arr)
+            eltype(v) == Bool && (attrs(ds)["labkit_dtype"] = "bool")
         elseif v isa AbstractArray
-            g[k] = _to_c(collect(v))
+            g[k] = _to_c(collect(_storable(v)))
+            eltype(v) == Bool && (attrs(g[k])["labkit_dtype"] = "bool")
+        elseif v isa Bool
+            g[k] = UInt8(v)
+            attrs(g[k])["labkit_dtype"] = "bool"
         else
             g[k] = v
         end
@@ -137,7 +144,12 @@ function _get(g)
     out = Dict{String,Any}()
     for k in keys(g)
         obj = g[k]
-        out[k] = obj isa HDF5.Group ? _get(obj) : _from_c(read(obj))
+        if obj isa HDF5.Group
+            out[k] = _get(obj)
+        else
+            v = _from_c(read(obj))
+            out[k] = haskey(attrs(obj), "labkit_dtype") && attrs(obj)["labkit_dtype"] == "bool" ? (v isa AbstractArray ? Array{Bool}(v) : Bool(v)) : v
+        end
     end
     return out
 end

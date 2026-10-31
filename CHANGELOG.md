@@ -30,6 +30,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md を改訂。plugin の skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- HDF5 の bool（配列・スカラー）を uint8 + データセット属性 `labkit_dtype="bool"` で保存し、Python / Julia とも bool に戻す。
+  従来は h5py の enum / HDF5.jl の Bool 型で書かれ、相手言語では Int8 / uint8 になっていた（旧ファイルの読み込みは従来どおり）。
 - 雛形の `.claude/settings.json` の `env` に `PYTHONUTF8=1`（Windows で自作スクリプトの出力や他ツールも UTF-8 に揃える。SETUP.md に端末側の設定も記載）。
 - `labkit` CLI の出力を UTF-8 に固定（hooks と同じ）。cp932 既定の Windows でパイプ越し（Claude Code の Bash、Stop hook、Julia の `cite`）に日本語が文字化けしていた。
 - Windows（PYTHONUTF8 無し、既定 cp932）で、日本語を含む meta.json / サイドカー / devlog の読み書きや hooks の出力が壊れうる箇所を修正:
