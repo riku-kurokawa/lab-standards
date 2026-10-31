@@ -9,23 +9,24 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
 - **承認ゲート**（hooks `guard_bash`）: `git push` / `git tag` / 保護ブランチへの `git merge` / `gh pr merge` / `gh release` /
   `labkit raw freeze` / `copier copy|update` / `labkit standards template` を止める。`command git push`、`git -c x=y -C dir push`、
   連結コマンド、`uv run labkit ...` も検出。`presence=away`（既定）では拒否して `.lab/queue/<ID>.json` に記録、`here` では確認画面。
-- `labkit presence here|away|status`、`labkit queue list|ask|done|show`、`labkit approve|reject <ID>`（人間のみ。対話端末では ID の再入力）、
+- `labkit presence here|away|status`、`labkit queue list|ask|done`、`labkit approve|reject <ID>`（人間のみ。対話端末では ID の再入力）、
   `labkit answer <ID> "..."`。承認はコマンド全文 + HEAD に結び付き、24 時間で期限切れ、1 回限り。
   Claude は `labkit approve/reject/answer` を実行できず、`.lab/approvals|queue|flows` を Write/Edit/リダイレクトで書けない。
-- **手順の状態機械** `labkit flow start|status|advance|abort|list`（migrate、improve-standards）。定義は `labkit/flows/*.toml`、
+- **手順の状態機械** `labkit flow start|status|advance|abort`（migrate、improve-standards）。定義は `labkit/flows/*.toml`、
   状態は `.lab/flows/<name>.json`（git 管理）。advance が完了条件を検査し、承認が要る段階はキューに積む。hooks が段階外の操作を拒否。
 - **独立レビュー**: `docs/reviews/YYYY-MM-DD_<flow>_<段階>.md`（frontmatter: reviewer, flow, stage, commit, verdict, findings）。
-  書き込みは hook 入力の `agent_type` が lab-reviewer のときだけ。lab-reviewer は他のファイルを書けず Bash は読み取り専用。
+  書き込みは hook 入力の `agent_type` が lab-reviewer のときだけ。lab-reviewer は他のファイルを書けず、Bash は許可リストの読み取りコマンドだけ（拒否時に許可一覧を表示）。
   `labkit review template <flow> <stage>`（frontmatter の雛形）。
 - **labkit check** L032（文書が引用する run の存在。failed / link 中の run は警告）、L033（`12.3 dB [run:<id>:<key>]` 書式と
   metrics.json の照合。書式なし数値は警告、`[check] cite_bare_numbers = "off"` で無効化）、L035（レビュー記録の書式）。
   Issue に severity（error / warn）を追加。警告は strict でも終了コード 0。
 - `labkit cite <run_id> <key> [--digits N] [--unit dB]`（Python `labkit.cite`、Julia `LabKit.cite`）。
-- SessionStart（compact 含む）と UserPromptSubmit の hook が、承認済み・未実行の要求、承認待ち、質問、進行中の flow の段階を文脈に入れる。
+- SessionStart（compact 含む）の hook が承認待ち・質問・進行中の flow の段階を文脈に入れ、UserPromptSubmit の hook は人間の操作による差分
+  （承認済み・未実行、回答あり、却下）だけを添える。
   Stop hook は承認待ちが理由のときは止め直さない。
 - lab-standards 本体（`.lab-standards-root`）でも承認ゲートだけを有効にする。
 - plugin eval 7 ケース（`claude-plugin/evals/`、`make eval`。CI では手動起動のみ）。
-- 雛形: `.claude/settings.json` に sandbox（data/raw・lab.toml・.lab/approvals・.lab/queue を denyWrite、PyPI/GitHub/Julia を許可）、
+- 雛形: `.claude/settings.json` に sandbox（data/raw・lab.toml・.lab/approvals・.lab/queue・.lab/flows を denyWrite、PyPI/GitHub/Julia を許可）、
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
