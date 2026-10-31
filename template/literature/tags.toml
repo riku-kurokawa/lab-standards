@@ -1,0 +1,18 @@
+# タグの統制語彙。ノートやサーベイで使うタグはここに定義する（キー = タグ、値 = 説明）
+# グループは自由に追加してよい。表記ゆれ（denoise / denoising）を防ぐのが目的
+
+[method]
+deep-learning = "深層学習"
+bayesian = "ベイズ推定"
+sparse = "スパース推定・圧縮センシング"
+filtering = "フィルタ設計・状態推定"
+
+[task]
+denoising = "雑音除去"
+classification = "分類"
+simulation = "数値シミュレーション"
+
+[type]
+survey = "サーベイ論文"
+benchmark = "ベンチマーク・データセット論文"
+theory = "理論"

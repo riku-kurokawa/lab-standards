@@ -1,0 +1,31 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: version consistency
+        run: python3 tools/release.py --check
+      - name: labkit tests
+        working-directory: labkit/python
+        run: uv run --extra dev --extra polars pytest -q
+      - name: hook tests
+        run: uv run --with pytest pytest -q claude-plugin/tests
+      - name: render template with copier
+        run: |
+          git config --global user.email ci@example.com && git config --global user.name ci
+          uvx copier copy --defaults --vcs-ref HEAD -d project_name="CI project" -d author=ci . /tmp/ciproj
+          test -f /tmp/ciproj/lab.toml && test -f /tmp/ciproj/.copier-answers.yml
+
+  julia:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.11"
+      - name: LabKit.jl tests
+        run: julia --project=labkit/julia/LabKit -e 'using Pkg; Pkg.instantiate(); Pkg.test()'

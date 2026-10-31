@@ -1,0 +1,28 @@
+#!/bin/bash
+# HPC（Slurm）用ジョブの雛形。ジョブ名・資源・コマンドだけを変える。
+#   提出: sbatch jobs/slurm_example.sh configs/experiments/example.toml
+#   配列: sbatch --array=0-9 jobs/slurm_example.sh configs/experiments/sweep.toml
+#SBATCH --job-name={{ project_slug }}-example
+#SBATCH --time=01:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --output=scratch/slurm-%x-%j.out
+set -euo pipefail
+
+cd "${SLURM_SUBMIT_DIR}"
+export LAB_ENV=hpc                         # configs/paths/hpc.toml を使う
+export MLFLOW_DISABLE_TELEMETRY=true DO_NOT_TRACK=true
+
+# HPC 上でのコード編集は禁止。commit 済みであることを確認（meta.json の git.dirty でも記録される）
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "未コミットの変更があります。手元で commit → push → ここで git pull してから実行してください" >&2
+  exit 1
+fi
+
+CONFIG="${1:?設定ファイルを指定}"
+EXTRA=()
+if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
+  EXTRA+=("seed=${SLURM_ARRAY_TASK_ID}")   # 配列ジョブでは seed をタスク番号に
+fi
+
+uv run python scripts/run_example.py "${CONFIG}" ${EXTRA[@]+"${EXTRA[@]}"}

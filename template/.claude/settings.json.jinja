@@ -1,0 +1,24 @@
+{
+  "extraKnownMarketplaces": {
+    "lab-standards": {
+      "source": { "source": "github", "repo": "{{ standards_repo }}" }
+    }
+  },
+  "enabledPlugins": {
+    "lab-rules@lab-standards": true
+  },
+  "permissions": {
+    "deny": [
+      "Edit(data/raw/**)",
+      "Write(data/raw/**)",
+      "Edit(runs/**)",
+      "Write(runs/**)",
+      "Edit(lab.toml)",
+      "Write(lab.toml)"
+    ]
+  },
+  "env": {
+    "MLFLOW_DISABLE_TELEMETRY": "true",
+    "DO_NOT_TRACK": "true"
+  }
+}

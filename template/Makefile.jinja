@@ -1,0 +1,59 @@
+# 操作の入口を統一する（人間も Claude も同じコマンドを使う）
+.PHONY: check test lint fmt example raw-freeze raw-verify devlog runs mlflow-sync mlflow-ui lit-index \
+	std-status std-link std-unlink std-template
+
+check: lint test
+	uv run labkit check
+
+test:
+	uv run pytest -q
+{%- if use_julia %}
+	julia --project=jl -e 'using Pkg; Pkg.test()'
+{%- endif %}
+
+lint:
+	uv run ruff check src scripts tests
+	uv run ruff format --check src scripts tests
+
+fmt:
+	uv run ruff format src scripts tests
+	uv run ruff check --fix src scripts tests
+
+example:
+	@RUN=$$(uv run python scripts/run_example.py configs/experiments/example.toml | tail -1) && \
+	for s in example_timeseries example_psd example_learning_curve; do \
+	  uv run labkit fig figspecs/$$s.toml --run $$RUN; done
+
+raw-freeze:
+	uv run labkit raw freeze
+
+raw-verify:
+	uv run labkit raw verify --full
+
+devlog:
+	@uv run labkit devlog
+
+runs:
+	uv run labkit runs list
+
+mlflow-sync:
+	uv run --extra mlflow labkit mlflow sync
+
+mlflow-ui:
+	uv run --extra mlflow labkit mlflow ui
+
+lit-index:
+	uv run labkit lit index
+
+# --- lab-standards 本体との接続（skill: improve-standards） ---
+std-status:
+	uv run labkit standards status
+
+std-link:
+	uv run labkit standards link
+
+std-unlink:   # make std-unlink TO=v0.3.0
+	uv run labkit standards unlink --to $(TO)
+
+std-template: # make std-template REF=v0.3.0（作業ツリーが clean であること）
+	uv run labkit standards template --ref $(REF)

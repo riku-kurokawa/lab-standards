@@ -1,0 +1,4 @@
+# LAB_ENV=hpc のときに使うパス。HPC の大容量ストレージを指すように書き換える
+# 環境変数（$WORK, $SCRATCH, $USER など）は展開される
+data_root = "${WORK}/{{ project_slug }}/data"
+runs_root = "${WORK}/{{ project_slug }}/runs"

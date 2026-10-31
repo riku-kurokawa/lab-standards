@@ -1,0 +1,63 @@
+# ============================================================
+# lab.toml — このプロジェクトの規約の唯一の設定源
+#   labkit check / Claude Code の hooks / LabKit.jl がすべてここを読む。
+#   変更は人間が行う（Claude は編集できないよう hooks で保護されている）。
+# ============================================================
+
+[lab]
+standards_version = "0.2.0"
+project = "{{ project_slug }}"
+
+[layout]
+# トップレベルに置いてよいもの（これ以外は L001）
+allowed = [
+  "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile",
+  ".gitignore", ".gitattributes", ".pre-commit-config.yaml", ".copier-answers.yml", ".python-version",
+  ".claude", ".git", ".venv", ".mlflow", ".pytest_cache", ".ruff_cache",
+  "src", "scripts", "jl", "configs", "tests", "data", "runs", "notebooks",
+  "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "legacy",
+]
+# Claude が Write/Edit で直接書いてよい場所（data/ と runs/ はスクリプト経由でのみ生成）
+writable = [
+  "src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs",
+  "literature", "prompts", "scratch", "notebooks",
+  "README.md", "CLAUDE.md", "pyproject.toml", "Makefile", ".gitignore",
+]
+# 誰も書き換えない場所
+readonly = ["data/raw", "legacy"]
+
+[check]
+mode = "strict"          # 移行中は "warn"（違反を表示するが失敗にしない）
+# 図はテンプレート以外で作らない
+banned_plot_imports = [
+  "matplotlib", "seaborn", "plotly", "bokeh", "altair", "pylab",
+  "Plots", "Makie", "CairoMakie", "GLMakie", "WGLMakie", "PyPlot", "Gadfly", "UnicodePlots", "PlotlyJS",
+]
+plot_import_allowed = []   # 例外のファイル（glob）。原則空のまま
+# 言語依存・安全でない保存形式
+banned_formats = ["pickle", "cPickle", "dill", "joblib", "cloudpickle", "JLD2", "BSON"]
+format_allowed = []        # 例: ["src/{{ package_name }}/models/checkpoint.py"]（学習チェックポイント等）
+abs_path_patterns = ['/home/\w', '/Users/\w', '[A-Za-z]:\\\\', '/lustre', '/gpfs', '/scratch/', '/work/', '/groups/']
+code_dirs = ["src", "scripts", "jl", "tests", "notebooks"]
+figure_ok_dirs = ["docs/assets", "literature/pdfs", "literature/inbox", "scratch"]
+data_ok_dirs = ["tests/fixtures", "scratch"]
+skip = []                  # 一時的に無効化するチェックコード（例: ["L012"]）
+
+[devlog]
+dir = "docs/devlog"
+required_headings = ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"]
+
+[adr]
+dir = "docs/decisions"
+required_headings = ["背景", "決定", "理由と検討した代替案", "影響"]
+
+[runs]
+hash_inputs_max_gb = 2.0   # これより大きい入力は sha256 を計算しない（MANIFEST/サイドカーの値は使う）
+
+[literature]
+dir = "literature"
+pdf_dir = "literature/pdfs"   # 複数プロジェクトで共有するなら "~/lab-library/pdfs" など
+
+[claude]
+require_devlog = true      # コードを変更したセッションは当日の開発ログが無いと終了できない
+max_stop_blocks = 3        # 終了時チェックで止める最大回数（無限ループ防止）

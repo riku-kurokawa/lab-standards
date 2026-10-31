@@ -1,0 +1,34 @@
+"""例: 合成信号にローパスをかけて SNR を評価する。
+
+    uv run python scripts/run_example.py configs/experiments/example.toml [key=value ...]
+
+scripts は「設定を読む → src の関数を呼ぶ → labkit で保存」だけを行う薄い層にする。
+"""
+
+import sys
+
+import numpy as np
+from labkit import Run, load_config, log_metric, runpath, save
+
+from {{ package_name }}.filters import lowpass, snr_db
+
+
+def main(config_path: str, overrides: list[str]) -> None:
+    cfg = load_config(config_path, overrides)
+    rng = np.random.default_rng(cfg["seed"])
+    with Run(cfg["name"], cfg) as run:
+        fs = cfg["signal"]["fs"]
+        t = np.arange(0, cfg["signal"]["duration_s"], 1 / fs)
+        clean = np.sin(2 * np.pi * cfg["signal"]["freq_hz"] * t)
+        noisy = clean + cfg["signal"]["noise_std"] * rng.standard_normal(t.size)
+        for step, cutoff in enumerate(cfg["filter"]["cutoffs_hz"]):
+            filt = lowpass(noisy, fs, cutoff, cfg["filter"]["order"])
+            log_metric(run, "snr_db", snr_db(clean, filt), step=step)
+        best = lowpass(noisy, fs, cfg["filter"]["cutoffs_hz"][-1], cfg["filter"]["order"])
+        save(runpath(run, "signal.h5"), {"t": t, "clean": clean, "noisy": noisy, "filtered": best},
+             attrs={"fs": fs, "unit": "a.u."}, description="合成信号とフィルタ結果")
+        print(run.run_id)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1], sys.argv[2:])

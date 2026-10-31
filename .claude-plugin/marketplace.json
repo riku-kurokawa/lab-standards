@@ -1,0 +1,11 @@
+{
+  "name": "lab-standards",
+  "owner": { "name": "lab-standards" },
+  "plugins": [
+    {
+      "name": "lab-rules",
+      "source": "./claude-plugin",
+      "description": "lab-standards 規約の強制と研究ワークフローの skills"
+    }
+  ]
+}

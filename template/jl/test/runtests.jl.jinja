@@ -1,0 +1,7 @@
+using Test, {{ julia_module }}
+
+@testset "{{ julia_module }}" begin
+    @test moving_average([1.0, 2.0, 3.0], 1) == [1.0, 2.0, 3.0]
+    @test moving_average(ones(10), 5) ≈ ones(10)
+    @test_throws ArgumentError moving_average([1.0], 0)
+end

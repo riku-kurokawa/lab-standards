@@ -1,0 +1,17 @@
+template = "timeseries"
+name = "signal_overview"
+size = "double"
+description = "合成信号: 雑音あり / フィルタ後 / 真値"
+
+[data]
+file = "signal.h5"
+x = "t"
+y = ["noisy", "filtered", "clean"]
+legend = ["noisy", "filtered", "clean"]
+
+[labels]
+x = "Time [s]"
+y = "Amplitude [a.u.]"
+
+[options]
+xlim = [0.0, 1.0]

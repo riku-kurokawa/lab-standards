@@ -1,0 +1,12 @@
+# 全実験に共通の既定値。実験ごとの差分は experiments/*.toml に extends で書く
+seed = 0
+
+[signal]
+fs = 1000.0
+duration_s = 2.0
+freq_hz = 5.0
+noise_std = 0.5
+
+[filter]
+order = 4
+cutoffs_hz = [200.0, 100.0, 50.0, 20.0]

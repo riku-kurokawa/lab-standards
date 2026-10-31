@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "labkit/data_meta/1",
+  "title": "<file>.meta.json サイドカー（Python・Julia 共通）",
+  "type": "object",
+  "required": ["schema_version", "file", "format", "sha256", "size", "created", "created_by",
+               "run_id", "inputs", "attrs"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "file": {"type": "string"},
+    "format": {"type": "string"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "size": {"type": "integer", "minimum": 0},
+    "created": {"type": "string"},
+    "created_by": {"type": "string", "pattern": "^labkit-(python|julia) "},
+    "run_id": {"type": ["string", "null"]},
+    "git": {"type": ["object", "null"]},
+    "inputs": {"type": "array"},
+    "attrs": {"type": "object"},
+    "description": {"type": "string"}
+  }
+}

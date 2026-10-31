@@ -1,0 +1,52 @@
+# lab-standards プロジェクト雛形（copier）
+#   新規:   copier copy gh:<you>/lab-standards myproj
+#   追従:   cd myproj && copier update
+_subdirectory: template
+_templates_suffix: .jinja
+_answers_file: .copier-answers.yml
+_min_copier_version: "9.0.0"
+_exclude:
+  - "{% if not use_julia %}jl{% endif %}"
+
+project_name:
+  type: str
+  help: プロジェクト名（例：EEG artifact removal）
+
+project_slug:
+  type: str
+  help: 識別子（小文字英数とアンダースコア）
+  default: "{{ project_name | lower | replace(' ', '_') | replace('-', '_') }}"
+  validator: "{% if not (project_slug | regex_search('^[a-z][a-z0-9_]*$')) %}小文字英数と _ のみ{% endif %}"
+
+package_name:
+  type: str
+  help: Python パッケージ名（src/<package_name>）
+  default: "{{ project_slug }}"
+
+julia_module:
+  type: str
+  help: Julia モジュール名（CamelCase）
+  default: "{{ project_slug.split('_') | map('capitalize') | join }}"
+
+author:
+  type: str
+  help: 著者名
+
+use_julia:
+  type: bool
+  help: Julia も使いますか
+  default: true
+
+python_version:
+  type: str
+  default: "3.12"
+
+standards_repo:
+  type: str
+  help: lab-standards の GitHub リポジトリ（owner/name）
+  default: "riku-kurokawa/lab-standards"
+
+standards_ref:
+  type: str
+  help: 使う lab-standards のタグ（再現性のため固定）
+  default: "v0.2.0"

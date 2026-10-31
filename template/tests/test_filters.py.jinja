@@ -1,0 +1,17 @@
+import numpy as np
+import pytest
+
+from {{ package_name }}.filters import lowpass, snr_db
+
+
+def test_lowpass_keeps_low_frequency():
+    fs = 1000.0
+    t = np.arange(0, 1, 1 / fs)
+    x = np.sin(2 * np.pi * 5 * t)
+    y = lowpass(x + 0.5 * np.sin(2 * np.pi * 200 * t), fs, cutoff_hz=50)
+    assert snr_db(x, y) > 20
+
+
+def test_lowpass_rejects_bad_cutoff():
+    with pytest.raises(ValueError):
+        lowpass(np.zeros(100), fs=100, cutoff_hz=60)

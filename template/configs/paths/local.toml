@@ -1,0 +1,3 @@
+# LAB_ENV=local（既定）。相対パスはプロジェクトルート基準
+data_root = "data"
+runs_root = "runs"

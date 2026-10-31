@@ -1,0 +1,24 @@
+# 0001: lab-standards の規約を採用する
+
+- 状態: 採用
+- 日付: {{ '%Y-%m-%d' | strftime }}
+
+## 背景
+
+コード・データ・図・文書の形式が作業ごとにばらつくと、再現とレビューが難しくなる。
+特に Claude Code を使った長時間の作業では、口頭で伝えた規則が守られなくなる。
+
+## 決定
+
+lab-standards {{ standards_ref }} のディレクトリ構造と `lab.toml` の規約を採用し、
+`labkit check`・pre-commit・Claude Code の hooks で機械的に検証する。
+
+## 理由と検討した代替案
+
+- CLAUDE.md に規則を書くだけ: 長い作業で守られなくなるため不採用。
+- 規則をコード（labkit）と検証（check/hooks）に落とす: 決定的に守られるため採用。
+
+## 影響
+
+- 図は `labkit fig` のテンプレートでのみ作る。新しい図種は lab-standards 側に追加する。
+- 保存形式は HDF5 / Parquet に限定する。

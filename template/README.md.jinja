@@ -1,0 +1,43 @@
+# {{ project_name }}
+
+> lab-standards {{ standards_ref }} から生成。規約: `lab.toml`、Claude 向け要約: `CLAUDE.md`
+
+## セットアップ
+
+```bash
+uv sync                                   # Python 環境（labkit を含む）
+{%- if use_julia %}
+julia --project=jl -e 'using Pkg; Pkg.instantiate()'
+{%- endif %}
+uv run pre-commit install                 # commit 時のチェック
+make check                                # 規約チェック + テスト
+```
+
+## 再現手順
+
+```bash
+make example                              # 例: 合成信号の前処理 → run 生成 → 図
+uv run labkit runs list
+```
+
+## ディレクトリ
+
+| パス | 中身 | git |
+|---|---|---|
+| `src/{{ package_name }}/` | 再利用ライブラリ（純粋関数） | ✓ |
+| `scripts/` | 薄いエントリポイント | ✓ |
+{%- if use_julia %}
+| `jl/` | Julia パッケージ（`src/`, `scripts/`） | ✓ |
+{%- endif %}
+| `configs/` | 実験設定（TOML）、環境別パス `paths/` | ✓ |
+| `figspecs/` | 図の仕様（テンプレート名・データ・ラベル） | ✓ |
+| `data/raw/` | 生データ（不変・`MANIFEST.sha256`） | MANIFEST のみ |
+| `data/{external,interim,processed}/` | 外部データ・中間・最終派生データ | × |
+| `runs/<run_id>/` | 実験 1 回分（設定・来歴・指標・図） | × |
+| `docs/devlog/` | 開発ログ（1 日 1 ファイル） | ✓ |
+| `docs/decisions/` | ADR（設計判断の記録） | ✓ |
+| `literature/` | 書誌（bib）・ノート・サーベイ（PDF は管理外） | ✓ |
+| `jobs/` | HPC ジョブスクリプト | ✓ |
+| `prompts/` | LLM 用プロンプト | ✓ |
+| `notebooks/` | 探索用（結果を報告に使うなら scripts 化する） | ✓ |
+| `scratch/` | 自由な作業場所 | × |

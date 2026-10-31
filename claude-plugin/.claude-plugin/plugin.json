@@ -1,0 +1,9 @@
+{
+  "name": "lab-rules",
+  "displayName": "Lab Rules",
+  "version": "0.2.0",
+  "description": "lab-standards 規約の強制（パス保護・自動整形・終了時チェック・compact 後のルール再注入）と、実験・図・開発ログ・文献サーベイの手順 skills",
+  "author": { "name": "lab-standards" },
+  "license": "MIT",
+  "keywords": ["research", "reproducibility", "hpc", "julia", "python"]
+}

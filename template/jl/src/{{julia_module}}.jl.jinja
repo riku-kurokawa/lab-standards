@@ -1,0 +1,23 @@
+"""
+    {{ julia_module }}
+
+再利用ライブラリ（Julia）。純粋関数を置く。I/O・設定読込は jl/scripts 側、描画は labkit fig。
+"""
+module {{ julia_module }}
+
+export moving_average
+
+"""
+    moving_average(x, w)
+
+窓幅 `w` の移動平均（端は短い窓）。
+"""
+function moving_average(x::AbstractVector{<:Real}, w::Integer)
+    w >= 1 || throw(ArgumentError("w >= 1 が必要"))
+    n = length(x)
+    c = cumsum(vcat(zero(float(eltype(x))), x))
+    h = w ÷ 2
+    return [(c[min(n, i + h) + 1] - c[max(1, i - h)]) / (min(n, i + h) - max(1, i - h) + 1) for i in 1:n]
+end
+
+end # module

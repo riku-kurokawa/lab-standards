@@ -1,0 +1,20 @@
+name = "{{ julia_module }}"
+uuid = "{{ (project_slug ~ '-lab-standards') | to_uuid }}"
+version = "0.1.0"
+authors = ["{{ author }}"]
+
+[deps]
+LabKit = "a7622db1-e488-467e-8923-aeb5b3c692de"
+
+[sources]
+# Julia 1.11 以降。lab-standards のタグで固定
+LabKit = { url = "https://github.com/{{ standards_repo }}.git", subdir = "labkit/julia/LabKit", rev = "{{ standards_ref }}" }
+
+[compat]
+julia = "1.11"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

@@ -1,0 +1,10 @@
+template = "learning_curve"
+name = "snr_vs_cutoff_step"
+size = "single"
+
+[data]
+metrics = ["snr_db"]
+
+[labels]
+x = "Cutoff index"
+y = "SNR [dB]"

@@ -1,0 +1,13 @@
+template = "psd"
+name = "signal_psd"
+size = "single"
+
+[data]
+file = "signal.h5"
+signal = ["noisy", "filtered"]
+fs = 1000.0
+nperseg = 512
+
+[options]
+xlim = [0.0, 300.0]
+grid = true

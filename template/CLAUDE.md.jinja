@@ -1,0 +1,34 @@
+# {{ project_name }}
+
+研究用計算プロジェクト。規約は lab-standards（`lab.toml`）に従う。詳細な手順は lab-rules plugin の skills にある。
+
+## 完了条件
+
+- `make check`（= `labkit check` + テスト + lint）が通るまで作業は完了ではない。
+- コードを変えた日は `docs/devlog/YYYY-MM-DD.md` を更新する（`labkit devlog` で作成）。
+
+## 置き場所の判定
+
+| 作るもの | 置き場所 | 方法 |
+|---|---|---|
+| 再利用する関数（純粋関数） | `src/{{ package_name }}/`{% if use_julia %}・`jl/src/` {% endif %}| テストを `tests/` に書く |
+| 実行の入口 | `scripts/`{% if use_julia %}・`jl/scripts/`{% endif %} | 設定を読み `src` を呼ぶだけの薄いもの |
+| パラメータ | `configs/experiments/*.toml` | `extends = "../base.toml"` |
+| 実験結果 | `runs/<run_id>/` | `labkit.Run` 経由でのみ生成 |
+| 派生データ | `data/interim`, `data/processed` | `labkit.save` / `writer` 経由でのみ生成 |
+| 図 | `runs/<run_id>/figures/` | `figspecs/*.toml` + `labkit fig`。描画ライブラリを直接使わない |
+| 文献・サーベイ | `literature/` | `labkit lit add` / `labkit lit survey` |
+| 設計判断 | `docs/decisions/` | `labkit adr "タイトル"` |
+| 試行錯誤 | `scratch/` | git 管理外。成果物にしない |
+
+## 雛形・labkit・hooks 自体を直したくなったら
+
+このプロジェクト内のコピーは直さない。skill `improve-standards` に従い、lab-standards 本体を直してリリースしてから
+`labkit standards unlink --to vX.Y.Z` / `labkit standards template --ref vX.Y.Z` で取り込む。
+このプロジェクトだけの例外は `lab.toml` で行う（人間が編集）。
+
+## 禁止事項
+
+- `data/raw/` と完了した `runs/` の変更、`lab.toml` の編集。
+- pickle・JLD2 など言語依存形式での保存、コード中の絶対パス（`configs/paths/*.toml` を使う）。
+- 規約に合わない新しいトップレベルディレクトリの作成。
