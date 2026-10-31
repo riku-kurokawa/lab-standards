@@ -384,3 +384,9 @@
   uv 不在でもやはり静かに失敗するので不採用。通知は非準拠の機械でだけ出るので騒がしさは正当。
 - 結論: 採用。
 - 規模: _labcommon.py +6 行 −4 行、テスト +12 行、SETUP +1 行。
+
+### 40. 2026-11-01 — hooks が頼る `python3` の正確な用意方法を書く（文書）
+- 観点: サイクル 39 の続き。この PC の `python3` は uv が `~/.local/bin` に置いた実行ファイルで、python.org の Windows 版には `python3.exe` が無い。
+  hooks.json は `python3` 固定なので、用意する正確なコマンドが要る。
+- 提案: SETUP の 1 行を `uv python install 3.12 --default`（`--default` は uv 0.13 の help で確認。python/python3 の実行ファイルを置く）に。
+- 結論: 文書の精密化のみ（監査省略）。
