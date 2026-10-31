@@ -177,3 +177,8 @@ GitHub のブランチ保護（最後の砦）: Settings → Branches → main �
   v0.1 からあるコマンドなので既存プロジェクトでの利用の有無を確認したい。
 - 仮の判断: 残す（互換）。削除するなら cli.py の 2 分岐と choices。
 
+### Q-020 [question] MLflow 連携（`labkit mlflow sync|ui`、optional 依存、Makefile の mlflow-*、README の節）は要るか
+- 内容: runs/ を閲覧用に MLflow へ写す索引機能（約 110 行 + 依存 + 文書）。v0.1 からあるが、この作業では一度も使っておらず、
+  利用実態が分からない。無ければ概念が 1 つ減る（runs/ が唯一の記録、閲覧は `labkit runs list/show` と図）。
+- 仮の判断: 残す（使っているかどうかは人間しか知らない）。削るなら mlflow_sync.py、cli の mlflow、pyproject の extra、Makefile 2 ターゲット、README 1 節。
+
