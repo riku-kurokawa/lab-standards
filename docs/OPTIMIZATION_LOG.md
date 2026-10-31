@@ -17,6 +17,7 @@
 | hooks の拒否を exit 2（stderr）と JSON の permissionDecision の 2 方式から 1 方式に統一 | ask / allow は JSON でしか表せず、Stop hook は exit 2 が必要。公式ドキュメント上 exit 2 は deny と同じ扱いで、統一しても挙動は変わらず、テスト 80 件以上の書き換えだけが残る | 2026-11-01 |
 | 既存（v0.2.0）プロジェクトの .gitignore に .lab の除外を足す移行作業 | labkit が初回に書く `.lab/.gitignore` で、実リポジトリでも `presence` と `queue/` は ignored、`flows/` と `.gitignore` だけが追跡対象になることを確認。追加の移行作業は不要 | 2026-11-01 |
 | Stop hook（labkit check + ruff check）を軽くする | 実測: 生成プロジェクトで初回 0.9 s、以後 0.3 s。十分に軽い | 2026-11-01 |
+| 雛形の Slurm ジョブ（jobs/slurm_example.sh）を skill hpc-job の要件に合わせて直す | 読み合わせた結果、`set -euo pipefail`・未コミット検査・`LAB_ENV=hpc`・配列ジョブの上書き引数が揃っていて差異なし | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
 | Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
@@ -289,3 +290,11 @@
 - 観察: 見えるのは link による pyproject / jl/Project.toml の変更、開発ログ、`.lab/.gitignore` と `.lab/flows/`、uv.lock / Manifest.toml
   （再現性のため追跡対象）だけ。runs/・data/・.lab/queue・presence は出ない。
 - 結論: 変更なし。
+
+### 30. 2026-11-01 — 本体の判定を 1 つの規則に（マーカーファイルを削除）
+- 観点: 同じ事実の 2 つの表現。「ここは lab-standards 本体」は、マーカー `.lab-standards-root`（find_scope だけが見る）と
+  `copier.yml` + `labkit/python` の経験則（labkit_source の Python / Julia、flow が使う）の 2 通りで判定していた。
+- 提案: マーカーを削除し、経験則に統一（Julia からも同じ規則が使える唯一の方法）。
+- 監査: 採用。生成プロジェクトは copier.yml も labkit/ も持たないので誤判定しない。既存クローンは既に OR 側で動いていたため互換の問題なし。
+- 結論: 採用。
+- 規模: 追跡ファイル −1、_labstate.py −1 行、guard_write/state/test 各 −1 箇所、docs 4 か所の言い換え。

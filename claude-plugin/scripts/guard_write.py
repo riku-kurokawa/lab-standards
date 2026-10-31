@@ -41,7 +41,7 @@ def new_text(tool: str, ti: dict) -> str:
 
 
 def harness_rules(data: dict, r: str) -> None:
-    if r == ".lab-standards-root" or any(r == d or r.startswith(d + "/") for d in HARNESS_STATE_DIRS):
+    if any(r == d or r.startswith(d + "/") for d in HARNESS_STATE_DIRS):
         block(
             f"{r} はハーネスの状態です。直接書かず labkit のコマンド（queue ask/done, flow start/advance）を使います。"
             "承認・却下・回答は人間だけが行います。"

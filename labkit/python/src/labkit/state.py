@@ -19,7 +19,6 @@ from pathlib import Path
 
 from labkit._labstate import (  # noqa: F401  （cli / flow / tests が labkit.state 経由で使う）
     LAB_DIR,
-    STANDARDS_MARKER,
     _iso,
     _now,
     active_flows,

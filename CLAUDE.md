@@ -30,13 +30,13 @@
 5. **新しい規約には機械的な検証を付ける**（check のルール、hook、スキーマ）。文章だけの規約を増やさない。
    check のルールを足したら、`labkit/python/src/labkit/check.py` 冒頭のコード一覧と README を更新する。
 6. **プロジェクト固有の事情を入れない**。他のプロジェクトで使わないものは、そのプロジェクトの `lab.toml` で例外にする。
-7. **hooks は標準ライブラリだけで書く**（Python 3.11+）。`lab.toml` のあるプロジェクトと本体（`.lab-standards-root`、承認ゲートのみ）以外では何もしないこと。
+7. **hooks は標準ライブラリだけで書く**（Python 3.11+）。`lab.toml` のあるプロジェクトと本体（`copier.yml` + `labkit/` を持つリポジトリ。承認ゲートのみ）以外では何もしないこと。
 
 ## リリース手順
 
 1. `CHANGELOG.md` の先頭に `## vX.Y.Z — YYYY-MM-DD` の節を書く（追加・変更・移行手順）。
 2. `python tools/release.py X.Y.Z` で全ファイルの版を揃える（labkit, LabKit.jl, plugin, 雛形の既定値）。
 3. テストを通し、commit → main にマージ → `git tag vX.Y.Z` → `git push origin main --tags`。
-   本体でも承認ゲートが効く（`.lab-standards-root`）: merge / tag / push は拒否されて `.lab/queue` に積まれ、人間の `labkit approve` 後に通る。
+   本体でも承認ゲートが効く（`copier.yml` + `labkit/` で本体と判定）: merge / tag / push は拒否されて `.lab/queue` に積まれ、人間の `labkit approve` 後に通る。
 
 版の付け方: 互換を保つ機能追加はマイナー（0.2.0 → 0.3.0）、修正のみはパッチ（0.2.1）、互換を壊す変更はメジャー。

@@ -60,7 +60,6 @@ def proj(tmp_path: Path) -> Path:
 def standards(tmp_path: Path) -> Path:
     (tmp_path / "copier.yml").write_text("_subdirectory: template\n")
     (tmp_path / "labkit" / "python").mkdir(parents=True)
-    (tmp_path / ".lab-standards-root").write_text("")
     git(tmp_path, "init", "-q", "-b", "main")
     git(tmp_path, "commit", "-q", "--allow-empty", "-m", "init")
     return tmp_path

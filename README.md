@@ -137,7 +137,7 @@ triage【承認】 → branch → implement（必要なら link） → test【�
 | 他のプロジェクトに波及しない | 各プロジェクトはタグ固定。好きなときに ⑥ で更新 |
 | 版の整合 | `tools/release.py` が全ファイルの版と CHANGELOG を検査（CI でも実行） |
 
-本体のメンテナンス規約は `CLAUDE.md`（このリポジトリのルート）。本体でも承認ゲート（push / tag / merge）は有効（`.lab-standards-root`）。
+本体のメンテナンス規約は `CLAUDE.md`（このリポジトリのルート）。本体でも承認ゲート（push / tag / merge）は有効（`copier.yml` + `labkit/` を持つリポジトリを本体と判定）。
 
 ## labkit check のコード
 

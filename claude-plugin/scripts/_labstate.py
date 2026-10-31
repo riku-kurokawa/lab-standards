@@ -15,7 +15,6 @@ from pathlib import Path
 
 LAB_DIR = ".lab"
 DEFAULT_PRESENCE = "away"
-STANDARDS_MARKER = ".lab-standards-root"
 GITIGNORE = (
     "# labkit が生成。presence・queue・approvals は手元だけの状態（flows/ は git 管理）\npresence\nqueue/\napprovals/\n"
 )
@@ -173,7 +172,9 @@ def find_scope(start: str | os.PathLike | None) -> tuple[Path, str] | None:
     for d in (p, *p.parents):
         if (d / "lab.toml").is_file():
             return d, "project"
-        if (d / STANDARDS_MARKER).is_file() or ((d / "copier.yml").is_file() and (d / "labkit" / "python").is_dir()):
+        if (d / "copier.yml").is_file() and (
+            d / "labkit" / "python"
+        ).is_dir():  # lab-standards 本体（labkit_source と同じ判定）
             return d, "standards"
     return None
 

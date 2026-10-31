@@ -24,7 +24,7 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
 - SessionStart（compact 含む）の hook が承認待ち・質問・進行中の flow の段階を文脈に入れ、UserPromptSubmit の hook は人間の操作による差分
   （承認済み・未実行、回答あり、却下）だけを添える。
   Stop hook は承認待ちが理由のときは止め直さない。
-- lab-standards 本体（`.lab-standards-root`）でも承認ゲートだけを有効にする。
+- lab-standards 本体（`copier.yml` と `labkit/` を持つリポジトリ）でも承認ゲートだけを有効にする。
 - plugin eval 7 ケース（`claude-plugin/evals/`、`make eval`。CI では手動起動のみ）。
 - 雛形: `.claude/settings.json` に sandbox（data/raw・lab.toml・.lab/approvals・.lab/queue・.lab/flows を denyWrite、PyPI/GitHub/Julia を許可）、
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。

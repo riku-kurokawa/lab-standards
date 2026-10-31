@@ -21,7 +21,7 @@ pre-commit の ruff は uv.lock の版、AGENT_QUEUE.md はプロジェクト側
   `_labstate.py`（.lab/ の読み書き、標準ライブラリのみ）、`guard_bash.py`（away: 拒否 + キュー / here: ask / 承認済み: 1 回だけ allow）。
   `labkit presence|queue|approve|reject|answer`（`labkit/state.py`, `cli.py`）。承認はコマンド全文 + HEAD、24 時間、1 回限り。
   Claude は approve/reject/answer を実行できず、`.lab/approvals|queue|flows` を Write/Edit/リダイレクトで書けない。
-  本体（`.lab-standards-root`）でもゲートだけ有効。
+  本体（`copier.yml` + `labkit/`）でもゲートだけ有効。
 - **手順の状態機械**（3 章）: `labkit/flow.py` + `labkit/flows/{migrate,improve-standards}.toml`。`labkit flow start|status|advance|abort|list`。
   advance が完了条件（15 種の type）を検査、承認が要る段階はキューへ。hooks が段階の forbid（code/experiments/raw/template/link/release/commit）を拒否。
   SessionStart・UserPromptSubmit（新 hook `prompt_context.py`）が段階・残り条件・承認待ち・質問を文脈に入れる。Stop hook は承認待ちでは止め直さない。
