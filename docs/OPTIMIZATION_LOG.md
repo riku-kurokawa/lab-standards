@@ -591,3 +591,16 @@
 - 監査: 1 行の表示修正のため独立監査は省略（判断の余地なし）。labkit 65 passed。
 - 結論: 採用。
 - 規模: standards.py ±1 行。
+
+### 65. 2026-11-01 — plugin eval が一度も走らないまま壊れていた
+- 観点: 人間が費用を払って実行する評価（Q-004）が、60 サイクルの変更の後も正しいか。独立エージェントに 7 ケースと scaffold を hooks・CLI・flow 定義・
+  雛形・記録した公式仕様と突き合わせさせた。
+- 発見: (1) scaffold（`_shared/project.sh` と 7 つのコピー）の種 meta.json に必須の `command` が無く、`labkit check` が L020 で失敗 → Stop hook が
+  毎回止め、全ケースが無関係な違反で採点を歪める。(2) Git Bash では `pwd` が `/c/Users/...` で、uv が `file:///C:/c/...` と解釈して scaffold 自体が失敗
+  （この PC で実測）。(3) `case.yaml` の `tags` は公式仕様では prompt.md の frontmatter 側で、case.yaml には無い。(4) README の `make eval` 展開に
+  `--trust-plugin` が無い。7 ケースの手順・期待・grader は現状と一致。
+- 提案: meta.json に `command`（と `cwd`）を追加、`cygpath -m` で変換、`tags` を削除、README を修正。`claude plugin validate` 通過、scaffold を実行して
+  check が L050（Stop hook は無視）だけになることを確認。
+- 監査: 発見は独立エージェント。仕様の確認は `claude plugin eval --help` と docs/notes の記録。
+- 結論: 採用。evals の実行自体は費用がかかるので Q-004 のまま人間に委ねる。
+- 規模: 16 ファイル、+17 −8 行。

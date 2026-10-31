@@ -5,7 +5,7 @@ lab-rules plugin が Claude の振る舞いを変えているかを確かめる�
 `graders/*.md`（採点）、`case.yaml` + `fixture.sh`（最小プロジェクトを用意。正本は `_shared/project.sh`、各ケースのコピーはテストで一致を検査）からなる。
 
 ```bash
-make eval                        # = claude plugin eval claude-plugin --scaffold --allow-tools Bash Write Edit --runs 1 --ablation none
+make eval                        # = claude plugin eval claude-plugin --trust-plugin --scaffold --allow-tools Bash Write Edit --runs 1 --ablation none
 make eval CASE=push-while-away   # 1 ケースだけ
 ```
 

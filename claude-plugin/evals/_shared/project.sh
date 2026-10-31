@@ -15,12 +15,14 @@ cat > "runs/$RUN/meta.json" <<JSON
  "labkit_version": "0.3.0", "labkit_source": {"mode": "release", "version": "0.3.0"}, "created": "2026-11-01T09:00:00+09:00",
  "finished": "2026-11-01T09:00:01+09:00", "duration_s": 0.4,
  "git": {"commit": "0d3f5c2000000000000000000000000000000000", "branch": "main", "dirty": false},
+ "command": ["python", "scripts/run_example.py", "configs/experiments/example.toml"], "cwd": ".",
  "inputs": [], "outputs": [], "tags": {}, "error": null}
 JSON
 printf '{"snr_db": 12.345, "n_samples": 2000}\n' > "runs/$RUN/metrics.json"
 # labkit を使えるようにする（本体チェックアウトの labkit を editable で入れる）。
 # scaffold は一時的な HOME・空の環境で走るので、このスクリプト自身の場所（<repo>/claude-plugin/evals/<case>/fixture.sh）から本体を求める
 DEV="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+command -v cygpath >/dev/null 2>&1 && DEV="$(cygpath -m "$DEV")"   # Git Bash の /c/... は uv が file:///C:/c/... と誤解する
 cat > pyproject.toml <<TOML
 [project]
 name = "evalproj"

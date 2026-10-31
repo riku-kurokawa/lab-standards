@@ -30,6 +30,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md を改訂。plugin の skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- plugin eval の scaffold: 種の meta.json に必須の `command` が無く、すべてのケースが Stop hook の L020 で止まっていた。Git Bash では本体の
+  パスが `file:///C:/c/...` になり scaffold が失敗していた（cygpath で変換）。`case.yaml` の未定義キー `tags` を削除。
 - HDF5 の bool（配列・スカラー）を uint8 + データセット属性 `labkit_dtype="bool"` で保存し、Python / Julia とも bool に戻す。
   従来は h5py の enum / HDF5.jl の Bool 型で書かれ、相手言語では Int8 / uint8 になっていた（旧ファイルの読み込みは従来どおり）。
 - 雛形の `.claude/settings.json` の `env` に `PYTHONUTF8=1`（Windows で自作スクリプトの出力や他ツールも UTF-8 に揃える。SETUP.md に端末側の設定も記載）。
