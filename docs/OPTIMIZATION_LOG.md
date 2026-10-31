@@ -28,6 +28,7 @@
 | CLI の help 文言をサブコマンド削除後に見直す | queue / flow / approve / review / cite / presence の help は現状と一致。変更なし | 2026-11-01 |
 | 大配列（4×10^6 Float64）の save を Python と Julia で揃える | 実測: 両者 gzip レベル 4、サイズ 30.8 MB で同一、相互に読める。違うのはチャンク形状だけ（Python 自動 (1,7813)、Julia (4,4096)）で形式の差ではない。Julia の 3.0 s は JIT 込み | 2026-11-01 |
 | 承認ゲートの `make raw-freeze` / `make std-*` 検出を削る（現行の雛形に無い target） | サイクル 10 で意図的に残した互換（v0.2.0 の Makefile を持つプロジェクトで生データ凍結がゲートを素通りしないため） | 2026-11-01 |
+| HEAD から生成したプロジェクトの通し実行（link → Python/Julia の例 → 図 3 枚 → Pkg.test / pytest / ruff / check --strict）で直す点を探す | すべて正常（違反は link 中の L050 のみで、Stop hook は無視する）。初回に見えた `ruff format --check` の失敗は copier が既定で最新タグ v0.2.0 を使ったため。HEAD を試すには `--vcs-ref HEAD` で、CI と skill improve-standards に記載済み | 2026-11-01 |
 | use_julia=false のプロジェクトで Julia 由来の設定（sandbox の ~/.julia と julialang ドメイン）を条件分岐で消す | Python のみの生成を実測: jl/ 無し、link・status・pytest・check・example すべて正常。残るのは settings.json の 2 エントリで無害。JSON 内の jinja 分岐はカンマの扱いが脆いので見送り | 2026-11-01 |
 | 図テンプレート（8 種）の整理・統合 | `labkit fig list` の説明・必須 data・例が揃っていて重複なし。変更なし | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
