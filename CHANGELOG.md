@@ -30,6 +30,7 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md を改訂。plugin の skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- Julia の `LabKit.check()` / `labkit_cli(...)` は終了コードを返す（違反があると例外になっていた。Python の `labkit.check()` と同じ契約）。
 - labkit が書くテキスト（meta.json、metrics、log、サイドカー、MANIFEST、devlog/ADR の雛形、link の書き換え）を OS に依らず LF に
   （Windows では CRLF になり、LF で書く Julia 側や他の機械との間で差分が出ていた）。テストが機械的に検査する。
 - `tools/release.py X.Y.Z` は CHANGELOG の節を確かめてから版を書き換える（従来は 6 ファイルを書き換えた後に失敗していた）。

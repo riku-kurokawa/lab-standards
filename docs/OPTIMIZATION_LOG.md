@@ -621,3 +621,13 @@
 - 結論: 採用。
 - 規模: 18 ファイル、+163 −73 行（大半は `newline="
 "` の追加）。labkit 67 passed。
+
+### 68. 2026-11-01 — Julia の `check()` が違反ありで例外になっていた
+- 観点: Julia から Python CLI を呼ぶ wrapper（check / cite / fig / labkit_cli）を生成プロジェクトで実行。
+- 発見: cite / fig / labkit_cli は動くが、`LabKit.check()` は `labkit check` の終了コード 1（違反あり＝正常な結果）で ProcessFailedException。
+  Python の `labkit.check()` は終了コードを返す。
+- 提案: `labkit_cli` は `ignorestatus` で実行し終了コード（Int）を返す → `check()` は Python と同じ契約。`cite` の find_root() 二重呼び出しを整理。
+- 監査: 採用（変更付き）: `fig` まで戻り値になると、無い run や不正な figspec で黙って 1 を返す退行 → `fig` は 0 以外で例外にし、Python が
+  パスのリストを返すことを docstring に記す。exitcode は Int32 なので Int に。呼び出し側に例外や Process に依存する所は無し。
+- 結論: 採用。
+- 規模: cli.jl +6 行。LabKit.jl 16/16。wrapper 自体のテストは Python CLI が要るため無し（生成プロジェクトで実測）。
