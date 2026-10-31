@@ -30,6 +30,9 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- 図テンプレート `heatmap`: 文書どおりの `z[i, j] = f(x_i, y_j)`（shape (len(x), len(y))、Julia の size と同じ）で描けなかった
+  （matplotlib は行＝y を期待するため、正方でない配列はエラー、正方なら転置して描いていた）。規約を明示し、形を検査して転置して渡す。
+  histogram / scatter / errorbar / heatmap のテストを追加（従来は 8 テンプレート中 4 つだけがテスト対象だった）。
 - hooks: `python3` が 3.11 未満（tomllib なし）のとき、黙って検査を無効化せず exit 1 と説明を出す（macOS の標準 python3 は 3.9 で、
   ハーネス全体が静かに動かなかった）。SETUP に python3 のバージョン要件を追記。
 - `labkit cite` の既定の表示を「有効数字 4 桁」の 1 規則に統一（以前は 123456.789 だけ全桁になるなど不揃い）。

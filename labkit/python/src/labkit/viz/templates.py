@@ -116,7 +116,7 @@ def timeseries(spec, ctx):
 @template(
     "spectrogram",
     ["file"],
-    "スペクトログラム。f, t, S（パワー）があればそれを描き、無ければ signal と fs から計算",
+    "スペクトログラム。f, t, S（パワー、S.shape = (len(f), len(t))）があればそれを描き、無ければ signal と fs から計算",
     'data = {file = "signal.h5", signal = "x", fs = 1000.0, nperseg = 256, db = true}',
 )
 def spectrogram(spec, ctx):
@@ -255,7 +255,8 @@ def scatter(spec, ctx):
 @template(
     "heatmap",
     ["file", "z"],
-    "2 次元配列のヒートマップ。x, y 軸配列は任意。diverging = true で 0 中心の発散カラーマップ",
+    "2 次元配列のヒートマップ。z[i, j] は (x[i], y[j]) の値（shape = (len(x), len(y))。Julia の size と同じ）。"
+    "x, y 省略時は添字 i が横軸、j が縦軸。diverging = true で 0 中心の発散カラーマップ",
     'data = {file = "field.h5", z = "u", x = "xgrid", y = "ygrid", diverging = false}',
 )
 def heatmap(spec, ctx):
@@ -271,10 +272,17 @@ def heatmap(spec, ctx):
         kw.update(cmap=DIVERGING_CMAP, vmin=-lim, vmax=lim)
     else:
         kw.update(cmap=SEQUENTIAL_CMAP)
+    # 規約: z[i, j] は (x[i], y[j]) の値。matplotlib は C[row=y, col=x] を期待するので転置して渡す（形は検査し、推測しない）
     if "x" in d and "y" in d:
-        m = ax.pcolormesh(_get(data, d["x"]), _get(data, d["y"]), z, **kw)
+        x, y = _get(data, d["x"]), _get(data, d["y"])
+        if z.shape != (len(x), len(y)):
+            raise ValueError(
+                f"heatmap: z.shape={z.shape} は (len(x), len(y))=({len(x)}, {len(y)}) である必要があります"
+                "（z[i, j] は (x[i], y[j]) の値）"
+            )
+        m = ax.pcolormesh(x, y, z.T, **kw)
     else:
-        m = ax.pcolormesh(z, **kw)
+        m = ax.pcolormesh(z.T, **kw)
     cb = fig.colorbar(m, ax=ax)
     cb.set_label(spec.get("labels", {}).get("colorbar", d["z"]))
     _labels(ax, spec, "x", "y")

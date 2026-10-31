@@ -3,6 +3,7 @@
 import json
 
 import numpy as np
+import pandas as pd
 import pytest
 
 h5py = pytest.importorskip("h5py")
@@ -63,14 +64,32 @@ def test_figure_templates(project):
         save(runpath(run, "s.h5"), {"t": t, "x": np.sin(2 * np.pi * 5 * t)})
         for i in range(5):
             run.log_metric("loss", 1 / (i + 1), step=i)
+        xg, yg = np.arange(4.0), np.arange(6.0)
+        u = xg[:, None] * 10 + yg[None, :]  # u[i, j] = f(x_i, y_j)。正方でない (4, 6) で向きの取り違えを検出する
+        save(runpath(run, "field.h5"), {"u": u, "uT": u.T, "xgrid": xg, "ygrid": yg})
+        save(
+            runpath(run, "res.parquet"),
+            pd.DataFrame({"method": ["a", "a", "b", "b"], "rmse": [1.0, 1.2, 2.0, 2.1]}),
+        )
     specs = {
         "ts.toml": 'template = "timeseries"\n[data]\nfile = "s.h5"\nx = "t"\ny = ["x"]\n',
         "lc.toml": 'template = "learning_curve"\n[data]\nmetrics = ["loss"]\n',
         "psd.toml": 'template = "psd"\n[data]\nfile = "s.h5"\nsignal = "x"\nfs = 1000.0\nnperseg = 256\n',
         "sp.toml": 'template = "spectrogram"\n[data]\nfile = "s.h5"\nsignal = "x"\nfs = 1000.0\nnperseg = 64\n',
+        "hm.toml": 'template = "heatmap"\n[data]\nfile = "field.h5"\nz = "u"\nx = "xgrid"\ny = "ygrid"\n',
+        "hm0.toml": 'template = "heatmap"\n[data]\nfile = "field.h5"\nz = "u"\n',
+        "hist.toml": 'template = "histogram"\n[data]\nfile = "s.h5"\nvalues = ["x"]\nbins = 20\n',
+        "sc.toml": 'template = "scatter"\n[data]\nfile = "s.h5"\nx = "t"\ny = "x"\n',
+        "eb.toml": 'template = "errorbar"\n[data]\nfile = "res.parquet"\nx = "method"\ny = "rmse"\n',
     }
     for name, text in specs.items():
         (project / "figspecs" / name).write_text(text)
         out = render(project / "figspecs" / name, run_id=run.run_id)
         assert all(p.exists() for p in out)
     assert (run.dir / "figures" / "ts.figmeta.json").exists()
+    # 向きを取り違えた配列（(len(y), len(x))）は黙って描かず拒否する
+    (project / "figspecs" / "bad.toml").write_text(
+        'template = "heatmap"\n[data]\nfile = "field.h5"\nz = "uT"\nx = "xgrid"\ny = "ygrid"\n'
+    )
+    with pytest.raises(ValueError, match="len\\(x\\), len\\(y\\)"):
+        render(project / "figspecs" / "bad.toml", run_id=run.run_id)
