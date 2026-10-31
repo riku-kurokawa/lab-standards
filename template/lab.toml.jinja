@@ -11,7 +11,7 @@ project = "{{ project_slug }}"
 [layout]
 # トップレベルに置いてよいもの（これ以外は L001）
 allowed = [
-  "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile", "AGENT_QUEUE.md",
+  "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile",
   ".gitignore", ".gitattributes", ".pre-commit-config.yaml", ".copier-answers.yml", ".python-version",
   ".claude", ".git", ".venv", ".mlflow", ".pytest_cache", ".ruff_cache", ".lab",
   "src", "scripts", "jl", "configs", "tests", "data", "runs", "notebooks",
@@ -21,7 +21,7 @@ allowed = [
 writable = [
   "src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs",
   "literature", "prompts", "scratch", "notebooks",
-  "README.md", "CLAUDE.md", "pyproject.toml", "Makefile", ".gitignore", "AGENT_QUEUE.md",
+  "README.md", "CLAUDE.md", "pyproject.toml", "Makefile", ".gitignore",
 ]
 # 誰も書き換えない場所
 readonly = ["data/raw", "legacy"]

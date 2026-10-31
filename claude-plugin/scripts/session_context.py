@@ -19,7 +19,7 @@ GATE_LINES = [
     " hooks が止める。presence=away（既定）では拒否して承認待ちキュー（.lab/queue）に記録される。"
     "拒否されたら、その操作に依存しない作業を続け、終了時の報告に承認待ち ID を挙げる。承認後は同じ cwd・同じ HEAD で同じコマンド全文を実行する。",
     "- 判断が分かれる問いは質問ツールで止まらず `labkit queue ask \"<質問>\" --options A B --assumed \"<仮の判断と理由>\" --impact \"<変更時の影響>\"` で積み、"
-    "仮の判断で進む（AGENT_QUEUE.md があればそこにも書く）。`labkit approve/reject/answer` は人間専用で Claude は実行できない。",
+    "仮の判断で進む。`labkit approve/reject/answer` は人間専用で Claude は実行できない。",
 ]
 
 

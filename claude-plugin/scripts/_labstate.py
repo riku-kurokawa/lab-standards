@@ -32,12 +32,11 @@ DEFAULTS: dict = {
             ".python-version", ".claude", ".git", ".venv", ".mlflow", ".pytest_cache",
             ".ruff_cache", "src", "scripts", "jl", "configs", "tests", "data", "runs",
             "notebooks", "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "legacy", ".lab",
-            "AGENT_QUEUE.md",
         ],
         "writable": [
             "src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs",
             "literature", "prompts", "scratch", "notebooks", "README.md", "CLAUDE.md",
-            "pyproject.toml", "Makefile", ".gitignore", "AGENT_QUEUE.md",
+            "pyproject.toml", "Makefile", ".gitignore",
         ],
         "readonly": ["data/raw", "legacy"],
     },

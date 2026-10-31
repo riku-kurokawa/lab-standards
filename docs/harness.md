@@ -112,7 +112,8 @@ CI では手動起動のみ。
 ## 後方互換と既定値
 
 - v0.2.0 のプロジェクトはそのまま動く。`.lab/` は `labkit` が最初に必要になったときに作り、`.lab/.gitignore` も書く。
-  古い `lab.toml` が `layout.allowed` を列挙していても `.lab` と `AGENT_QUEUE.md` は許可される。
+  古い `lab.toml` が `layout.allowed` を列挙していても `.lab` は許可される。`.lab/queue` と `approvals` は gitignore され、その PC だけの
+  状態（承認は HEAD と 24 時間に結び付く）。質問の置き場は `.lab/queue` の 1 つだけで、終了時の報告は Claude の最後のメッセージ。
 - 承認ゲートは既定で有効（presence=away）。無効にするには `lab.toml` の `[gate] enabled = false`（人間が編集）。
 - `permissions.deny` の `Write(...)` ルールは公式ドキュメント上効かないので、雛形では `Edit(...)` に統一した
   （Edit の deny は Write にも効く）。

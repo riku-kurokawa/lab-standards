@@ -9,6 +9,8 @@
 |---|---|---|
 | presence（here/away）を廃止して permission_mode だけで判定 | 指示 2 章の要件。AGENT_QUEUE Q-014 で人間の判断待ち | 2026-11-01 |
 | 承認の消費を PostToolUse へ移す | hook が 1 つ増える。失敗時は再キューで足りる（Q-015） | 2026-11-01 |
+| README の「人間が不在のときの動き」節を harness.md へのポインタに縮める | README（物語）・SETUP（操作）・harness.md（設計）で読者が違う。重複ではなく役割分担 | 2026-11-01 |
+| guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
 
 ## サイクル
 
@@ -56,3 +58,12 @@
   `tomllib` が無いときの `{}` 早期 return と `.lab/presence` の追加行は残す。
 - 結論: 採用（accept-with-changes）。両者の load_lab が一致するテストを追加。
 - 規模: 手書きの既定値 3 → 1。_labcommon.py −25 行、config.py −45 行、_labstate.py +70 行（正本）。
+
+### 6. 2026-11-01 — 質問の置き場を .lab/queue の 1 つにする
+- 観点: 概念の数。プロジェクトでは `labkit queue ask`（hooks が文脈に再注入、人間は `labkit answer`）と自由形式の AGENT_QUEUE.md の
+  2 か所に質問を書く指示が残り、layout.allowed/writable など 6 か所に使われない許可があった。
+- 提案: AGENT_QUEUE.md は本リポジトリ自身の開発ログに限り、プロジェクトからは全て除く。
+- 監査: CLAUDE.md 雛形と skill は既に queue だけを指していて、hook の GATE_LINES と eval の採点だけが残っていた（指示源のずれ）。
+  `.lab/queue` は gitignore されて PC を跨がないが、承認が HEAD・24 時間に結び付く設計と整合。終了時の報告は最後のメッセージで、ファイルは不要。
+- 結論: 採用（accept-with-changes）。
+- 規模: 7 か所から文字列を削除、追加なし。概念 −1。

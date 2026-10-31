@@ -87,7 +87,7 @@ class Checker:
 
     # ---- 構造 ----
     def layout(self) -> None:
-        allowed = set(self.lab["layout"]["allowed"]) | {".lab", "AGENT_QUEUE.md"}  # v0.3.0 ハーネスの状態
+        allowed = set(self.lab["layout"]["allowed"]) | {".lab"}  # v0.3.0 ハーネスの状態（古い lab.toml でも許す）
         for p in sorted(self.root.iterdir()):
             if p.name not in allowed:
                 self.add("L001", p, "トップレベルに置けません（lab.toml の layout.allowed 参照。一時ファイルは scratch/ へ）")

@@ -56,7 +56,7 @@ def load_lab(root: Path) -> dict:
     with open(root / "lab.toml", "rb") as f:
         out = deep_merge(DEFAULTS, tomllib.load(f))
     # v0.3.0 で増えた書き込み先は、古い lab.toml が writable を列挙していても許す
-    out["layout"]["writable"] = list(dict.fromkeys([*out["layout"]["writable"], "AGENT_QUEUE.md", ".lab/presence"]))
+    out["layout"]["writable"] = list(dict.fromkeys([*out["layout"]["writable"], ".lab/presence"]))
     return out
 
 
