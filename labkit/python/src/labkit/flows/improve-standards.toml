@@ -3,7 +3,7 @@
 # $LAB_STANDARDS_DEV か ~/dev/lab-standards（link 中は pyproject.toml の path）。
 
 name = "improve-standards"
-description = "lab-standards 本体を改良し、link で試し、リリースしてプロジェクトに取り込む"
+description = "lab-standards 本体を改良し、必要なら link で試し、リリースしてプロジェクトに取り込む"
 
 [[stage]]
 name = "triage"
@@ -23,19 +23,12 @@ done = [
 ]
 
 [[stage]]
-name = "link"
-description = "uv run labkit standards link で、このプロジェクトが手元の本体を参照するようにする"
-forbid = ["template", "release", "raw"]
-done = [
-  { type = "linked", value = true },
-]
-
-[[stage]]
 name = "implement"
-description = "本体を直し（CLAUDE.md の規約）、このプロジェクトで実際に使って確かめる。本体に commit を積む"
+description = "本体を直す（CLAUDE.md の規約）。labkit / LabKit.jl / 図テンプレート / check を変えるなら `uv run labkit standards link` でこのプロジェクトから試す（hooks・skills・雛形だけなら不要）。本体に commit を積む"
 forbid = ["template", "release", "raw"]
 done = [
   { type = "standards_ahead", min = 1 },
+  { type = "linked_if_touched", paths = ["labkit/"] },   # 本体の labkit/ を変えたなら link していること
 ]
 
 [[stage]]

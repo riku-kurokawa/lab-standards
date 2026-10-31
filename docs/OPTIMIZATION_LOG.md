@@ -10,6 +10,7 @@
 | presence（here/away）を廃止して permission_mode だけで判定 | 指示 2 章の要件。AGENT_QUEUE Q-014 で人間の判断待ち | 2026-11-01 |
 | 承認の消費を PostToolUse へ移す | hook が 1 つ増える。失敗時は再キューで足りる（Q-015） | 2026-11-01 |
 | README の「人間が不在のときの動き」節を harness.md へのポインタに縮める | README（物語）・SETUP（操作）・harness.md（設計）で読者が違う。重複ではなく役割分担 | 2026-11-01 |
+| 雛形の各ディレクトリ README（docs/data/literature/notebooks/prompts、8〜24 行）を統合・削除 | 各々が配置だけでは分からない規則（不変性、citekey、nbstripout）を 1 画面で述べていて重複が無い。読む場所が増える害の方が大きい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
 
 ## サイクル
@@ -84,3 +85,12 @@
   `make raw-freeze` / `make std-*` 検出は互換のため残す（削ると生データ凍結がゲートを素通りする）。`make -C dir raw-freeze` のテストを追加。
 - 結論: 採用（accept-with-changes）。
 - 規模: Makefile.jinja 60 → 29 行。ゲート ±0（コメント +1）。概念 −1（Makefile は「まとめ」専用）。
+
+### 9. 2026-11-01 — improve-standards の link 段階を削除し、必要なときだけ要求する条件に
+- 観点: 段階の数。`link` 段階は hooks・skills・雛形だけの改良でも uv sync + Julia instantiate と L050 の commit 禁止を強いていた。
+- 提案: 段階を削り、`implement` の説明に「labkit を変えるなら link」と書く。
+- 監査: 文章だけにすると「本体の labkit を変えたのに、プロジェクトはリリース版のまま『確認』する」失敗を機械的に防げなくなる。
+  → 本体の差分（main...HEAD）が labkit/ に触れているときだけ link を要求する条件 `linked_if_touched`（12 行）で置き換える。
+  進行中の flow は開始時に段階を写しているので影響なし。実装中に pyproject.toml の無いプロジェクトで status() が例外になる抜けも直した。
+- 結論: 採用（accept-with-changes）。
+- 規模: 段階 8 → 7。TOML −7 行、flow.py +16 行（条件 1 つ）、テスト +22 行。文章の規約 1 つが機械的検証に変わった。

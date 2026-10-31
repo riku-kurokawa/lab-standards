@@ -132,7 +132,7 @@ Claude には「lab-standards を改良したい: ○○」と頼めば skill `i
 
 ```
 uv run labkit flow start improve-standards
-triage【承認】 → branch → link → implement → test【レビュー】 → release【承認】 → adopt → done
+triage【承認】 → branch → implement（必要なら link） → test【レビュー】 → release【承認】 → adopt → done
 ```
 各段階の完了条件（本体のブランチが feat/*、link 状態、本体のテスト、現在の HEAD に対する lab-reviewer の pass、タグが origin にある…）を
 `labkit flow advance` が検査し、段階外の操作（例: test 前の release）は hooks が拒否する。

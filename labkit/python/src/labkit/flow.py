@@ -203,8 +203,11 @@ def _git(root: Path, *args: str) -> str | None:
 def _standards_dev(root: Path) -> Path | None:
     from labkit.standards import status
 
-    st = status(root)
-    if st.python_mode == "link" and st.python_ref:
+    try:
+        st = status(root)
+    except (FileNotFoundError, OSError):  # pyproject.toml が無いプロジェクト
+        st = None
+    if st and st.python_mode == "link" and st.python_ref:
         p = Path(st.python_ref)
         for d in (p, *p.parents):
             if (d / "copier.yml").is_file():
@@ -301,6 +304,24 @@ def c_linked(root, st, c):
     return "labkit standards link が必要です" if want else "link が残っています（`labkit standards unlink --to vX.Y.Z`）"
 
 
+def c_linked_if_touched(root, st, c):
+    """本体の差分が labkit/ などに触れているなら、プロジェクトが link していること（試さずに済ませる失敗を防ぐ）."""
+    from labkit.standards import status
+
+    dev = _standards_dev(root)
+    if dev is None:
+        return "lab-standards 本体のチェックアウトが見つかりません（$LAB_STANDARDS_DEV か ~/dev/lab-standards）"
+    files = (_git(dev, "diff", "--name-only", "main...HEAD") or "").splitlines()
+    prefixes = tuple(c.get("paths", ["labkit/"]))
+    if not any(f.startswith(prefixes) for f in files):
+        return None
+    try:
+        linked = status(root).linked
+    except (FileNotFoundError, OSError):  # pyproject.toml が無い＝link していない
+        linked = False
+    return None if linked else f"本体の {'/'.join(prefixes)} を変えているので `labkit standards link` でこのプロジェクトから試す必要があります"
+
+
 def c_standards_branch(root, st, c):
     dev = _standards_dev(root)
     if dev is None:
@@ -367,6 +388,7 @@ CONDITIONS = {
     "review": c_review,
     "devlog_today": c_devlog_today,
     "linked": c_linked,
+    "linked_if_touched": c_linked_if_touched,
     "standards_branch": c_standards_branch,
     "standards_ahead": c_standards_ahead,
     "standards_tests": c_standards_tests,

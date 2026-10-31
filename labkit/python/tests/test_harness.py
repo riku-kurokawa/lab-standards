@@ -182,6 +182,29 @@ def test_flow_review_condition(repo):
     assert len(flow.unmet(repo, st)) == 1
 
 
+def test_linked_if_touched(repo, monkeypatch, tmp_path):
+    """本体の差分が labkit/ に触れていれば link が要る。触れていなければ不要."""
+    dev = tmp_path / "dev"
+    (dev / "labkit" / "python").mkdir(parents=True)
+    (dev / "copier.yml").write_text("x: 1")
+    git(dev, "init", "-q", "-b", "main")
+    git(dev, "add", "-A")
+    git(dev, "commit", "-q", "-m", "init")
+    git(dev, "switch", "-q", "-c", "feat/x")
+    monkeypatch.setenv("LAB_STANDARDS_DEV", str(dev))
+    st = {"flow": "improve-standards", "stage": "implement", "stages": []}
+    c = {"type": "linked_if_touched", "paths": ["labkit/"]}
+    (dev / "claude-plugin").mkdir()
+    (dev / "claude-plugin" / "h.py").write_text("x")
+    git(dev, "add", "-A")
+    git(dev, "commit", "-q", "-m", "hooks only")
+    assert flow.c_linked_if_touched(repo, st, c) is None            # hooks だけなら link 不要
+    (dev / "labkit" / "python" / "x.py").write_text("y")
+    git(dev, "add", "-A")
+    git(dev, "commit", "-q", "-m", "labkit change")
+    assert "link" in flow.c_linked_if_touched(repo, st, c)           # labkit/ を変えたら必要
+
+
 # ---- reviews ----
 def test_review_parsing_and_l035(repo):
     head = state.git_head(repo)

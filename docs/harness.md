@@ -66,7 +66,7 @@ hooks は状態ファイルだけを読む。
   取り返しのつかない操作だけは承認ゲート（別層）が守る。
 - SessionStart（compact 含む）と UserPromptSubmit が、現在の段階・残り条件・承認待ち・質問を文脈に入れる。
 - フロー: migrate（freeze → inventory【承認】→ apply-template → raw-data → code → reproduce【レビュー】→ strict → done）、
-  improve-standards（triage【承認】→ branch → link → implement → test【レビュー】→ release【承認】→ adopt → done）。
+  improve-standards（triage【承認】→ branch → implement → test【レビュー】→ release【承認】→ adopt → done。本体の labkit/ を変えたら link 必須）。
   improve-standards の状態は**プロジェクト側**に置く。本体側の push/tag/merge は本体ディレクトリの承認ゲートが守る。
 
 ## 3. 独立レビュー
