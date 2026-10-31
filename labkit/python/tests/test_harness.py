@@ -304,7 +304,7 @@ def test_citations(repo):
             raise RuntimeError("x")
     dev.write_text(body + f"\n- {r2.run_id} は失敗\n")
     assert ("L032", "warn") in codes(repo)
-    with pytest.raises(KeyError):
+    with pytest.raises(ValueError):
         cite(rid, "nope")
 
 
@@ -363,3 +363,23 @@ def test_check_severity_exit_code(repo, capsys):
     assert main(["check"]) == 0  # 警告だけなら strict でも成功
     out = capsys.readouterr().out
     assert "L033  (warn)" in out and "0 件の違反" in out and "件の警告" in out
+
+
+# ---- CLI の誤用は traceback ではなく 1 行で伝える ----
+def test_cli_user_errors_are_one_line(repo, capsys):
+    from labkit.cli import main
+
+    assert main(["approve", "Q999"]) == 1
+    err = capsys.readouterr().err
+    assert "Q999" in err and "Traceback" not in err
+    assert main(["fig", "figspecs/missing.toml"]) == 1
+    assert "missing.toml" in capsys.readouterr().err
+    (repo / "figspecs").mkdir(exist_ok=True)
+    (repo / "figspecs" / "broken.toml").write_text('template = "timeseries\n[data\n')
+    assert main(["fig", "figspecs/broken.toml", "--run", "latest"]) == 1
+    err = capsys.readouterr().err
+    assert "broken.toml" in err and "TOML" in err  # tomllib の例外には位置しかないのでファイル名を付ける
+    with pytest.raises(SystemExit, match="段階"):
+        main(["review", "template", "migrate", "nosuchstage"])
+    with pytest.raises(SystemExit, match="flow 'nosuchflow'"):
+        main(["review", "template", "nosuchflow", "test"])

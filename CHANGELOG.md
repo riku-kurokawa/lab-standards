@@ -30,6 +30,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- CLI の誤用（無い run・ファイル、不正な figspec、TOML の文法エラー、読み取り専用領域、`cite` の無いキー）は traceback ではなく
+  `labkit: <理由>` の 1 行で伝える（終了コード 1）。TOML の文法エラーにはファイル名を付ける。`review template` は無い flow/段階を拒否する。
 - 図テンプレート `heatmap`: 文書どおりの `z[i, j] = f(x_i, y_j)`（shape (len(x), len(y))、Julia の size と同じ）で描けなかった
   （matplotlib は行＝y を期待するため、正方でない配列はエラー、正方なら転置して描いていた）。規約を明示し、形を検査して転置して渡す。
   histogram / scatter / errorbar / heatmap のテストを追加（従来は 8 テンプレート中 4 つだけがテスト対象だった）。

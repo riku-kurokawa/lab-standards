@@ -208,9 +208,15 @@ def cmd_cite(a) -> int:
 
 def cmd_review(a) -> int:
     """レビュー記録の frontmatter 雛形（現在の HEAD 入り）。lab-reviewer が docs/reviews/<date>_<flow>_<stage>.md に書く."""
-    from labkit import reviews, state
+    from labkit import flow, reviews, state
     from labkit.config import find_root
 
+    defs = flow.definitions()
+    if a.flow not in defs:
+        raise SystemExit(f"flow '{a.flow}' はありません。使える flow: {', '.join(sorted(defs))}")
+    stages = [s["name"] for s in defs[a.flow]["stage"]]
+    if a.stage not in stages:
+        raise SystemExit(f"flow '{a.flow}' に段階 '{a.stage}' はありません。段階: {', '.join(stages)}")
     print(reviews.template(a.flow, a.stage, state.git_head(find_root()) or ""), end="")
     return 0
 
@@ -488,7 +494,12 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--question が必要です")
     if args.cmd == "runs" and args.action == "show" and not args.run_id:
         raise SystemExit("run_id が必要です")
-    return int(args.func(args) or 0)
+    try:
+        return int(args.func(args) or 0)
+    except (OSError, ValueError) as e:
+        # 利用者の誤り（無いファイル・run、不正な figspec/TOML、読み取り専用領域）は 1 行で伝える。traceback は内部エラーにだけ残す
+        print(f"labkit: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

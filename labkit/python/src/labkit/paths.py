@@ -9,10 +9,9 @@ configs/paths/<LAB_ENV>.toml（既定 local）:
 from __future__ import annotations
 
 import os
-import tomllib
 from pathlib import Path
 
-from labkit.config import find_root
+from labkit.config import find_root, read_toml
 
 STAGES = ("raw", "external", "interim", "processed")
 
@@ -26,8 +25,7 @@ def load_paths(root: Path | None = None) -> dict[str, Path]:
     cfg = {"data_root": "data", "runs_root": "runs"}
     f = r / "configs" / "paths" / f"{env_name()}.toml"
     if f.is_file():
-        with open(f, "rb") as fh:
-            cfg.update(tomllib.load(fh))
+        cfg.update(read_toml(f))
     elif env_name() != "local":
         raise FileNotFoundError(f"LAB_ENV={env_name()} ですが {f} がありません")
     out = {}

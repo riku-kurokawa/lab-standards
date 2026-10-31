@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from labkit._util import deep_merge
+from labkit.config import read_toml
 
 
 def _parse_value(text: str) -> Any:
@@ -29,8 +30,7 @@ def _load_with_extends(path: Path, seen: set[Path]) -> tuple[dict, list[Path]]:
     if path in seen:
         raise ValueError(f"extends が循環しています: {path}")
     seen.add(path)
-    with open(path, "rb") as f:
-        cfg = tomllib.load(f)
+    cfg = read_toml(path)
     files = [path]
     parent = cfg.pop("extends", None)
     if parent:

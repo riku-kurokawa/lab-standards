@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
-import tomllib
 from importlib import resources
 from pathlib import Path
 
 from labkit._util import write_text_atomic
+from labkit.config import read_toml
 
 STOPWORDS = {"a", "an", "the", "on", "of", "for", "in", "to", "and", "with", "towards", "toward", "via"}
 CITE_RE = re.compile(r"\[@([^\]\s;,]+)|;\s*@([^\]\s;,]+)|(?<![\w@])@([A-Za-z][\w:-]*\d{4}[\w-]*)")
@@ -129,8 +129,7 @@ def load_tags(root: Path, lab: dict) -> set[str]:
     f = lit_dir(root, lab) / "tags.toml"
     if not f.is_file():
         return set()
-    with open(f, "rb") as fh:
-        data = tomllib.load(fh)
+    data = read_toml(f)
     tags: set[str] = set()
     for group in data.values():
         if isinstance(group, dict):

@@ -8,20 +8,18 @@
 from __future__ import annotations
 
 import json
-import tomllib
 from pathlib import Path
 
 from labkit._util import now_iso, rel_or_abs, sha256_file, write_json_atomic
 from labkit._version import __version__
-from labkit.config import find_root
+from labkit.config import find_root, read_toml
 from labkit.viz.templates import REGISTRY, Context
 
 COMMON_KEYS = {"template", "name", "size", "data", "labels", "options", "description"}
 
 
 def load_spec(path: str | Path) -> dict:
-    with open(path, "rb") as f:
-        spec = tomllib.load(f)
+    spec = read_toml(path)
     unknown = set(spec) - COMMON_KEYS
     if unknown:
         raise ValueError(f"{path}: 未知のキー {sorted(unknown)}（使えるのは {sorted(COMMON_KEYS)}）")

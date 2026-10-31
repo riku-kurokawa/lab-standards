@@ -472,7 +472,7 @@ def cite(run_id: str, key: str, digits: int | None = None, unit: str = "", root:
         raise FileNotFoundError(f"{d.name} に metrics.json がありません（run 完了後に生成される）")
     vals = json.loads(mf.read_text(encoding="utf-8"))
     if key not in vals:
-        raise KeyError(f"{d.name} の metrics.json に {key} がありません。あるキー: {', '.join(sorted(vals))}")
+        raise ValueError(f"{d.name} の metrics.json に {key} がありません。あるキー: {', '.join(sorted(vals))}")
     shown = format_value(vals[key], digits)
     return f"{shown}{(' ' + unit) if unit else ''} [run:{d.name}:{key}]"
 

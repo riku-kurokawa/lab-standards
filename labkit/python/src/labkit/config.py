@@ -25,8 +25,15 @@ def find_root(start: str | os.PathLike | None = None) -> Path:
     )
 
 
+def read_toml(path: str | os.PathLike) -> dict:
+    """TOML を読む。文法エラーにはファイル名を付ける（tomllib の例外には位置しか無い）."""
+    with open(path, "rb") as f:
+        try:
+            return tomllib.load(f)
+        except tomllib.TOMLDecodeError as e:
+            raise ValueError(f"{path}: TOML の文法エラー: {e}") from e
+
+
 def load_lab(root: str | os.PathLike | None = None) -> dict:
     r = Path(root) if root else find_root()
-    with open(r / "lab.toml", "rb") as f:
-        user = tomllib.load(f)
-    return deep_merge(DEFAULTS, user)
+    return deep_merge(DEFAULTS, read_toml(r / "lab.toml"))

@@ -416,3 +416,15 @@
 - 監査: 採用（上記のとおり）。利用者ゼロのテンプレートなので互換性の懸念なし。
 - 結論: 採用。
 - 規模: templates.py +8 行、テスト +14 行。8 テンプレートすべてがテストで描かれる。
+
+### 46. 2026-11-01 — CLI の誤用を traceback ではなく 1 行で伝える
+- 観点: 利用者が間違えたとき（無い run、無い figspec、template 名の誤り、[data] 不足、TOML 文法エラー、無い queue ID、プロジェクト外で check）。
+  生成プロジェクトで 16 通りの誤用を実行し、11 通りが Python の traceback（メッセージ自体は良い日本語だが末尾に埋もれる）。
+  `flow` だけは SystemExit で 1 行だった。`review template` は無い flow/段階を黙って受け付けていた。TOML 文法エラーにはファイル名が無い。
+- 提案: `cli.main` で `(OSError, ValueError)` を捕まえ `labkit: <理由>` を stderr に出して 1 で終える（内部エラーの traceback は残る）。
+  `config.read_toml` が文法エラーにファイル名を付け、lab.toml / paths / figspec / tags.toml / configs で使う。`review template` は flow・段階を検証。
+- 監査: 採用（変更付き）。`cite` の無いキーだけ KeyError で traceback が残る → ValueError に。利用者が編集する TOML すべてに read_toml を。
+  CHANGELOG に記載。hooks（stop_check）は終了コードと末尾の文字列しか見ないので挙動不変。Julia 側は Python CLI を呼ぶだけで対称性の問題なし。
+  デバッグ用の環境変数は「必要が示されていない仕組み」として不採用。
+- 結論: 採用。同じ 16 通りを再実行して traceback 0。
+- 規模: cli.py +13 行、config.py +8 行、呼び出し側 3 か所で −6 行、テスト +20 行。labkit 59 passed。
