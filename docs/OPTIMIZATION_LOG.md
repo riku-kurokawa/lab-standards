@@ -15,6 +15,7 @@
 | run が多いプロジェクトで `labkit check`（Stop hook が毎回実行）を速くする | 実測: run 0 件 0.23 s、300 件 3.0 s（約 9 ms/run）。Stop hook の timeout 300 s に対して十分速く、最適化は複雑さの追加になる | 2026-11-01 |
 | skills のうち他から参照されない data-pipeline / new-experiment / migrate-project を統合・削除 | skill は説明文で選ばれるので参照数は指標にならない。読むと手順が互いに重複せず、lab-conventions（参照表）とも役割が違う | 2026-11-01 |
 | hooks の拒否を exit 2（stderr）と JSON の permissionDecision の 2 方式から 1 方式に統一 | ask / allow は JSON でしか表せず、Stop hook は exit 2 が必要。公式ドキュメント上 exit 2 は deny と同じ扱いで、統一しても挙動は変わらず、テスト 80 件以上の書き換えだけが残る | 2026-11-01 |
+| 既存（v0.2.0）プロジェクトの .gitignore に .lab の除外を足す移行作業 | labkit が初回に書く `.lab/.gitignore` で、実リポジトリでも `presence` と `queue/` は ignored、`flows/` と `.gitignore` だけが追跡対象になることを確認。追加の移行作業は不要 | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
 | Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
