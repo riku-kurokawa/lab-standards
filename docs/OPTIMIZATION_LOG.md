@@ -512,3 +512,15 @@
 - 監査: 発見は独立エージェント。私が flow.py の c_review と cli.py を読んで確認。labkit 61 / hooks 91 passed。
 - 結論: 採用。
 - 規模: cli.py +10 行、テスト +18 行、文書 6 ファイル。
+
+### 56. 2026-11-01 — improve-standards を最後まで進めるテスト（サイクル 55 の欠陥が見つかるはずだった経路）
+- 観点: サイクル 55 の欠陥は「flow を実際に最後まで進めるテストが無い」ことが原因。migrate には途中までの遷移テストがあるが improve-standards には無かった。
+- 提案: triage → done を実物の条件で進めるテストを追加。代替するのは高価・外部の 2 条件（本体のテスト実行、origin のタグ）だけ。
+  承認の要る 2 段階（triage, release）、本体のブランチ・commit 数、link の要否、本体 HEAD に対するレビュー記録、adopt での「link が残っている」拒否と
+  その解消、check を通る。
+- 発見: adopt の条件 `linked` は `pyproject.toml` の無いプロジェクトで `standards.status` の FileNotFoundError をそのまま「評価に失敗」にしていた。
+  `status()` が無い pyproject を unknown として扱うようにし、flow 側の 2 つの try/except を削除（`labkit standards link` は pyproject を先に書くので、
+  pyproject 無しで link 状態になることは無い）。
+- 監査: 採用（変更付き）: 例外を 2 か所で握るのではなく `status()` 側で扱う。adopt で link したままだと止まる否定の場合をテストに追加。
+- 結論: 採用。
+- 規模: テスト +60 行、standards.py +2 行、flow.py −6 行。labkit 62 passed。

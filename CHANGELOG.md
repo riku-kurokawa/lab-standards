@@ -30,6 +30,7 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md を改訂。plugin の skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- `labkit standards status` と flow の条件 `linked` は、`pyproject.toml` の無いプロジェクト（雛形適用前）で例外にならず unknown（link ではない）を返す。
 - `labkit review template improve-standards test` が入れる `commit:` を本体（lab-standards）の HEAD に。完了条件 `review repo="standards"` が照合するのは本体の HEAD
   なので、従来のプロジェクトの HEAD では test 段階が advance できなかった。
 - `load()`（Python / Julia）: 無いファイルは `<path> がありません` と言う（従来 verify=True ではサイドカーの不在を先に報告し、原因を取り違えさせた）。

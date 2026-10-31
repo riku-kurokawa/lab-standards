@@ -205,11 +205,8 @@ def _git(root: Path, *args: str) -> str | None:
 def _standards_dev(root: Path) -> Path | None:
     from labkit.standards import status
 
-    try:
-        st = status(root)
-    except (FileNotFoundError, OSError):  # pyproject.toml が無いプロジェクト
-        st = None
-    if st and st.python_mode == "link" and st.python_ref:
+    st = status(root)
+    if st.python_mode == "link" and st.python_ref:
         p = Path(st.python_ref)
         for d in (p, *p.parents):
             if (d / "copier.yml").is_file():
@@ -307,9 +304,8 @@ def c_devlog_today(root, st, c):
 def c_linked(root, st, c):
     from labkit.standards import status
 
-    s = status(root)
     want = bool(c.get("value", True))
-    if s.linked == want:
+    if status(root).linked == want:
         return None
     return (
         "labkit standards link が必要です" if want else "link が残っています（`labkit standards unlink --to vX.Y.Z`）"

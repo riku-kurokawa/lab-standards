@@ -402,3 +402,70 @@ def test_review_template_uses_the_head_that_advance_checks(repo, tmp_path, monke
     assert f"commit: {dev_head}" in capsys.readouterr().out
     assert main(["review", "template", "migrate", "reproduce"]) == 0
     assert f"commit: {proj_head}" in capsys.readouterr().out
+
+
+def test_flow_improve_standards_walkthrough(repo, tmp_path_factory, monkeypatch, capsys):
+    """improve-standards を triage → done まで進める。本体のテスト実行と origin のタグ確認（高価・外部）だけ代替し、他の条件は実物.
+
+    段階の配線（どの HEAD に結び付くか、承認の要る段階、adopt の条件）を固定する。サイクル 55 の欠陥はこの経路で見つかるはずだった。
+    """
+    from labkit.cli import main
+
+    dev = tmp_path_factory.mktemp("dev")  # プロジェクトの外（中に置くと L001）
+    (dev / "labkit" / "python").mkdir(parents=True)
+    (dev / "copier.yml").write_text("x: 1")
+    git(dev, "init", "-q", "-b", "main")
+    git(dev, "add", "-A")
+    git(dev, "commit", "-q", "-m", "init")
+    monkeypatch.setenv("LAB_STANDARDS_DEV", str(dev))
+    monkeypatch.setitem(flow.CONDITIONS, "standards_tests", lambda root, st, c: None)
+    monkeypatch.setitem(flow.CONDITIONS, "standards_released", lambda root, st, c: None)
+    name = "improve-standards"
+
+    def approve_and_advance(qid):
+        with pytest.raises(SystemExit, match=f"承認待ち #{qid}"):
+            flow.advance(repo, name)
+        state.approve(repo, qid, ttl_hours=1, who={})
+        return flow.advance(repo, name)[0]
+
+    st = flow.start(repo, name)
+    assert st["stage"] == "triage"
+    with pytest.raises(SystemExit, match="開発ログ"):
+        flow.advance(repo, name)
+    body = "\n".join(
+        f"## {h}"
+        for h in ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"]
+    )
+    (repo / "docs" / "devlog" / f"{dt.date.today().isoformat()}.md").write_text(body + "\n")
+    assert approve_and_advance("Q001")["stage"] == "branch"
+    with pytest.raises(SystemExit, match="feat/"):
+        flow.advance(repo, name)
+    git(dev, "switch", "-q", "-c", "feat/x")
+    assert flow.advance(repo, name)[0]["stage"] == "implement"
+    with pytest.raises(SystemExit, match="commit"):
+        flow.advance(repo, name)
+    (dev / "claude-plugin").mkdir()
+    (dev / "claude-plugin" / "h.py").write_text("x")  # hooks だけの変更 → link 不要
+    git(dev, "add", "-A")
+    git(dev, "commit", "-q", "-m", "hooks")
+    assert flow.advance(repo, name)[0]["stage"] == "test"
+    with pytest.raises(SystemExit, match="本体の HEAD"):
+        flow.advance(repo, name)
+    assert main(["review", "template", name, "test"]) == 0
+    tpl = capsys.readouterr().out
+    d = repo / "docs" / "reviews"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{dt.date.today().isoformat()}_{name}_test.md").write_text(
+        tpl.replace("verdict: changes-requested", "verdict: pass").replace('  - "<path>:<line> 指摘（根拠）"\n', "")
+    )
+    assert flow.advance(repo, name)[0]["stage"] == "release"
+    assert approve_and_advance("Q002")["stage"] == "adopt"
+    pyp = repo / "pyproject.toml"
+    src = (dev / "labkit" / "python").as_posix()
+    pyp.write_text(f'[tool.uv.sources]\nlabkit = {{ path = "{src}", editable = true }}\n')
+    with pytest.raises(SystemExit, match="link が残っています"):  # link したままでは adopt を終えられない
+        flow.advance(repo, name)
+    pyp.write_text(
+        '[tool.uv.sources]\nlabkit = { git = "https://github.com/x/lab-standards", subdirectory = "labkit/python", tag = "v0.3.0" }\n'
+    )
+    assert flow.advance(repo, name)[0]["stage"] == "done"

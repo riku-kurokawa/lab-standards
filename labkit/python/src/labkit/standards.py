@@ -77,7 +77,8 @@ def _source_of(line_match: re.Match | None) -> tuple[str, str]:
 
 def status(root: Path | None = None) -> Status:
     root = root or find_root()
-    py = (root / "pyproject.toml").read_text(encoding="utf-8")
+    pyp = root / "pyproject.toml"
+    py = pyp.read_text(encoding="utf-8") if pyp.is_file() else ""  # 雛形適用前のプロジェクトは unknown（link ではない）
     pm, pr = _source_of(PY_LINE.search(py))
     jm = jr = None
     jl = root / "jl" / "Project.toml"
