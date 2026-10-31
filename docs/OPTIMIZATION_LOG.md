@@ -14,6 +14,11 @@
 | Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
 
+## 観察したが未着手の候補
+
+- 本体の labkit/claude-plugin/tools は `ruff format --check` を通らない（19 + 12 ファイル）。雛形は各プロジェクトに format を要求するのに、
+  本体の CI と Makefile は `ruff check` しか回していない（2026-11-01 観察。サイクル 14 の候補）。
+
 ## サイクル
 
 ### 1. 2026-11-01 — Windows で Julia の run が削除できない
@@ -128,3 +133,12 @@
 - 結論: 採用（accept-with-changes）。
 - 規模: 正規表現 4 行（約 600 文字）→ 集合 3 つ + 関数 約 30 行。行数は増えるが「X は実行できるか」が集合の参照で答えられる。
   テストは拒否 14 件・許可 12 件に拡充。
+
+### 13. 2026-11-01 — 雛形の pre-commit を uv.lock の ruff に一本化
+- 観点: モダンさと同期。雛形は ruff-pre-commit v0.8.0（2024）を固定し、venv は ruff 0.17.3。同じツールの版が 2 か所にあり、
+  `make lint` と commit 時の ruff が別物だった（今回のコードでは差は出なかったが、揃える仕組みが無い）。
+- 提案: ruff / nbstripout を `repo: local` + `uv run` で動かし（labkit check と同じ方式）、pre-commit-hooks を v6.0.0 に上げる。
+- 監査: 一次情報で確認（pre-commit-hooks v6 は Python 3.9 以上・未使用の hook の削除のみ、nbstripout 0.9 は 3.10 以上）。
+  pre-commit 自体が dev 依存なので venv への依存は増えない。鏡写しの `--force-exclude`、`require_serial`、`types_or: jupyter` を踏襲。
+- 結論: 採用。
+- 規模: 版の固定 3 → 1（pre-commit-hooks のみ）。YAML は +9 行だが同期すべき場所が減った。

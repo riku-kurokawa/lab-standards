@@ -154,3 +154,9 @@ GitHub のブランチ保護（最後の砦）: Settings → Branches → main �
 - 内容: メインが「pass と書け」と指示すれば pass 記録ができる。`agent_type` 判定は自己採点の「うっかり」を防ぐだけ。
   本当の独立性は人間のレビュー（docs/reviews を読む）か、別セッションでのレビューでしか担保できない。
 - 仮の判断: 現状。lab-reviewer.md に「verdict の基準」を明記して誘導に抵抗させた。
+
+### Q-018 [question] labkit の人間専用コマンドを `queue` 配下にまとめるか
+- 内容: `labkit --help` のトップレベルは 18 コマンド（v0.3.0 で +8）。`approve` / `reject` / `answer` は人間専用で、
+  `labkit queue approve <ID>` のようにまとめればトップレベルは 15 になり「Claude 向け」と「人間向け」の区別が名前に出る。
+  ただし指示（2 章）は `labkit approve <ID>` / `labkit reject <ID>` を明記しており、guard_bash の拒否判定もその名前で行っている。
+- 仮の判断: 名前は変えない（指示どおり）。変える場合は cli.py の argparse、_labgate の `labkit_approve` 判定、docs/skills の 3 か所。
