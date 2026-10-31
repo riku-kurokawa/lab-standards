@@ -122,37 +122,16 @@ def cmd_queue(a) -> int:
     return 0
 
 
-def _confirm_human(qid: str, yes: bool) -> dict:
-    from labkit import state
-
-    who = state.human_check(yes)
-    if who["tty"] and not yes:
-        try:
-            typed = input(f"承認する ID を再入力してください [{qid}]: ").strip()
-        except EOFError:  # isatty が真でも入力が無い環境（一部の Windows シェル）
-            typed = None
-        if typed is None:
-            raise SystemExit("入力を受け取れません。人間が実行していることを示すため --yes を付けてください")
-        if typed != qid:
-            raise SystemExit("ID が一致しません。中止")
-    elif not yes:
-        raise SystemExit(
-            "対話端末ではありません。人間が実行していることを示すため --yes を付けてください"
-            "（Claude Code の `!` 実行からも可）"
-        )
-    return who
-
-
 def cmd_approve(a) -> int:
     from labkit import state
 
     root = _scope_root()
-    who = _confirm_human(a.id, a.yes)
+    who = state.human_check()
     rec = state.approve(root, a.id, ttl_hours=float(_gate_conf(root)["approval_ttl_hours"]), who=who)
     print(
         f"承認しました: {rec['id']}  {rec['command']}\n  HEAD={(rec['head'] or '')[:7]}  期限={rec['expires_at']}  1 回限り"
     )
-    if who["claude_shell"] and not who["tty"]:
+    if who["claude_shell"]:
         print("  注意: Claude Code のシェル環境から承認しました（記録に claude_shell=true）")
     return 0
 
@@ -161,7 +140,7 @@ def cmd_reject(a) -> int:
     from labkit import state
 
     root = _scope_root()
-    _confirm_human(a.id, a.yes)
+    state.human_check()
     it = state.reject(root, a.id, note=a.note or "")
     print(f"却下しました: {it['id']}")
     return 0
@@ -471,13 +450,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("approve", help="承認（人間のみ。Claude の Bash からは hooks が拒否する）")
     s.add_argument("id")
-    s.add_argument("--yes", action="store_true", help="対話端末でないときに人間の実行であることを明示")
     s.set_defaults(func=cmd_approve)
 
     s = sub.add_parser("reject", help="却下（人間のみ）")
     s.add_argument("id")
     s.add_argument("--note")
-    s.add_argument("--yes", action="store_true")
     s.set_defaults(func=cmd_reject)
 
     s = sub.add_parser("answer", help="質問に回答する（人間のみ）")

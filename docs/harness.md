@@ -26,7 +26,7 @@ docs/reviews/*.md    ←── lab-reviewer agent だけが書く（agent_type �
 | `away`（既定） | 拒否。`.lab/queue/<ID>.json` に要求（コマンド全文、cwd、ブランチ、HEAD、差分の要約、理由、時刻、session_id）を記録。Claude には「承認待ち #ID として記録した。依存しない作業を続け、終了時の報告に挙げよ」 |
 | `here` | `permissionDecision: "ask"` で通常の確認画面。ただし `permission_mode` が bypassPermissions / dontAsk / auto のときは確認画面が出る保証が無いので away と同じ扱い |
 
-承認は人間だけが行う: `labkit queue list` → `labkit approve <ID>`（対話端末なら ID の再入力、非対話なら `--yes`）。
+承認は人間だけが行う: `labkit queue list` → `labkit approve <ID>`（引数なし。実行者と `claude_shell` を記録）。
 承認は **コマンド全文 + そのときの HEAD** に結び付き、**24 時間**（`[gate] approval_ttl_hours`）で期限切れ、**1 回限り**。
 git リポジトリ外では HEAD は「なし」として記録され、コマンド全文・cwd・期限・1 回限りだけで照合する。
 hook は一致する承認があるときだけ通し、通したら `used_at` を記録する。`labkit reject <ID>` で却下。

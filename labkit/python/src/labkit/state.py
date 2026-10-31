@@ -106,18 +106,16 @@ def mark_done(root: Path, qid: str) -> dict:
 
 
 # ---- 承認（人間だけ） ----
-def human_check(allow_non_tty: bool) -> dict:
-    """承認の実行者が人間であることを、できる範囲で確かめる。
+def human_check() -> dict:
+    """承認の実行者の記録（誰が・端末か・Claude Code のシェルか）。
 
-    - 対話端末（TTY）なら ID の再入力を求める（呼び出し側）。
-    - TTY でなければ --yes が必要。Claude Code のシェル（CLAUDECODE=1）からの実行は記録に残す。
-    hooks（guard_bash）が `labkit approve` 自体を拒否するので、Claude の Bash からはここに到達しない。
+    Claude が承認を作れないことは hooks（guard_bash が `labkit approve` を拒否）で保証する。ここは記録だけで、
+    確認の儀式（ID 再入力・--yes）は置かない: 再入力は Windows の非対話シェルで動かず、フラグは Claude も付けられる。
     """
     return {
         "by": getpass.getuser(),
         "tty": sys.stdin.isatty(),
         "claude_shell": bool(os.environ.get("CLAUDECODE")),
-        "non_tty_forced": allow_non_tty and not sys.stdin.isatty(),
     }
 
 

@@ -9,7 +9,7 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
 - **承認ゲート**（hooks `guard_bash`）: `git push` / `git tag` / 保護ブランチへの `git merge` / `gh pr merge` / `gh release` /
   `labkit raw freeze` / `copier copy|update` / `labkit standards template` を止める。`command git push`、`git -c x=y -C dir push`、
   連結コマンド、`uv run labkit ...` も検出。`presence=away`（既定）では拒否して `.lab/queue/<ID>.json` に記録、`here` では確認画面。
-- `labkit presence here|away|status`、`labkit queue list|ask|done`、`labkit approve|reject <ID>`（人間のみ。対話端末では ID の再入力）、
+- `labkit presence here|away|status`、`labkit queue list|ask|done`、`labkit approve|reject <ID>`（人間のみ。hooks が Claude の実行を拒否する）、
   `labkit answer <ID> "..."`。承認はコマンド全文 + HEAD に結び付き、24 時間で期限切れ、1 回限り。
   Claude は `labkit approve/reject/answer` を実行できず、`.lab/approvals|queue|flows` を Write/Edit/リダイレクトで書けない。
 - **手順の状態機械** `labkit flow start|status|advance|abort`（migrate、improve-standards）。定義は `labkit/flows/*.toml`、

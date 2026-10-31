@@ -93,7 +93,8 @@ GitHub のブランチ保護（最後の砦）: Settings → Branches → main �
   Claude Code の `!` 実行は非対話（stdin が TTY でない）なので `! uv run labkit approve Q001 --yes` で承認できる。
   Claude 自身の Bash は `guard_bash` が `labkit approve` を拒否する（どの呼び出し形でも）。
 - 選択肢: (a) 現状 / (b) `--yes` を廃止して TTY 必須（`!` からは承認不可） / (c) 承認用の別の秘密（環境変数のトークン）を要求。
-- 仮の判断: (a)。hooks が Claude 側を止め、`!` は人間の操作とみなす。脅威モデルは `docs/harness.md` 1 節。
+- 判断（2026-11-01、サイクル 41）: 儀式を撤去。TTY 再入力は Windows の非対話シェルで動かず、`--yes` は Claude も付けられるので、
+  どちらも防壁にならない。唯一の防壁は hooks（`labkit approve` の拒否）。`labkit approve <ID>` は引数なしで承認し、実行者・claude_shell を記録する。
 - 追記（2026-11-01 の実測）: Claude Code の Bash から実行した `labkit approve` は Windows では `sys.stdin.isatty()` が True になり、
   ID 再入力は EOF で失敗する（`--yes` が必要）。記録には `claude_shell: true` が残る。TTY 再入力は実端末でしか効かない。
 - 変える場合の影響: `cli.py` の `_confirm_human` のみ。

@@ -390,3 +390,12 @@
   hooks.json は `python3` 固定なので、用意する正確なコマンドが要る。
 - 提案: SETUP の 1 行を `uv python install 3.12 --default`（`--default` は uv 0.13 の help で確認。python/python3 の実行ファイルを置く）に。
 - 結論: 文書の精密化のみ（監査省略）。
+
+### 41. 2026-11-01 — `labkit approve` の確認の儀式（ID 再入力・--yes）を撤去
+- 観点: 無くせないか。承認の「人間確認」は TTY なら ID 再入力、非 TTY なら `--yes` だったが、サイクル 20 の実測で Windows の
+  Claude Code シェルでは再入力が EOF で動かず、`--yes` は Claude が付けられるフラグに過ぎない。実際の防壁は hooks が `labkit approve` を拒否すること。
+- 提案: `_confirm_human` と `--yes` を削除。`human_check` は記録（by / tty / claude_shell）だけに。
+- 監査: 採用。元の指示で TTY 再入力は「候補」であり、要件は「Claude が承認を作れない」と脅威モデルの文書化。
+  人間が間違った ID を貼る失敗には、承認の中身（コマンド全文・HEAD・期限・1 回限り）が対処している。
+- 結論: 採用。
+- 規模: cli.py −20 行、state.py −3 行、フラグ 1 つ削除。docs 4 か所を簡潔に。

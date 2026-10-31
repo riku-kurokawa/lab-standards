@@ -51,13 +51,13 @@ Claude が `git push` / `git tag` / main への merge / `labkit raw freeze` / `c
 
 ```bash
 uv run labkit queue list              # 承認待ち・質問・却下の一覧（ID、コマンド全文、HEAD、理由、記録時点の差分）
-uv run labkit approve Q001            # 対話端末なら ID の再入力を求める。24 時間・1 回限り・同じ HEAD にのみ有効
+uv run labkit approve Q001            # 24 時間・1 回限り・同じ HEAD にのみ有効
 uv run labkit reject Q001 --note "理由"
 uv run labkit answer Q002 "lz4 で"     # 質問への回答（Claude は次の入力で受け取る）
 uv run labkit presence here           # 在席中は拒否ではなく通常の確認画面にする
 ```
 
-Claude Code の `!` 実行（`! uv run labkit approve Q001 --yes`）でも承認できる。
+Claude Code の `!` 実行（`! uv run labkit approve Q001`）でも承認できる。
 **GitHub 側で main のブランチ保護（直接 push 禁止・PR 必須）を設定しておく**ことを強く勧める（hooks は security boundary ではない）。
 
 サンドボックス（雛形の `.claude/settings.json` の `sandbox`）は macOS / Linux / WSL2 で有効。Linux と WSL2 では
