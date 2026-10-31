@@ -59,6 +59,8 @@
   `tomllib` が無いときの `{}` 早期 return と `.lab/presence` の追加行は残す。
 - 結論: 採用（accept-with-changes）。両者の load_lab が一致するテストを追加。
 - 規模: 手書きの既定値 3 → 1。_labcommon.py −25 行、config.py −45 行、_labstate.py +70 行（正本）。
+- 追記（サイクル 10 の後）: `tools/release.py --check` が config.py の standards_version を探して失敗していた。TARGETS を
+  正本とコピーの両方に向けて修正。CI の最初のステップで落ちるところだった。サイクルの終わりに `release.py --check` も回す。
 
 ### 6. 2026-11-01 — 質問の置き場を .lab/queue の 1 つにする
 - 観点: 概念の数。プロジェクトでは `labkit queue ask`（hooks が文脈に再注入、人間は `labkit answer`）と自由形式の AGENT_QUEUE.md の
