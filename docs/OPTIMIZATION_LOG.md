@@ -27,6 +27,7 @@
 | skills の説明文（Claude の選択基準）の重複・曖昧さを直す | 11 件を読み合わせ、対象と場面が互いに重ならない。変更なし | 2026-11-01 |
 | CLI の help 文言をサブコマンド削除後に見直す | queue / flow / approve / review / cite / presence の help は現状と一致。変更なし | 2026-11-01 |
 | 大配列（4×10^6 Float64）の save を Python と Julia で揃える | 実測: 両者 gzip レベル 4、サイズ 30.8 MB で同一、相互に読める。違うのはチャンク形状だけ（Python 自動 (1,7813)、Julia (4,4096)）で形式の差ではない。Julia の 3.0 s は JIT 込み | 2026-11-01 |
+| 承認ゲートの `make raw-freeze` / `make std-*` 検出を削る（現行の雛形に無い target） | サイクル 10 で意図的に残した互換（v0.2.0 の Makefile を持つプロジェクトで生データ凍結がゲートを素通りしないため） | 2026-11-01 |
 | use_julia=false のプロジェクトで Julia 由来の設定（sandbox の ~/.julia と julialang ドメイン）を条件分岐で消す | Python のみの生成を実測: jl/ 無し、link・status・pytest・check・example すべて正常。残るのは settings.json の 2 エントリで無害。JSON 内の jinja 分岐はカンマの扱いが脆いので見送り | 2026-11-01 |
 | 図テンプレート（8 種）の整理・統合 | `labkit fig list` の説明・必須 data・例が揃っていて重複なし。変更なし | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
@@ -438,3 +439,14 @@
 - 監査: 採用（Julia のテストに verify なしの場合を追加、CHANGELOG、正規表現の `.` をエスケープ）。
 - 結論: 採用。
 - 規模: 各言語 +3 行、テスト +8 行。labkit 60 passed、LabKit.jl 15/15。
+
+### 48. 2026-11-01 — 前提ツールに GNU make が無かった（文書）
+- 観点: 生成プロジェクトを雛形の Makefile で動かす。この PC（Windows ネイティブ、Git Bash）に `make` が無く、雛形の CLAUDE.md が
+  「`make check` が通るまで完了ではない」と求めるのに、SETUP.md 0 節の前提ツールに make が無い（Git for Windows は make を含まない）。
+- 提案: SETUP.md に make を追加（macOS: Xcode CLT、Debian/Ubuntu: build-essential、Windows: `winget install ezwinports.make` 4.4.1 を
+  winget の索引で確認）。Makefile は sh 構文（`$$(...)`、for/do、単引用符）なので Git Bash から実行すると明記。
+  Makefile 自体の廃止は、`example` の手順を labkit に移す必要と文書 10 か所の書き換えに対し、make 1 つの導入の方が軽いので見送り。
+  Stop hook は make を使わず labkit check / ruff を直接呼ぶ（サイクル 26）ので、hooks は make 無しでも動く。
+- 監査: 採用（版は 4.4.1 と書く、Git for Windows に make が無いことを一言）。
+- 結論: 採用。文書のみ。
+- ついで: ゲートの `make raw-freeze` 検出の削除を再検討したが、v0.2.0 互換のため残す（棄却表に追記）。

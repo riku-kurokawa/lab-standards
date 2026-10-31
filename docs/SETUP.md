@@ -15,6 +15,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh     # uv（Python 環境管理�
 uv tool install copier                              # 雛形ツール
 python3 --version                                   # hooks 用。3.11 以上。無い／古いなら: uv python install 3.12 --default（python3 の実行ファイルを ~/.local/bin に置く）
 curl -fsSL https://install.julialang.org | sh       # juliaup（Julia 1.11 以上）
+make --version                                      # GNU make（雛形・本体の Makefile。`make check` など）。macOS は Xcode CLT、Debian/Ubuntu は build-essential、
+                                                    # Windows ネイティブは `winget install ezwinports.make`（4.4.1。Git for Windows に make は無い）。
+                                                    # Makefile は sh 構文なので PowerShell ではなく Git Bash から実行する
 ```
 
 `MLFLOW_DISABLE_TELEMETRY=true` と `DO_NOT_TRACK=true` をシェルの起動ファイル（`~/.zshrc` など）にも書いておくとより確実:
