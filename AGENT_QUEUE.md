@@ -94,6 +94,8 @@ GitHub のブランチ保護（最後の砦）: Settings → Branches → main �
   Claude 自身の Bash は `guard_bash` が `labkit approve` を拒否する（どの呼び出し形でも）。
 - 選択肢: (a) 現状 / (b) `--yes` を廃止して TTY 必須（`!` からは承認不可） / (c) 承認用の別の秘密（環境変数のトークン）を要求。
 - 仮の判断: (a)。hooks が Claude 側を止め、`!` は人間の操作とみなす。脅威モデルは `docs/harness.md` 1 節。
+- 追記（2026-11-01 の実測）: Claude Code の Bash から実行した `labkit approve` は Windows では `sys.stdin.isatty()` が True になり、
+  ID 再入力は EOF で失敗する（`--yes` が必要）。記録には `claude_shell: true` が残る。TTY 再入力は実端末でしか効かない。
 - 変える場合の影響: `cli.py` の `_confirm_human` のみ。
 
 ### Q-003 [question] improve-standards flow の状態をプロジェクト側に置く
