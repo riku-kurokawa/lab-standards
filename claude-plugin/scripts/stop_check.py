@@ -27,6 +27,8 @@ def changed_code(root: Path) -> list[str]:
             capture_output=True,
             text=True,
             check=True,
+            encoding="utf-8",
+            errors="replace",
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
@@ -74,7 +76,14 @@ def main() -> None:
     if cmd:
         # L050（本体を link 中）は改良作業中の正常な状態なので、ここでは止めない（commit 時に pre-commit が止める）
         res = subprocess.run(
-            [*cmd, "check", "--ignore", "L050"], cwd=root, capture_output=True, text=True, check=False, timeout=240
+            [*cmd, "check", "--ignore", "L050"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=240,
+            encoding="utf-8",
+            errors="replace",
         )
         if res.returncode != 0:
             problems.append("`labkit check` の違反:\n" + (res.stdout + res.stderr).strip()[-3500:])
@@ -92,6 +101,8 @@ def main() -> None:
             text=True,
             check=False,
             timeout=60,
+            encoding="utf-8",
+            errors="replace",
         )
         if r.returncode != 0 and r.stdout.strip():
             problems.append("`ruff check` の違反（`make fmt` で直るものは直す）:\n" + r.stdout.strip()[-2000:])
@@ -108,7 +119,7 @@ def main() -> None:
             )
 
     cf = counter_file(session)
-    state = json.loads(cf.read_text()) if cf.exists() else {"blocks": 0}
+    state = json.loads(cf.read_text(encoding="utf-8")) if cf.exists() else {"blocks": 0}
     if not problems:
         cf.unlink(missing_ok=True)
         return
@@ -125,7 +136,7 @@ def main() -> None:
         )
         return
     state["blocks"] += 1
-    cf.write_text(json.dumps(state))
+    cf.write_text(json.dumps(state), encoding="utf-8")
     print(
         "[lab-rules] 作業完了の条件を満たしていません。以下を解消してから終了してください:\n\n" + "\n\n".join(problems),
         file=sys.stderr,

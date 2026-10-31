@@ -69,7 +69,9 @@ def _json_default(o: Any) -> Any:
 
 def git_info(root: Path) -> dict | None:
     def _git(*args: str) -> str:
-        return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=True).stdout.strip()
+        return subprocess.run(
+            ["git", *args], cwd=root, capture_output=True, text=True, check=True, encoding="utf-8", errors="replace"
+        ).stdout.strip()
 
     try:
         commit = _git("rev-parse", "HEAD")

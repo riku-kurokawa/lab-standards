@@ -8,6 +8,15 @@ import shutil
 import sys
 from pathlib import Path
 
+# Claude Code との入出力は UTF-8。Windows では既定がコンソールのコードページ（cp932 など）になり、
+# 日本語のメッセージが文字化けし、日本語を含むパスの JSON 入力が読めなくなるので固定する（版の検査より前: その文言も日本語）
+for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
 # 3.11 未満（tomllib なし）では黙って無効化せず、人間に見える形で失敗する（exit 1 = 非ブロックの通知）。
 # macOS の Command Line Tools の python3 は 3.9 なので、これが無いとハーネス全体が静かに動かなくなる
 if sys.version_info < (3, 11):  # noqa: UP036  （意図的: 3.11 未満で大声で止まるための検査）
@@ -18,15 +27,6 @@ if sys.version_info < (3, 11):  # noqa: UP036  （意図的: 3.11 未満で大�
     sys.exit(1)
 
 import tomllib  # noqa: E402
-
-# Claude Code との入出力は UTF-8。Windows では既定がコンソールのコードページ（cp932 など）になり、
-# 日本語のメッセージが文字化けし、日本語を含むパスの JSON 入力が読めなくなるので固定する
-for _stream in (sys.stdin, sys.stdout, sys.stderr):
-    if hasattr(_stream, "reconfigure"):
-        try:
-            _stream.reconfigure(encoding="utf-8", errors="replace")
-        except (ValueError, OSError):
-            pass
 
 PROTECTED_FILES = {"lab.toml", ".copier-answers.yml", ".claude/settings.json"}
 # Claude が Write/Edit で触れないハーネスの状態（labkit のコマンド経由でのみ変わる）

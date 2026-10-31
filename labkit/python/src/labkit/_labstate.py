@@ -215,7 +215,14 @@ def get_presence(root: Path) -> str:
 def git(cwd: Path, *args: str) -> str | None:
     try:
         return subprocess.run(
-            ["git", *args], cwd=cwd, capture_output=True, text=True, check=True, timeout=10
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+            encoding="utf-8",
+            errors="replace",
         ).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return None

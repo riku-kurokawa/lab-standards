@@ -62,7 +62,7 @@ def sync(force: bool = False, root: Path | None = None, progress=print) -> int:
         for r in found:
             client.delete_run(r.info.run_id)
         rdir = runs_root(root) / rid
-        cfg = json.loads((rdir / "config.json").read_text()) if (rdir / "config.json").exists() else {}
+        cfg = json.loads((rdir / "config.json").read_text(encoding="utf-8")) if (rdir / "config.json").exists() else {}
         git = meta.get("git") or {}
         tags = {
             "labkit.run_id": rid,
@@ -83,7 +83,7 @@ def sync(force: bool = False, root: Path | None = None, progress=print) -> int:
         metrics = []
         mfile = rdir / "metrics.jsonl"
         if mfile.exists():
-            for line in mfile.read_text().splitlines():
+            for line in mfile.read_text(encoding="utf-8").splitlines():
                 if line.strip():
                     r = json.loads(line)
                     metrics.append(Metric(r["key"], float(r["value"]), int(r["time"] * 1000), int(r["step"] or 0)))

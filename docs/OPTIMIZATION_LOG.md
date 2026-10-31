@@ -534,3 +534,15 @@
   プロジェクトでは効いていない旨をコメント。
 - 結論: 採用。
 - 規模: テスト +43 行。labkit 62 passed。
+
+### 58. 2026-11-01 — cp932 既定の Windows でも壊れないように（encoding の明示と、それを守るテスト）
+- 観点: サイクル 57 の監査の一言「この PC は PYTHONUTF8=1 だから通っている」。`PYTHONUTF8=0` で両スイートを実行すると 16 件失敗。
+- 発見: 製品側は読み取りに utf-8 を明示していたが、6 か所の read_text()/write_text()（run のサイドカー、session_context の meta.json、stop_check の
+  状態ファイル、mlflow_sync）と、子プロセス出力の復号（git / labkit check / ruff、計 11 か所、hooks と labkit の両方）が既定ロケール任せだった。
+  hooks の UTF-8 固定は python 版の検査の後にあり、その日本語メッセージだけ cp932 で出ていた。テスト側は約 70 か所。
+- 提案: すべてに `encoding="utf-8"`（子プロセスは `errors="replace"` も）。`_labstate.py` は両コピーを同時に。
+  守る仕組み: ruff の PLW1514 は preview 専用で、しかも `(root / "x").write_text(...)` を見ない（実測 0 件）ので、AST を歩く小さなテスト
+  `test_encoding_guard.py` を追加（open / read_text / write_text / subprocess の text=True で encoding 無しを検出。バイナリと os.open 等は除外）。
+- 監査: 採用（変更付き）: 最初の正規表現版は複数行の呼び出しを見逃し、文字列中の open( を誤検出していた → AST 版に。製品側の subprocess も対象に。
+- 結論: 採用。`PYTHONUTF8=0` で labkit 63 / hooks 91 passed（既定でも同じ）。CI に Windows ランナーは無いので、この再現はテストで担保する。
+- 規模: 19 ファイル、+175 −97 行（うちテスト追加 55 行）。

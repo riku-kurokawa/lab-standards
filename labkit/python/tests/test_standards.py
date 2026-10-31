@@ -27,18 +27,18 @@ LabKit = { url = "https://github.com/me/lab-standards.git", subdir = "labkit/jul
 @pytest.fixture
 def dev(tmp_path_factory) -> Path:
     d = tmp_path_factory.mktemp("lab-standards")
-    (d / "copier.yml").write_text("_subdirectory: template\n")
+    (d / "copier.yml").write_text("_subdirectory: template\n", encoding="utf-8")
     (d / "labkit" / "python").mkdir(parents=True)
-    (d / "labkit" / "python" / "pyproject.toml").write_text("[project]\nname='labkit'\n")
+    (d / "labkit" / "python" / "pyproject.toml").write_text("[project]\nname='labkit'\n", encoding="utf-8")
     (d / "labkit" / "julia" / "LabKit").mkdir(parents=True)
     return d
 
 
 @pytest.fixture
 def proj(project: Path) -> Path:
-    (project / "pyproject.toml").write_text(PYPROJECT)
+    (project / "pyproject.toml").write_text(PYPROJECT, encoding="utf-8")
     (project / "jl").mkdir()
-    (project / "jl" / "Project.toml").write_text(JL)
+    (project / "jl" / "Project.toml").write_text(JL, encoding="utf-8")
     (project / ".copier-answers.yml").write_text(
         "_commit: v0.1.0\nstandards_repo: me/lab-standards\nstandards_ref: v0.1.0\n"
     )
@@ -56,13 +56,13 @@ def test_status_release(proj):
 def test_link_unlink_roundtrip(proj, dev):
     st = std.link(str(dev), root=proj, do_sync=False)
     assert st.linked and st.python_ref.endswith("labkit/python") and st.julia_mode == "link"
-    assert "editable = true" in (proj / "pyproject.toml").read_text()
+    assert "editable = true" in (proj / "pyproject.toml").read_text(encoding="utf-8")
     codes = [i for i in run_check()[0] if i.code == "L050"]
     assert len(codes) == 2
     assert not [i for i in run_check(ignore={"L050"})[0] if i.code == "L050"]
     st = std.unlink("v0.3.0", root=proj, do_sync=False)
     assert (st.python_mode, st.python_ref, st.julia_ref) == ("release", "v0.3.0", "v0.3.0")
-    text = (proj / "pyproject.toml").read_text()
+    text = (proj / "pyproject.toml").read_text(encoding="utf-8")
     assert 'dependencies = ["labkit"]' in text and 'subdirectory = "labkit/python"' in text
 
 
@@ -83,6 +83,6 @@ def test_run_records_labkit_source(project):
 
     with Run("src") as run:
         pass
-    src = json.loads((run.dir / "meta.json").read_text())["labkit_source"]
+    src = json.loads((run.dir / "meta.json").read_text(encoding="utf-8"))["labkit_source"]
     # テストは本体チェックアウトから実行しているので link 扱いになる
     assert src["mode"] == "link" and (Path(src["path"]) / "copier.yml").exists()

@@ -87,7 +87,7 @@ def describe_input(path: Path, root: Path, max_bytes: float, manifest: dict[str,
     if str(p) in manifest:
         rec.update(sha256=manifest[str(p)], sha256_source="manifest")
     elif sidecar.is_file():
-        rec.update(sha256=json.loads(sidecar.read_text())["sha256"], sha256_source="sidecar")
+        rec.update(sha256=json.loads(sidecar.read_text(encoding="utf-8"))["sha256"], sha256_source="sidecar")
     elif size <= max_bytes:
         rec.update(sha256=sha256_file(p) if p.is_file() else sha256_tree(p), sha256_source="computed")
     else:

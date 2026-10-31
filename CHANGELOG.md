@@ -30,6 +30,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md を改訂。plugin の skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- Windows（PYTHONUTF8 無し、既定 cp932）で、日本語を含む meta.json / サイドカー / devlog の読み書きや hooks の出力が壊れうる箇所を修正:
+  すべてのテキスト入出力と子プロセスの復号に `encoding="utf-8"` を明示。hooks の UTF-8 固定を python 版の検査より前に。新しいテストが違反を機械的に検出する。
 - `labkit standards status` と flow の条件 `linked` は、`pyproject.toml` の無いプロジェクト（雛形適用前）で例外にならず unknown（link ではない）を返す。
 - `labkit review template improve-standards test` が入れる `commit:` を本体（lab-standards）の HEAD に。完了条件 `review repo="standards"` が照合するのは本体の HEAD
   なので、従来のプロジェクトの HEAD では test 段階が advance できなかった。

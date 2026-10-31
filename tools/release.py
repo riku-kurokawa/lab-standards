@@ -72,7 +72,12 @@ def main(argv: list[str]) -> int:
         return 2
     v = argv[0].lstrip("v")
     branch = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, capture_output=True, text=True
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     ).stdout.strip()
     if branch == "main":
         print("警告: main ブランチ上です。通常は feat/* ブランチでリリース準備を行います。")

@@ -197,7 +197,9 @@ def describe(root: Path, st: dict) -> str:
 # ---- 完了条件 ----
 def _git(root: Path, *args: str) -> str | None:
     try:
-        return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=True).stdout.strip()
+        return subprocess.run(
+            ["git", *args], cwd=root, capture_output=True, text=True, check=True, encoding="utf-8", errors="replace"
+        ).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
 
@@ -380,7 +382,9 @@ def c_standards_tests(root, st, c):
         (["uv", "run", "--with", "pytest", "pytest", "-q", str(dev / "claude-plugin" / "tests")], dev),
     ]
     for cmd, cwd in cmds:
-        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
+        r = subprocess.run(
+            cmd, cwd=cwd, capture_output=True, text=True, check=False, encoding="utf-8", errors="replace"
+        )
         if r.returncode != 0:
             return "本体のテストが失敗: " + " ".join(cmd[-2:]) + "\n" + (r.stdout + r.stderr).strip()[-1500:]
     return None

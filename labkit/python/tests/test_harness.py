@@ -15,7 +15,12 @@ PLUGIN_SCRIPTS = Path(__file__).resolve().parents[3] / "claude-plugin" / "script
 
 def git(cwd: Path, *args: str) -> str:
     return subprocess.run(
-        ["git", "-c", "user.email=a@b", "-c", "user.name=t", *args], cwd=cwd, capture_output=True, text=True, check=True
+        ["git", "-c", "user.email=a@b", "-c", "user.name=t", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
     ).stdout.strip()
 
 
@@ -42,7 +47,11 @@ def test_presence_default_and_switch(repo):
     assert state.set_presence(repo, "here") == "here" and state.get_presence(repo) == "here"
     with pytest.raises(ValueError):
         state.set_presence(repo, "maybe")
-    assert (repo / ".lab" / ".gitignore").read_text().splitlines()[1:] == ["presence", "queue/", "approvals/"]
+    assert (repo / ".lab" / ".gitignore").read_text(encoding="utf-8").splitlines()[1:] == [
+        "presence",
+        "queue/",
+        "approvals/",
+    ]
     assert ("L001", "error") not in codes(repo)  # .lab はトップレベルに置いてよい
 
 
@@ -182,7 +191,7 @@ def test_flow_migrate_transitions_and_approval(repo, capsys):
     with pytest.raises(SystemExit, match="migration-inventory"):
         flow.advance(repo, "migrate")
     (repo / "scratch").mkdir(exist_ok=True)
-    (repo / "scratch" / "migration-inventory.csv").write_text("old_path,kind,new_path,size,note\n")
+    (repo / "scratch" / "migration-inventory.csv").write_text("old_path,kind,new_path,size,note\n", encoding="utf-8")
     with pytest.raises(SystemExit, match="承認待ち #Q001"):  # 承認が要る段階 → キューへ
         flow.advance(repo, "migrate")
     assert state.get_item(repo, "Q001")["command"] == "labkit flow advance migrate"
@@ -200,10 +209,10 @@ def test_flow_migrate_transitions_and_approval(repo, capsys):
 
     with pytest.raises(SystemExit, match="copier-answers"):
         flow.advance(repo, "migrate")
-    (repo / ".copier-answers.yml").write_text("_commit: v0.3.0\n")
+    (repo / ".copier-answers.yml").write_text("_commit: v0.3.0\n", encoding="utf-8")
     with pytest.raises(SystemExit, match="'warn'"):  # 人間が mode を warn にする
         flow.advance(repo, "migrate")
-    (repo / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "warn"\n')
+    (repo / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "warn"\n', encoding="utf-8")
     assert flow.advance(repo, "migrate")[0]["stage"] == "raw-data"
     with pytest.raises(SystemExit, match="raw freeze"):
         flow.advance(repo, "migrate")
@@ -231,7 +240,7 @@ def test_flow_migrate_transitions_and_approval(repo, capsys):
     assert flow.advance(repo, "migrate")[0]["stage"] == "strict"
     with pytest.raises(SystemExit, match="'strict'"):
         flow.advance(repo, "migrate")
-    (repo / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "strict"\n')
+    (repo / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "strict"\n', encoding="utf-8")
     assert flow.advance(repo, "migrate")[0]["stage"] == "done"
     assert flow.active_flows(repo) == []  # done に達した flow は進行中ではない
     with pytest.raises(SystemExit, match="進行中ではありません"):
@@ -264,7 +273,7 @@ def test_linked_if_touched(repo, monkeypatch, tmp_path):
     """本体の差分が labkit/ に触れていれば link が要る。触れていなければ不要."""
     dev = tmp_path / "dev"
     (dev / "labkit" / "python").mkdir(parents=True)
-    (dev / "copier.yml").write_text("x: 1")
+    (dev / "copier.yml").write_text("x: 1", encoding="utf-8")
     git(dev, "init", "-q", "-b", "main")
     git(dev, "add", "-A")
     git(dev, "commit", "-q", "-m", "init")
@@ -273,11 +282,11 @@ def test_linked_if_touched(repo, monkeypatch, tmp_path):
     st = {"flow": "improve-standards", "stage": "implement", "stages": []}
     c = {"type": "linked_if_touched", "paths": ["labkit/"]}
     (dev / "claude-plugin").mkdir()
-    (dev / "claude-plugin" / "h.py").write_text("x")
+    (dev / "claude-plugin" / "h.py").write_text("x", encoding="utf-8")
     git(dev, "add", "-A")
     git(dev, "commit", "-q", "-m", "hooks only")
     assert flow.c_linked_if_touched(repo, st, c) is None  # hooks だけなら link 不要
-    (dev / "labkit" / "python" / "x.py").write_text("y")
+    (dev / "labkit" / "python" / "x.py").write_text("y", encoding="utf-8")
     git(dev, "add", "-A")
     git(dev, "commit", "-q", "-m", "labkit change")
     assert "link" in flow.c_linked_if_touched(repo, st, c)  # labkit/ を変えたら必要
@@ -302,8 +311,8 @@ def test_review_parsing_and_l035(repo):
     head = state.git_head(repo)
     d = repo / "docs" / "reviews"
     d.mkdir(parents=True)
-    (d / "2026-11-01_migrate_test.md").write_text(reviews.template("migrate", "test", head))
-    (d / "bad.md").write_text("no frontmatter\n")
+    (d / "2026-11-01_migrate_test.md").write_text(reviews.template("migrate", "test", head), encoding="utf-8")
+    (d / "bad.md").write_text("no frontmatter\n", encoding="utf-8")
     (d / "2026-11-01_migrate_x.md").write_text(
         "---\nreviewer: me\nflow: migrate\nstage: y\ncommit: abc\nverdict: maybe\nfindings: []\n---\n"
     )
@@ -329,24 +338,27 @@ def test_citations(repo):
     assert ok == f"{12.345:.4g} dB [run:{rid}:snr_db]"  # format_value と num_matches は同じ丸め
     assert cite(rid, "snr_db", digits=1) == f"12.3 [run:{rid}:snr_db]"
     assert cite(rid, "n") == f"2000 [run:{rid}:n]"
-    dev.write_text(body + f"\n- {rid}: SNR は {cite(rid, 'snr_db', digits=1, unit='dB')} だった\n")
+    dev.write_text(body + f"\n- {rid}: SNR は {cite(rid, 'snr_db', digits=1, unit='dB')} だった\n", encoding="utf-8")
     assert not {c for c in codes(repo) if c[0] in ("L032", "L033")}
     dev.write_text(
         body + f"\n- 12.9 dB [run:{rid}:snr_db]\n- 1.0 [run:{rid}:missing]\n- {rid} で SNR 12.3 dB\n"
-        f"- 20260101-000000_ghost_abcdef0_0000 の結果\n"
+        f"- 20260101-000000_ghost_abcdef0_0000 の結果\n",
+        encoding="utf-8",
     )
     found = {(i.code, i.severity, i.where.split(":")[-1]) for i in issues(repo) if i.code in ("L032", "L033")}
     assert ("L033", "error", "8") in found  # 値が一致しない
     assert ("L033", "error", "9") in found  # キーが無い
     assert ("L033", "warn", "10") in found  # 書式のない数値
     assert ("L032", "error", "11") in found  # 存在しない run
-    (repo / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "strict"\ncite_bare_numbers = "off"\n')
+    (repo / "lab.toml").write_text(
+        '[lab]\nproject = "t"\n[check]\nmode = "strict"\ncite_bare_numbers = "off"\n', encoding="utf-8"
+    )
     assert ("L033", "warn", "10") not in {(i.code, i.severity, i.where.split(":")[-1]) for i in issues(repo)}
     # failed run の引用は警告
     with pytest.raises(RuntimeError):
         with Run("bad", {}) as r2:
             raise RuntimeError("x")
-    dev.write_text(body + f"\n- {r2.run_id} は失敗\n")
+    dev.write_text(body + f"\n- {r2.run_id} は失敗\n", encoding="utf-8")
     assert ("L032", "warn") in codes(repo)
     with pytest.raises(ValueError):
         cite(rid, "nope")
@@ -403,7 +415,7 @@ def test_check_severity_exit_code(repo, capsys):
         f"## {h}"
         for h in ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"]
     )
-    dev.write_text(body + f"\n- {run.run_id} で 3 回試した\n")  # 警告のみ
+    dev.write_text(body + f"\n- {run.run_id} で 3 回試した\n", encoding="utf-8")  # 警告のみ
     assert main(["check"]) == 0  # 警告だけなら strict でも成功
     out = capsys.readouterr().out
     assert "L033  (warn)" in out and "0 件の違反" in out and "件の警告" in out
@@ -419,7 +431,7 @@ def test_cli_user_errors_are_one_line(repo, capsys):
     assert main(["fig", "figspecs/missing.toml"]) == 1
     assert "missing.toml" in capsys.readouterr().err
     (repo / "figspecs").mkdir(exist_ok=True)
-    (repo / "figspecs" / "broken.toml").write_text('template = "timeseries\n[data\n')
+    (repo / "figspecs" / "broken.toml").write_text('template = "timeseries\n[data\n', encoding="utf-8")
     assert main(["fig", "figspecs/broken.toml", "--run", "latest"]) == 1
     err = capsys.readouterr().err
     assert "broken.toml" in err and "TOML" in err  # tomllib の例外には位置しかないのでファイル名を付ける
@@ -435,7 +447,7 @@ def test_review_template_uses_the_head_that_advance_checks(repo, tmp_path, monke
 
     dev = tmp_path / "dev"
     (dev / "labkit" / "python").mkdir(parents=True)
-    (dev / "copier.yml").write_text("x: 1")
+    (dev / "copier.yml").write_text("x: 1", encoding="utf-8")
     git(dev, "init", "-q", "-b", "main")
     git(dev, "add", "-A")
     git(dev, "commit", "-q", "-m", "init")
@@ -457,7 +469,7 @@ def test_flow_improve_standards_walkthrough(repo, tmp_path_factory, monkeypatch,
 
     dev = tmp_path_factory.mktemp("dev")  # プロジェクトの外（中に置くと L001）
     (dev / "labkit" / "python").mkdir(parents=True)
-    (dev / "copier.yml").write_text("x: 1")
+    (dev / "copier.yml").write_text("x: 1", encoding="utf-8")
     git(dev, "init", "-q", "-b", "main")
     git(dev, "add", "-A")
     git(dev, "commit", "-q", "-m", "init")
@@ -480,7 +492,7 @@ def test_flow_improve_standards_walkthrough(repo, tmp_path_factory, monkeypatch,
         f"## {h}"
         for h in ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"]
     )
-    (repo / "docs" / "devlog" / f"{dt.date.today().isoformat()}.md").write_text(body + "\n")
+    (repo / "docs" / "devlog" / f"{dt.date.today().isoformat()}.md").write_text(body + "\n", encoding="utf-8")
     assert approve_and_advance("Q001")["stage"] == "branch"
     with pytest.raises(SystemExit, match="feat/"):
         flow.advance(repo, name)
@@ -489,7 +501,7 @@ def test_flow_improve_standards_walkthrough(repo, tmp_path_factory, monkeypatch,
     with pytest.raises(SystemExit, match="commit"):
         flow.advance(repo, name)
     (dev / "claude-plugin").mkdir()
-    (dev / "claude-plugin" / "h.py").write_text("x")  # hooks だけの変更 → link 不要
+    (dev / "claude-plugin" / "h.py").write_text("x", encoding="utf-8")  # hooks だけの変更 → link 不要
     git(dev, "add", "-A")
     git(dev, "commit", "-q", "-m", "hooks")
     assert flow.advance(repo, name)[0]["stage"] == "test"
@@ -507,7 +519,7 @@ def test_flow_improve_standards_walkthrough(repo, tmp_path_factory, monkeypatch,
     assert approve_and_advance("Q002")["stage"] == "adopt"
     pyp = repo / "pyproject.toml"
     src = (dev / "labkit" / "python").as_posix()
-    pyp.write_text(f'[tool.uv.sources]\nlabkit = {{ path = "{src}", editable = true }}\n')
+    pyp.write_text(f'[tool.uv.sources]\nlabkit = {{ path = "{src}", editable = true }}\n', encoding="utf-8")
     with pytest.raises(SystemExit, match="link が残っています"):  # link したままでは adopt を終えられない
         flow.advance(repo, name)
     pyp.write_text(

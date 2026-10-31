@@ -171,7 +171,9 @@ def template(ref: str, root: Path | None = None) -> int:
     copier = shutil.which("copier")
     if copier is None:
         raise SystemExit("copier が見つかりません: uv tool install copier")
-    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True).stdout
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace"
+    ).stdout
     if dirty.strip():
         raise SystemExit("copier update は作業ツリーが clean である必要があります。先に commit してください。")
     cmd = [copier, "update", "--defaults", "--vcs-ref", ref]
@@ -186,7 +188,13 @@ def template(ref: str, root: Path | None = None) -> int:
 def latest_local_tag(dev: Path) -> str | None:
     try:
         out = subprocess.run(
-            ["git", "tag", "--list", "v*", "--sort=-v:refname"], cwd=dev, capture_output=True, text=True, check=True
+            ["git", "tag", "--list", "v*", "--sort=-v:refname"],
+            cwd=dev,
+            capture_output=True,
+            text=True,
+            check=True,
+            encoding="utf-8",
+            errors="replace",
         ).stdout.split()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None

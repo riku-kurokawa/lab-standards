@@ -38,9 +38,9 @@ def test_julia_writes_python_reads(project):
     assert load(project / "data/processed/t.parquet", verify=True)["v"].tolist() == [1.0, 2.0]
     assert not {i.code for i in run_check()[0]} & {"L020", "L022"}  # meta.json とサイドカーがスキーマどおり
     assert list_runs()[0]["language"] == "julia"
-    metrics = json.loads((run / "metrics.json").read_text())
+    metrics = json.loads((run / "metrics.json").read_text(encoding="utf-8"))
     assert isinstance(metrics["n"], float) and isinstance(metrics["m"], float)  # Julia の 2.0 は 2 ではなく 2.0
-    assert isinstance(json.loads((run / "meta.json").read_text())["duration_s"], float)
+    assert isinstance(json.loads((run / "meta.json").read_text(encoding="utf-8"))["duration_s"], float)
 
 
 def test_directory_hash_matches_julia(tmp_path):
@@ -56,6 +56,7 @@ def test_directory_hash_matches_julia(tmp_path):
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=600,
     ).stdout.strip()
     assert sha256_tree(d) == jl

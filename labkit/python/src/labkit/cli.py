@@ -167,7 +167,9 @@ def cmd_flow(a) -> int:
         # migrate は lab.toml が無い段階（freeze / inventory）から始まる: git の最上位、なければ cwd を使う
         import subprocess
 
-        r = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+        r = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
         root = Path(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip() else Path.cwd()
     if a.action == "start":
         if not a.name:

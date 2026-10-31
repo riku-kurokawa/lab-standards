@@ -31,7 +31,7 @@ def recent_runs(root, n=5) -> list[str]:
     for d in sorted((p for p in runs.iterdir() if p.is_dir()), reverse=True)[:n]:
         status = "?"
         try:
-            status = json.loads((d / "meta.json").read_text()).get("status", "?")
+            status = json.loads((d / "meta.json").read_text(encoding="utf-8")).get("status", "?")
         except (OSError, json.JSONDecodeError):
             pass
         out.append(f"{d.name} ({status})")

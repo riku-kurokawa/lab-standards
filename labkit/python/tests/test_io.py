@@ -58,7 +58,7 @@ def test_writer_and_run_outputs(project):
         with writer(runpath(run, "big.h5")) as tmp:
             with h5py.File(tmp, "w") as f:
                 f.create_dataset("x", data=np.zeros((10, 10)))
-    meta = json.loads((run.dir / "meta.json").read_text())
+    meta = json.loads((run.dir / "meta.json").read_text(encoding="utf-8"))
     assert any(o["path"] == "big.h5" for o in meta["outputs"])
     assert (run.dir / "big.h5.meta.json").exists()
 
@@ -90,13 +90,13 @@ def test_figure_templates(project):
         "eb.toml": 'template = "errorbar"\n[data]\nfile = "res.parquet"\nx = "method"\ny = "rmse"\n',
     }
     for name, text in specs.items():
-        (project / "figspecs" / name).write_text(text)
+        (project / "figspecs" / name).write_text(text, encoding="utf-8")
         out = render(project / "figspecs" / name, run_id=run.run_id)
         assert all(p.exists() for p in out)
     assert (run.dir / "figures" / "ts.figmeta.json").exists()
     # 向きを取り違えた配列（(len(y), len(x))）は黙って描かず拒否する
     (project / "figspecs" / "bad.toml").write_text(
-        'template = "heatmap"\n[data]\nfile = "field.h5"\nz = "uT"\nx = "xgrid"\ny = "ygrid"\n'
+        'template = "heatmap"\n[data]\nfile = "field.h5"\nz = "uT"\nx = "xgrid"\ny = "ygrid"\n', encoding="utf-8"
     )
     with pytest.raises(ValueError, match="len\\(x\\), len\\(y\\)"):
         render(project / "figspecs" / "bad.toml", run_id=run.run_id)
