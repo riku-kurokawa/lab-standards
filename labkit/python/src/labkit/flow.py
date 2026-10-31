@@ -235,6 +235,8 @@ def _standards_dev(root: Path) -> Path | None:
 
 def c_clean_tree(root, st, c):
     out = _git(root, "status", "--porcelain", "--untracked-files=no")
+    if out is None:
+        return "git リポジトリではありません（`git init` から始める）"
     return None if out == "" else "作業ツリーに未コミットの変更があります（すべて commit する）"
 
 

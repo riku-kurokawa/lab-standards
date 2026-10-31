@@ -117,7 +117,7 @@ def gate_check(data: dict, cmd: str, root, kind: str) -> None:
     block(
         f"{what} は人間の承認が必要です（presence={presence}）。承認待ち #{item['id']} として記録しました。"
         f"この操作に依存しない作業を続け、終了時の報告に挙げてください。人間が `labkit approve {item['id']}` した後、"
-        f"同じディレクトリ・同じ HEAD（{(head or '')[:7]}）で同じコマンド全文を実行すると通ります。"
+        f"同じディレクトリ・同じ HEAD（{head[:7] if head else 'なし: git リポジトリではない'}）で同じコマンド全文を実行すると通ります。"
     )
 
 

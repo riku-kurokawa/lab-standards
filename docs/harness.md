@@ -28,6 +28,7 @@ docs/reviews/*.md    ←── lab-reviewer agent だけが書く（agent_type �
 
 承認は人間だけが行う: `labkit queue list` → `labkit approve <ID>`（対話端末なら ID の再入力、非対話なら `--yes`）。
 承認は **コマンド全文 + そのときの HEAD** に結び付き、**24 時間**（`[gate] approval_ttl_hours`）で期限切れ、**1 回限り**。
+git リポジトリ外では HEAD は「なし」として記録され、コマンド全文・cwd・期限・1 回限りだけで照合する。
 hook は一致する承認があるときだけ通し、通したら `used_at` を記録する。`labkit reject <ID>` で却下。
 
 Claude が承認を作れないようにする層:

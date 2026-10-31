@@ -162,6 +162,12 @@ def test_flow_definitions_are_consistent():
             assert set(s.get("forbid", [])) <= {"code", "experiments", "raw", "template", "link", "release", "commit"}
 
 
+def test_clean_tree_outside_git(project):
+    """git リポジトリでないときは「未コミット」ではなく「リポジトリではない」と言う."""
+    msg = flow.c_clean_tree(project, {}, {})
+    assert msg and "git リポジトリではありません" in msg
+
+
 def test_flow_migrate_transitions_and_approval(repo):
     st = flow.start(repo, "migrate")
     assert st["stage"] == "freeze" and (repo / ".lab" / "flows" / "migrate.json").is_file()
