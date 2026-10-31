@@ -1,7 +1,8 @@
-"""SessionStart（startup/resume/clear/compact）: プロジェクト規約・承認キュー・進行中の手順の要点を文脈に入れる.
+"""SessionStart（startup/resume/clear/compact）: CLAUDE.md に書けない「状態」を文脈に入れる.
 
-compact（会話の要約）の後にも実行されるので、長い作業で規約が抜け落ちるのを防ぐ。
-lab-standards 本体では承認ゲートとキューの状態だけを入れる。
+規約そのものは CLAUDE.md（compact 後も Claude Code が再読込する）と skill lab-conventions にあるので、ここでは繰り返さない。
+入れるのは、今日の開発ログの有無、link 状態、presence、進行中の flow、承認待ち・質問、最近の run。
+承認ゲートの 2 行だけは、v0.2.0 の CLAUDE.md や本体の CLAUDE.md に記述が無いので常に入れる。
 """
 
 from __future__ import annotations
@@ -56,19 +57,8 @@ def main() -> None:
         today = _dt.date.today().isoformat()
         devlog = root / lab.get("devlog", {}).get("dir", "docs/devlog") / f"{today}.md"
         lines += [
-            "このプロジェクトは lab-standards の規約に従っている（規約の設定源は lab.toml、要約は CLAUDE.md）。",
-            f"- Write/Edit できる場所: {', '.join(lab['layout']['writable'])}。一時ファイルは scratch/。",
-            "- data/ と runs/ はスクリプト経由（labkit.save / labkit.Run）でのみ生成される。data/raw と lab.toml は変更不可。",
-            "- 図は figspecs/<name>.toml と `labkit fig <spec> --run <run_id>` で作る。描画ライブラリは直接使わない（`labkit fig list` で一覧）。",
-            "- 保存形式は HDF5（配列）と Parquet（表）。コードに絶対パスは書かず labkit.datapath と configs/paths を使う。",
-            "- 文献は `labkit lit add`、サーベイは `labkit lit survey` で literature/ に作る。",
-            "- 文書（開発ログ・ADR・レビュー）で run の数値を書くときは `labkit cite <run_id> <key> [--unit dB]` の出力"
-            "（例 `12.3 dB [run:<run_id>:snr_db]`）を貼る。labkit check L032/L033 が runs/ の実データと照合する。",
-            f"- 作業の完了条件は `make check` が通ること。コードを変えた日は開発ログ {devlog.relative_to(root)} を更新する"
-            f"（{'存在する' if devlog.exists() else 'まだ無い。`labkit devlog` で作成'}）。",
-            "- 詳細手順は lab-rules plugin の skills（new-experiment, make-figure, write-devlog, literature-survey, migrate-project, improve-standards）にある。",
-            "- 雛形・labkit・hooks 自体を改良したくなったら、プロジェクト内で直さず `labkit flow start improve-standards`（skill improve-standards）。",
-            "- レビュー記録 docs/reviews/ は lab-reviewer agent だけが書ける（メインのエージェントは書けない）。",
+            "規約は CLAUDE.md と skill lab-conventions。承認ゲート・キュー・flow の使い方は skill lab-conventions の「人間が不在でも止まらない」節。",
+            f"- 今日の開発ログ {devlog.relative_to(root)}: {'存在する' if devlog.exists() else 'まだ無い（コードを変えた日は `labkit devlog` で作る）'}。",
         ]
         lines += GATE_LINES
         lines.append(f"- presence={get_presence(root)}。")
@@ -84,7 +74,7 @@ def main() -> None:
         if rr:
             lines.append(f"- 最近の run: {', '.join(rr)}")
     if data.get("source") == "compact":
-        lines.insert(0, "（会話が要約されたため、規約・承認待ち・手順の状態を再掲する）")
+        lines.insert(0, "（会話が要約されたため、承認待ち・手順・presence の状態を再掲する）")
     print("\n".join(lines))
 
 

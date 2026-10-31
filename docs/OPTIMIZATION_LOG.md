@@ -38,3 +38,12 @@
   仕様が曖昧（初回実行で確認、代替は `{source: file}` + llm）。
 - 結論: 採用（accept-with-changes）。未実行のままだが「読み込みすら失敗する」状態は解消。
 - 規模: fixture.sh ×7（生成物、各 35 行）、テスト +12 行、Makefile/CI に `--scaffold`。概念の増減なし。
+
+### 4. 2026-11-01 — SessionStart hook が規約を繰り返すのをやめる
+- 観点: 認知負荷と重複。規約の文が CLAUDE.md・skill lab-conventions・SessionStart hook の 3 か所にあり、ずれの原因だった。
+- 提案: hook は CLAUDE.md に書けない「状態」（今日の開発ログの有無、link、presence、flow、キュー、最近の run）だけを出す。
+- 監査: 公式 memory.md「Project-root CLAUDE.md survives compaction: after /compact, Claude re-reads it」で、hook の存在理由だった
+  「compact で規約が抜ける」は誤り。矛盾する 2 つの指示は Claude が任意に片方を選ぶ（公式）ので、重複はむしろ害。
+  v0.2.0 判定で GATE_LINES を出し分ける案は却下（load_lab のマージ後は区別できず、本体 CLAUDE.md にも gate の記述が無い）。
+- 結論: 採用（accept-with-changes）。GATE_LINES 2 行は常に出す。
+- 規模: session_context.py −12 行、hook 出力 −10 行。概念 −1（「hook が規約を再注入する」をやめた）。
