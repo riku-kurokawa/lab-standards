@@ -67,3 +67,11 @@
   `.lab/queue` は gitignore されて PC を跨がないが、承認が HEAD・24 時間に結び付く設計と整合。終了時の報告は最後のメッセージで、ファイルは不要。
 - 結論: 採用（accept-with-changes）。
 - 規模: 7 か所から文字列を削除、追加なし。概念 −1。
+
+### 7. 2026-11-01 — `labkit review` を雛形出力だけに
+- 観点: 無くせないか。`review list` は `labkit check`（L035）と `ls docs/reviews` の重複、`review_path` の同日連番生成は読む側が無い。
+- 提案: review サブコマンドを全廃。
+- 監査: `template` だけは残す。理由は、レビュー agent が `commit:` に 7 桁の短い sha を写す失敗を防ぎ、既定 verdict を changes-requested に
+  しておくことで書きかけの記録が flow を通さない（半端な記録は fail-closed）。`list` と `review_path` は削除、引数は位置引数に。
+- 結論: 採用（accept-with-changes）。
+- 規模: cli.py −22 行、reviews.py −14 行、テスト ±0。CLI のサブ動作 2 → 1。

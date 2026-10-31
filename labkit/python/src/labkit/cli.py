@@ -212,25 +212,11 @@ def cmd_cite(a) -> int:
 
 
 def cmd_review(a) -> int:
+    """レビュー記録の frontmatter 雛形（現在の HEAD 入り）。lab-reviewer が docs/reviews/<date>_<flow>_<stage>.md に書く."""
     from labkit import reviews, state
     from labkit.config import find_root
 
-    root = find_root()
-    if a.action == "list":
-        rs = reviews.list_reviews(root)
-        if not rs:
-            print("レビュー記録はありません（docs/reviews/）")
-        for r in rs:
-            flag = "NG " if r.errors else "   "
-            print(f"{flag}{r.path.name}  {r.verdict:18s} commit={r.commit[:7]}  指摘 {len(r.findings)} 件")
-            for e in r.errors:
-                print(f"      書式違反: {e}")
-    elif a.action == "template":
-        if not a.flow or not a.stage:
-            raise SystemExit("review template --flow <flow> --stage <stage>")
-        head = state.git_head(root) or ""
-        print(f"# 保存先: {reviews.review_path(root, a.flow, a.stage).relative_to(root)}")
-        print(reviews.template(a.flow, a.stage, head), end="")
+    print(reviews.template(a.flow, a.stage, state.git_head(find_root()) or ""), end="")
     return 0
 
 
@@ -489,10 +475,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--unit", help="単位（例: dB）")
     s.set_defaults(func=cmd_cite)
 
-    s = sub.add_parser("review", help="独立レビューの記録（list / template）")
-    s.add_argument("action", choices=["list", "template"])
-    s.add_argument("--flow")
-    s.add_argument("--stage")
+    s = sub.add_parser("review", help="レビュー記録の frontmatter 雛形を出す: labkit review template <flow> <stage>")
+    s.add_argument("action", choices=["template"])
+    s.add_argument("flow")
+    s.add_argument("stage")
     s.set_defaults(func=cmd_review)
     return p
 

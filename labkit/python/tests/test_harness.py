@@ -173,7 +173,8 @@ def test_flow_review_condition(repo):
     missing = flow.unmet(repo, st)
     assert len(missing) == 1 and "pass 記録" in missing[0]
     head = state.git_head(repo)
-    p = reviews.review_path(repo, "migrate", "reproduce")
+    p = repo / "docs" / "reviews" / "2026-11-01_migrate_reproduce.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(reviews.template("migrate", "reproduce", head).replace("verdict: changes-requested", "verdict: pass")
                  .replace('  - "<path>:<line> 指摘（根拠）"\n', ""))
     assert flow.unmet(repo, st) == []
@@ -193,7 +194,7 @@ def test_review_parsing_and_l035(repo):
     assert [r.path.name for r in rs if not r.errors] == ["2026-11-01_migrate_test.md"]
     assert ("L035", "error") in codes(repo)
     assert reviews.latest_pass(repo, "migrate", "test", head) is None  # changes-requested
-    assert reviews.review_path(repo, "migrate", "test", "2026-11-01").name == "2026-11-01_migrate_test_2.md"
+    assert reviews.NAME_RE.match("2026-11-01_migrate_test_2.md")  # 同日同段階の再レビューは _2
 
 
 # ---- L032 / L033 / cite ----

@@ -14,7 +14,6 @@ frontmatter:
 
 from __future__ import annotations
 
-import datetime as _dt
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -94,18 +93,6 @@ def latest_pass(root: Path, flow: str, stage: str, head: str | None) -> Review |
         if not r.errors and r.verdict == "pass" and head and r.commit == head:
             return r
     return None
-
-
-def review_path(root: Path, flow: str, stage: str, date: str | None = None) -> Path:
-    d = root / REVIEW_DIR
-    d.mkdir(parents=True, exist_ok=True)
-    date = date or _dt.date.today().isoformat()
-    p = d / f"{date}_{flow}_{stage}.md"
-    n = 2
-    while p.exists():
-        p = d / f"{date}_{flow}_{stage}_{n}.md"
-        n += 1
-    return p
 
 
 def template(flow: str, stage: str, commit: str) -> str:

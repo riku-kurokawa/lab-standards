@@ -30,9 +30,9 @@ tools: Read, Grep, Glob, Bash, Write
 
 ## レビュー記録を書く
 
-`uv run labkit review template --flow <flow> --stage <段階>` の出力（保存先パスと frontmatter の雛形）を使い、
-Write ツールで `docs/reviews/YYYY-MM-DD_<flow>_<段階>.md` に保存する。flow が無い単発のレビューは
-`--flow adhoc --stage review` とする。frontmatter は次の形（`labkit check` L035 が検査する）:
+`uv run labkit review template <flow> <段階>` の出力（現在の HEAD 入りの frontmatter 雛形）を使い、
+Write ツールで `docs/reviews/YYYY-MM-DD_<flow>_<段階>.md` に保存する（同じ日に同じ段階を再レビューしたら `_2` を付ける）。flow が無い単発のレビューは
+`adhoc review` とする。frontmatter は次の形（`labkit check` L035 が検査する）:
 
 ```
 ---

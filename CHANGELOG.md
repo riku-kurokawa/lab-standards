@@ -16,7 +16,7 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   状態は `.lab/flows/<name>.json`（git 管理）。advance が完了条件を検査し、承認が要る段階はキューに積む。hooks が段階外の操作を拒否。
 - **独立レビュー**: `docs/reviews/YYYY-MM-DD_<flow>_<段階>.md`（frontmatter: reviewer, flow, stage, commit, verdict, findings）。
   書き込みは hook 入力の `agent_type` が lab-reviewer のときだけ。lab-reviewer は他のファイルを書けず Bash は読み取り専用。
-  `labkit review list|template`。
+  `labkit review template <flow> <stage>`（frontmatter の雛形）。
 - **labkit check** L032（文書が引用する run の存在。failed / link 中の run は警告）、L033（`12.3 dB [run:<id>:<key>]` 書式と
   metrics.json の照合。書式なし数値は警告、`[check] cite_bare_numbers = "off"` で無効化）、L035（レビュー記録の書式）。
   Issue に severity（error / warn）を追加。警告は strict でも終了コード 0。
