@@ -11,6 +11,7 @@
 | 承認の消費を PostToolUse へ移す | hook が 1 つ増える。失敗時は再キューで足りる（Q-015） | 2026-11-01 |
 | README の「人間が不在のときの動き」節を harness.md へのポインタに縮める | README（物語）・SETUP（操作）・harness.md（設計）で読者が違う。重複ではなく役割分担 | 2026-11-01 |
 | 雛形の各ディレクトリ README（docs/data/literature/notebooks/prompts、8〜24 行）を統合・削除 | 各々が配置だけでは分からない規則（不変性、citekey、nbstripout）を 1 画面で述べていて重複が無い。読む場所が増える害の方が大きい | 2026-11-01 |
+| Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
 
 ## サイクル
@@ -116,3 +117,14 @@
   `labkit standards status` に standards_ref を表示して人間向けの情報を補う。
 - 結論: 採用（accept-with-changes）。
 - 規模: release.py の対象 10 → 7、_labstate.py −1 行、lab.toml.jinja −1 行、standards.py +2 行。
+
+### 12. 2026-11-01 — lab-reviewer の Bash 制限を拒否リストから許可リストへ
+- 観点: 機械的に間違えられないこと。レビュー agent の読み取り専用化は 4 行の正規表現の拒否リストで、
+  `python - <<EOF`、`uv run python x.py`、`git worktree add`、`perl -i`、`curl -o` などが素通りしていた（fail-open）。
+- 提案: 読み取りコマンドの許可リスト（単語の集合 3 つ + 関数）に置き換え、載っていないものは拒否（fail-closed）。
+- 監査: agent の手順が使うのは git diff/status/rev-parse、labkit runs/check/review template のみで全て収まる。`cd`、`sed`（-i 以外）、
+  pytest、`ruff check` を追加。agent は人間に尋ねられないので、拒否メッセージに許可一覧を（集合から生成して）載せる。
+  `>` は引用符内でも拒否（レビューには不要）。
+- 結論: 採用（accept-with-changes）。
+- 規模: 正規表現 4 行（約 600 文字）→ 集合 3 つ + 関数 約 30 行。行数は増えるが「X は実行できるか」が集合の参照で答えられる。
+  テストは拒否 14 件・許可 12 件に拡充。

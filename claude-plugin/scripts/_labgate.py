@@ -251,3 +251,49 @@ def forbidden(hits: list[Hit]) -> list[Hit]:
 
 def flow_hits(hits: list[Hit], forbid: list[str]) -> list[Hit]:
     return [h for h in hits if FLOW_CATEGORY.get(h.category) in forbid]
+
+
+# ---- lab-reviewer（レビュー agent）に許す読み取り専用コマンド（許可リスト。載っていないものは拒否） ----
+REVIEWER_ALLOWED = {"cat", "head", "tail", "ls", "wc", "grep", "rg", "find", "diff", "stat", "file", "tree", "echo",
+                    "pwd", "date", "which", "sort", "uniq", "cut", "awk", "jq", "du", "cd", "sed", "true", "test", "[",
+                    "pytest", "ruff"}
+GIT_READ = {"diff", "log", "status", "show", "rev-parse", "blame", "branch", "tag", "ls-files", "describe", "shortlog",
+            "grep"}
+LABKIT_READ = {("check",), ("runs",), ("cite",), ("review", "template"), ("paths",), ("fig", "list"), ("queue", "list"),
+               ("queue", "show"), ("flow", "status"), ("flow", "list"), ("standards", "status"), ("lit", "check")}
+
+
+def reviewer_allowed(seg: str) -> bool:
+    """lab-reviewer が実行してよい読み取り専用のコマンドか（段落 1 つ分）."""
+    if ">" in seg:  # リダイレクトはすべて拒否（引用符内の > も含む。レビューには不要）
+        return False
+    toks = tokens(seg)
+    if not toks:
+        return True
+    b = _basename(toks[0])
+    if b == "git":
+        sub, args, _ = _git_subcommand(toks)
+        return sub in GIT_READ and not any(a in ("-d", "-D", "-m", "-M", "-f", "--delete", "--force") for a in args)
+    la = _labkit_args(toks)
+    if la is not None:
+        pos = tuple(a for a in la if not a.startswith("-"))
+        return any(pos[:len(p)] == p for p in LABKIT_READ)
+    if b == "uv" and len(toks) > 1 and toks[1] == "run":  # uv run [--opts] pytest / ruff check
+        i = 2
+        while i < len(toks) and toks[i].startswith("-"):
+            i += 2 if toks[i] in UV_RUN_WITH_ARG else 1  # --extra dev のような値付きオプションを飛ばす
+        rest = toks[i:]
+        return bool(rest) and _basename(rest[0]) in ("pytest", "ruff") and (rest[0] != "ruff" or rest[1:2] == ["check"])
+    if b.startswith("python") and len(toks) > 2 and toks[1] == "-m" and toks[2] == "pytest":
+        return True
+    if b == "sed":
+        return not any(t == "-i" or t.startswith("-i") or t.startswith("--in-place") for t in toks[1:])
+    if b == "ruff":
+        return toks[1:2] == ["check"] or toks[1:3] == ["format", "--check"]
+    return b in REVIEWER_ALLOWED
+
+
+def reviewer_allowed_summary() -> str:
+    return ("lab-reviewer が実行できるのは読み取りだけ: " + " ".join(sorted(REVIEWER_ALLOWED)) + "; git {"
+            + ",".join(sorted(GIT_READ)) + "}; labkit {" + ", ".join(" ".join(p) for p in sorted(LABKIT_READ))
+            + "}。リダイレクト（>）不可。レビュー記録は Write で docs/reviews/ に書く。")

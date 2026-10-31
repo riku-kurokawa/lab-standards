@@ -2,7 +2,7 @@
 
 判定の順:
   1. Claude が実行してはいけない操作（labkit approve/reject/answer）→ 常に拒否
-  2. lab-reviewer（レビュー agent）は読むだけ。書き換えるコマンドは拒否
+  2. lab-reviewer（レビュー agent）は許可リストの読み取りコマンドだけ（_labgate.reviewer_allowed。載っていなければ拒否）
   3. 進行中の flow の段階で禁止されている操作 → 拒否（「今は <段階>。先に <条件> が必要」）
   4. 承認ゲートの対象（push, tag, merge, gh release/merge, raw freeze, copier）:
      承認済み（コマンド全文 + HEAD が一致、未使用、期限内）→ 使用済みにして許可
@@ -32,11 +32,6 @@ from _labstate import (
 )
 
 DESTRUCTIVE = r"^\s*(?:sudo\s+)?(?:rm|mv|chmod|chown|chattr|truncate|shred|unlink|ln|dd)\b|\bsed\s+-i|\bfind\b.*-(?:delete|exec\s+rm)"
-# レビュー agent に許さない（ファイルや git を書き換える）コマンド
-REVIEWER_WRITE = (r">{1,2}|\btee\b|\bsed\s+-i|\bperl\s+-[a-zA-Z]*i|^\s*(?:rm|mv|cp|mkdir|touch|chmod|chown|ln|dd|install)\b"
-                  r"|\bgit\s+(?:add|commit|checkout|switch|restore|reset|stash|merge|rebase|push|pull|tag|branch\s+-[dDm]|clean|rm|mv|cherry-pick|revert|am|apply)\b"
-                  r"|\b(?:pip|uv|uvx|npm|cargo|conda)\s+(?:install|add|remove|uninstall|sync|pip)\b|\blabkit\s+(?:raw|standards|flow|presence|approve|reject|answer|queue\s+(?:ask|done))\b"
-                  r"|\bpython[0-9.]*\s+(?:-c|scripts/)|\bjulia\b.*\bjl/scripts/|\bmake\s+(?!check\b|test\b|lint\b|runs\b)")
 
 
 def raw_write(s: str) -> bool:
@@ -121,9 +116,8 @@ def main() -> None:
 
     if is_reviewer(data):
         for seg in gate.segments(cmd):
-            if re.search(REVIEWER_WRITE, seg) or re.search(DESTRUCTIVE, seg):
-                block("lab-reviewer は読み取り専用です。ファイルや git を変更するコマンドは実行できません"
-                      "（レビュー記録は Write で docs/reviews/ に書く）。")
+            if not gate.reviewer_allowed(seg):
+                block(f"許可されていないコマンドです: `{seg[:80]}`。{gate.reviewer_allowed_summary()}")
 
     for seg in gate.segments(cmd):
         if harness_state_write(seg):

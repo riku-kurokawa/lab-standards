@@ -261,10 +261,17 @@ def test_review_records_only_by_reviewer(proj):
 
 
 def test_reviewer_bash_is_read_only(proj):
-    for cmd in ("git commit -am x", "echo x > src/a.py", "uv run labkit flow advance", "rm -rf scratch/x"):
+    for cmd in ("git commit -am x", "echo x > src/a.py", "uv run labkit flow advance", "rm -rf scratch/x",
+                "python - <<EOF", "uv run python scripts/x.py", "git worktree add ../w",
+                "sed -i s/a/b/ f", "grep x f > out", "git tag -d v1", "git branch -D x", "perl -i -pe s/a/b/ f",
+                "uv run labkit approve Q1", "curl -o f http://x"):
         assert bash(proj, cmd, agent_type="lab-reviewer").returncode == 2, cmd
-    for cmd in ("git diff", "uv run labkit check", "uv run labkit runs list", "cat src/a.py"):
+    for cmd in ("git diff", "uv run labkit check --full", "uv run labkit runs list", "cat src/a.py", "cd src && git log -3",
+                "uv run --extra dev pytest -q", "uv run labkit review template migrate reproduce", "git rev-parse HEAD",
+                "sed -n 1,5p src/a.py", "ls -la | head", "uv run ruff check src", "python -m pytest -q"):
         assert bash(proj, cmd, agent_type="lab-reviewer").returncode == 0, cmd
+    res = bash(proj, "touch x", agent_type="lab-reviewer")
+    assert res.returncode == 2 and "git {" in res.stderr  # 拒否メッセージに許可リストが載る
 
 
 # ---- Stop hook は承認待ちでは止め直さない ----

@@ -76,7 +76,7 @@ frontmatter（reviewer, flow, stage, commit, verdict, findings）付きで保存
 
 - 自己採点の防止: `guard_write` は、hook 入力の `agent_type` が `lab-reviewer`（plugin では `lab-rules:lab-reviewer`）の
   ときだけ `docs/reviews/` への書き込みを許し、メインのエージェントには拒否する。lab-reviewer は `docs/reviews/` 以外に
-  書けず、Bash も読み取り専用（git の書き換え・リダイレクト・パッケージ操作・flow 操作は拒否）。
+  書けず、Bash は許可リストの読み取りコマンドだけ（`_labgate.reviewer_allowed`。載っていないものは拒否し、拒否メッセージに許可一覧を出す）。
 - plugin の agent は frontmatter の `hooks` / `permissionMode` が無視される（公式ドキュメント）ため、agent 専用の hook ではなく
   plugin 共通の PreToolUse hook で `agent_type` を見て分岐している。
 - 完了条件 `review`: 現在の HEAD に対する verdict=pass の記録。HEAD が変わると無効になるので、指摘に対応して commit したら
