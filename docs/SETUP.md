@@ -49,7 +49,7 @@ plugin は `lab.toml` のあるプロジェクトと lab-standards 本体でだ�
 
 ## 3. 承認ゲートの使い方
 
-Claude が `git push` / `git tag` / main への merge / `labkit raw freeze` / `copier` を実行しようとすると hooks が止め、
+Claude が `git push` / `git tag` / main への merge / `gh pr merge` / `gh release` / `labkit raw freeze` / `copier` を実行しようとすると hooks が止め、
 承認待ちとして `.lab/queue/` に記録する（既定 `presence=away`）。戻ったら:
 
 ```bash
@@ -57,7 +57,7 @@ uv run labkit queue list              # 承認待ち・質問・却下の一覧�
 uv run labkit approve Q001            # 24 時間・1 回限り・同じ HEAD にのみ有効
 uv run labkit reject Q001 --note "理由"
 uv run labkit answer Q002 "lz4 で"     # 質問への回答（Claude は次の入力で受け取る）
-uv run labkit presence here           # 在席中は拒否ではなく通常の確認画面にする
+uv run labkit presence here           # 在席中は拒否ではなく通常の確認画面にする（確認画面が出ない permission mode ではキューのまま）
 ```
 
 Claude Code の `!` 実行（`! uv run labkit approve Q001`）でも承認できる。

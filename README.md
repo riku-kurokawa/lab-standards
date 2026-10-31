@@ -41,7 +41,7 @@ lab-standards/
 | 派生物は再生成可能 | `data/interim`・`processed`・`runs` は git 管理外。生データ＋コード＋設定から作り直せる |
 | 図はテンプレートのみ | `figspecs/*.toml` + `labkit fig`。描画ライブラリの直接 import は hooks と check が拒否 |
 | 形式の統一 | 配列は HDF5、表は Parquet。pickle・JLD2 は禁止 |
-| 取り返しのつかない操作は人間が承認 | push / tag / merge / raw freeze / copier は hooks が止め、`.lab/queue` に積む。`labkit approve <ID>` で 1 回だけ通る |
+| 取り返しのつかない操作は人間が承認 | push / tag / merge / gh pr merge / gh release / raw freeze / copier は hooks が止め、`.lab/queue` に積む。`labkit approve <ID>` で 1 回だけ通る |
 | 手順は状態機械 | `labkit flow`（migrate / improve-standards）。完了条件を機械的に検査し、段階外の操作を hooks が拒否 |
 | レビューは独立 | `docs/reviews/` は lab-reviewer agent だけが書ける（agent_type で判定） |
 | 報告は実データと照合 | 開発ログの run ID と数値（`12.3 dB [run:<id>:<key>]`）を `labkit check` が runs/ と突き合わせる |
@@ -115,7 +115,7 @@ Claude: 次のセッションで「承認済み #Q001」を文脈に受け取り
 ```
 
 - 判断の分かれる問いは `labkit queue ask` で積み、仮の判断で進む（人間は `labkit answer`）。
-- `labkit presence here` にすると、拒否ではなく通常の確認画面（ask）になる。
+- `labkit presence here` にすると、拒否ではなく通常の確認画面（ask）になる（確認画面が出ない permission mode では here でもキューに積む）。
 - 検出の限界（`sh -c`、スクリプト経由）とサンドボックス、GitHub のブランチ保護については `docs/harness.md`。
 
 ## 作業中のプロジェクトから本体を改良する

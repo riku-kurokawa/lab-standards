@@ -499,3 +499,16 @@
 - 監査: 照合自体が独立エージェント。各箇所を私が確認。
 - 結論: 採用（文書のみ）。
 - 規模: 5 ファイル、±14 行。
+
+### 55. 2026-11-01 — README / SETUP / 雛形 CLAUDE.md と 10 の skills をコードと照合。improve-standards の test 段階が advance できない欠陥を修正
+- 観点: サイクル 54 の続き（独立エージェント 2 体）。
+- 発見: (1) **機能の欠陥**: improve-standards の test 段階は完了条件 `review repo="standards"` で本体の HEAD に対する pass を要求するが、
+  `labkit review template` はプロジェクトの HEAD を入れ、lab-reviewer も `git rev-parse HEAD` をプロジェクトで実行する指示だった。
+  記録は常に不一致で、この段階は advance できなかった（evals・テストとも未検出）。(2) lab-reviewer の「単発は `adhoc review`」は
+  `review template` が拒否する。(3) add-figure-template の取り込み手順が旧式（pyproject の tag を手で更新）。(4) 文書 3 件: 雛形 CLAUDE.md の
+  「同じディレクトリ」、README/SETUP のゲート対象に gh pr merge / gh release が無い、presence=here は permission mode によってはキューのまま。
+- 提案: `cmd_review` が段階の review 条件を見て、`repo="standards"` なら `_standards_dev` の HEAD を入れる（advance と同じ関数）。
+  lab-reviewer の手順と skills の文を直す。テスト: improve-standards/test は本体 HEAD、migrate/reproduce はプロジェクト HEAD。
+- 監査: 発見は独立エージェント。私が flow.py の c_review と cli.py を読んで確認。labkit 61 / hooks 91 passed。
+- 結論: 採用。
+- 規模: cli.py +10 行、テスト +18 行、文書 6 ファイル。

@@ -383,3 +383,22 @@ def test_cli_user_errors_are_one_line(repo, capsys):
         main(["review", "template", "migrate", "nosuchstage"])
     with pytest.raises(SystemExit, match="flow 'nosuchflow'"):
         main(["review", "template", "nosuchflow", "test"])
+
+
+def test_review_template_uses_the_head_that_advance_checks(repo, tmp_path, monkeypatch, capsys):
+    """improve-standards の test は本体の HEAD に対する pass を要求する。template も同じ HEAD を入れる（以前はプロジェクトの HEAD で、advance が永遠に通らなかった）."""
+    from labkit.cli import main
+
+    dev = tmp_path / "dev"
+    (dev / "labkit" / "python").mkdir(parents=True)
+    (dev / "copier.yml").write_text("x: 1")
+    git(dev, "init", "-q", "-b", "main")
+    git(dev, "add", "-A")
+    git(dev, "commit", "-q", "-m", "init")
+    monkeypatch.setenv("LAB_STANDARDS_DEV", str(dev))
+    dev_head, proj_head = state.git_head(dev), state.git_head(repo)
+    assert dev_head != proj_head
+    assert main(["review", "template", "improve-standards", "test"]) == 0
+    assert f"commit: {dev_head}" in capsys.readouterr().out
+    assert main(["review", "template", "migrate", "reproduce"]) == 0
+    assert f"commit: {proj_head}" in capsys.readouterr().out

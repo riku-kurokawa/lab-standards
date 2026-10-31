@@ -27,4 +27,4 @@ description: 既存の図テンプレート（labkit fig list）で表現でき�
 - 共通ヘルパ `_fig`, `_labels`, `_options`, `_legend`, `_get` を使い、スタイル（`style.py`）を上書きしない。
 - 計算はしない（スペクトルなど標準的な変換を除く）。データの集計はプロジェクト側の src で行う。
 - `labkit/python/tests/test_io.py::test_figure_templates` に spec の例を追加し、`pytest` を通す。
-- バージョンを上げてタグを打ち、各プロジェクトは `pyproject.toml` の tag を更新して `uv sync` する。
+- バージョンを上げてタグを打ち、各プロジェクトは `uv run labkit standards unlink --to vX.Y.Z` で取り込む（skill improve-standards の adopt）。

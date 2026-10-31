@@ -214,10 +214,20 @@ def cmd_review(a) -> int:
     defs = flow.definitions()
     if a.flow not in defs:
         raise SystemExit(f"flow '{a.flow}' はありません。使える flow: {', '.join(sorted(defs))}")
-    stages = [s["name"] for s in defs[a.flow]["stage"]]
+    stages = {s["name"]: s for s in defs[a.flow]["stage"]}
     if a.stage not in stages:
         raise SystemExit(f"flow '{a.flow}' に段階 '{a.stage}' はありません。段階: {', '.join(stages)}")
-    print(reviews.template(a.flow, a.stage, state.git_head(find_root()) or ""), end="")
+    root = find_root()
+    # 完了条件 review が repo="standards" なら本体の HEAD に結び付く（advance が照合する HEAD と同じものを入れる）
+    conds = [c for c in stages[a.stage].get("done", []) if c.get("type") == "review" and c.get("repo") == "standards"]
+    target = root
+    if conds:
+        target = flow._standards_dev(root)
+        if target is None:
+            raise SystemExit(
+                "lab-standards 本体のチェックアウトが見つかりません（$LAB_STANDARDS_DEV か ~/dev/lab-standards）"
+            )
+    print(reviews.template(a.flow, a.stage, state.git_head(target) or ""), end="")
     return 0
 
 

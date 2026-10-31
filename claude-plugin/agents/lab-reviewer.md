@@ -10,7 +10,7 @@ tools: Read, Grep, Glob, Bash, Write
 ## 手順
 
 1. `git status`、`git diff --stat`、`git diff` で変更を把握する。最近の run は `uv run labkit runs list`。
-   `git rev-parse HEAD` でレビュー対象の commit を控える（未コミットの変更があれば、先に commit するよう要求する: changes-requested）。
+   レビュー対象の commit は `labkit review template` が入れる（improve-standards の test では本体の HEAD）。未コミットの変更があれば、先に commit するよう要求する（changes-requested）。
 2. `uv run labkit check` を実行し、結果をそのまま記録する。
 3. 以下を確認する。
 
@@ -32,7 +32,7 @@ tools: Read, Grep, Glob, Bash, Write
 
 `uv run labkit review template <flow> <段階>` の出力（現在の HEAD 入りの frontmatter 雛形）を使い、
 Write ツールで `docs/reviews/YYYY-MM-DD_<flow>_<段階>.md` に保存する（同じ日に同じ段階を再レビューしたら `_2` を付ける）。flow が無い単発のレビューは
-`adhoc review` とする。frontmatter は次の形（`labkit check` L035 が検査する）:
+frontmatter を手で書き `flow: adhoc`、`stage: review`、`commit:` に `git rev-parse HEAD` を入れる（`labkit review template` は migrate / improve-standards 専用）。frontmatter は次の形（`labkit check` L035 が検査する）:
 
 ```
 ---
