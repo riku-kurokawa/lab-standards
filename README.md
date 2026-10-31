@@ -127,14 +127,14 @@ Claude には「lab-standards を改良したい: ○○」と頼めば skill `i
 uv run labkit flow start improve-standards
 triage【承認】 → branch → implement（必要なら link） → test【レビュー】 → release【承認】 → adopt → done
 ```
-各段階の完了条件（本体のブランチが feat/*、link 状態、本体のテスト、現在の HEAD に対する lab-reviewer の pass、タグが origin にある…）を
+各段階の完了条件（本体のブランチが feat/*、labkit/ を変えたなら link、本体のテスト、現在の HEAD に対する lab-reviewer の pass、タグが origin にある…）を
 `labkit flow advance` が検査し、段階外の操作（例: test 前の release）は hooks が拒否する。
 
 | 安全装置 | 内容 |
 |---|---|
 | link のまま commit できない | `labkit check` L050 を pre-commit が検出（作業終了時の hook では止めない） |
 | link 中の run に印 | `meta.json` の `labkit_source.mode = "link"` と本体の commit・dirty |
-| 他のプロジェクトに波及しない | 各プロジェクトはタグ固定。好きなときに ⑥ で更新 |
+| 他のプロジェクトに波及しない | 各プロジェクトはタグ固定。好きなときに adopt の手順（unlink → template）で更新 |
 | 版の整合 | `tools/release.py` が全ファイルの版と CHANGELOG を検査（CI でも実行） |
 
 本体のメンテナンス規約は `CLAUDE.md`（このリポジトリのルート）。本体でも承認ゲート（push / tag / merge）は有効（`copier.yml` + `labkit/` を持つリポジトリを本体と判定）。
