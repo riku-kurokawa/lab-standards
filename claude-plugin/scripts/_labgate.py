@@ -48,21 +48,6 @@ GIT_GLOBAL_WITH_ARG = {
     "--config-env",
     "--list-cmds",
 }
-GIT_GLOBAL_FLAGS = {
-    "-p",
-    "--paginate",
-    "-P",
-    "--no-pager",
-    "--bare",
-    "--no-replace-objects",
-    "--literal-pathspecs",
-    "--glob-pathspecs",
-    "--noglob-pathspecs",
-    "--icase-pathspecs",
-    "--no-optional-locks",
-    "--no-lazy-fetch",
-    "--no-advice",
-}
 TAG_LIST_FLAGS = {
     "-l",
     "--list",
@@ -190,12 +175,8 @@ def _git_subcommand(toks: list[str]) -> tuple[str | None, list[str], str | None]
         elif t.startswith("-C") and len(t) > 2:
             cdir = t[2:]
             i += 1
-        elif t.startswith("-c") and len(t) > 2:
-            i += 1
-        elif t in GIT_GLOBAL_FLAGS or t.startswith("--git-dir") or t.startswith("--work-tree"):
-            i += 1
         elif t.startswith("-"):
-            i += 1
+            i += 1  # 引数を取らないグローバルオプション（-p, --bare, -cKEY=VAL など）
         else:
             return t, toks[i + 1 :], cdir
     return None, [], cdir
