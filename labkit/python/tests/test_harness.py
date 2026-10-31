@@ -85,6 +85,14 @@ def test_reject_removes_approval(repo):
     assert state.list_approvals(repo) == [] and state.get_item(repo, "Q001")["status"] == "rejected"
 
 
+def test_vendored_labstate_is_identical():
+    """labkit/_labstate.py は claude-plugin/scripts/_labstate.py（正本）のバイト同一コピー."""
+    import labkit._labstate as vendored
+
+    src = (PLUGIN_SCRIPTS / "_labstate.py").read_bytes()
+    assert Path(vendored.__file__).read_bytes() == src, "cp claude-plugin/scripts/_labstate.py labkit/python/src/labkit/_labstate.py"
+
+
 def test_hook_and_labkit_share_formats(repo):
     """hook（_labstate, 標準ライブラリ）が積んだ要求を labkit が承認し、hook が受理する往復."""
     sys.path.insert(0, str(PLUGIN_SCRIPTS))

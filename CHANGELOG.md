@@ -34,6 +34,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `icacls <run> /grant "%USERNAME%:(OI)(CI)F" /t` か Julia の `chmod(dir, 0o755; recursive=true)` で戻せる。
 
 ### 変更
+- `.lab/` の読み書きは `claude-plugin/scripts/_labstate.py` を正本とし、labkit はそのコピー（`labkit/_labstate.py`、テストで一致を検査）を使う。
+  `labkit queue list` は壊れた JSON を表示しなくなり、承認待ち要求には差分の要約（`git diff --stat`、直近の commit）が常に付く。
 - 雛形の `permissions.deny` から `Write(...)` を削除（公式ドキュメント上効かない。`Edit(...)` が Write も止める）。
 - `layout.allowed` / `writable` に `.lab`、`AGENT_QUEUE.md` を追加（古い lab.toml でも暗黙に許可）。
 

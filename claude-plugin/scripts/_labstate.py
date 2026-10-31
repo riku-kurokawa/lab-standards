@@ -1,7 +1,8 @@
-"""hooks 用の .lab/ 状態アクセス（標準ライブラリのみ）。labkit/state.py と同じファイル形式.
+""".lab/ 状態（presence・承認待ちキュー・承認記録・flow の状態）の読み書き。標準ライブラリのみ.
 
-ここでは「読む」ことと「承認待ち要求を積む」「承認を使用済みにする」だけを行う。
-承認記録（.lab/approvals/）を新規に作るのは labkit approve（人間）だけ。
+正本はこのファイル（claude-plugin/scripts/_labstate.py）。labkit/python/src/labkit/_labstate.py はそのバイト同一のコピーで、
+テスト（test_harness.py::test_vendored_labstate_is_identical）が一致を検査する。
+hooks はここで「読む」「承認待ちを積む」「承認を使用済みにする」だけを行う。承認記録を新規に作るのは labkit approve（人間）だけ。
 """
 
 from __future__ import annotations
@@ -131,11 +132,13 @@ def request_approval(root: Path, command: str, *, cwd: Path, reason: str, sessio
     return item
 
 
-def find_valid_approval(root: Path, command: str, head: str | None) -> dict | None:
+def find_valid_approval(root: Path, command: str, head: str | None,
+                        now: _dt.datetime | None = None) -> dict | None:
+    """コマンド全文と HEAD が一致し、未使用かつ期限内の承認を返す."""
     d = root / LAB_DIR / "approvals"
     if not d.is_dir():
         return None
-    now = _now()
+    now = now or _now()
     for p in sorted(d.glob("Q*.json")):
         try:
             rec = json.loads(p.read_text(encoding="utf-8"))

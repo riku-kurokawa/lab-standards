@@ -5,64 +5,46 @@
     .lab/approvals/<ID>.json   承認記録（`labkit approve` だけが書く。Claude は書けない）
     .lab/flows/<name>.json     手順の状態機械（flow.py。git 管理）
 
-ファイル形式は claude-plugin/scripts/_labstate.py（標準ライブラリのみ）と同一。
-片方を変えたら両方を直し、claude-plugin/tests/test_gate.py の往復テストを通すこと。
+読み書きの共通部分は labkit/_labstate.py（claude-plugin/scripts/_labstate.py のバイト同一コピー）。
+ここには labkit 側だけが行う操作（人間の承認・却下・回答、質問の登録、presence の変更）を置く。
 """
 
 from __future__ import annotations
 
 import datetime as _dt
 import getpass
-import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
+from labkit._labstate import (  # noqa: F401  （cli / flow / tests が labkit.state 経由で使う）
+    LAB_DIR,
+    STANDARDS_MARKER,
+    _iso,
+    _now,
+    active_flows,
+    consume_approval,
+    current_stage,
+    find_valid_approval,
+    get_presence,
+    git_branch,
+    git_head,
+    lab_dir,
+    list_queue,
+    load_gate_conf,
+    next_id,
+    pending_summary,
+    request_approval,
+)
+from labkit._labstate import find_scope as _find_scope
 from labkit._util import write_json_atomic, write_text_atomic
 
-LAB_DIR = ".lab"
 PRESENCE_VALUES = ("here", "away")
-DEFAULT_PRESENCE = "away"
-GITIGNORE = (
-    "# labkit が生成。presence・queue・approvals は手元だけの状態（flows/ は git 管理）\n"
-    "presence\nqueue/\napprovals/\n"
-)
-STANDARDS_MARKER = ".lab-standards-root"
 
 
-# ---- スコープ（プロジェクト or lab-standards 本体） ----
 def find_scope(start: str | os.PathLike | None = None) -> tuple[Path, str] | None:
-    """lab.toml のあるプロジェクト（"project"）か、lab-standards 本体（"standards"）を上方向に探す."""
-    p = Path(start or Path.cwd()).resolve()
-    if p.is_file():
-        p = p.parent
-    for d in (p, *p.parents):
-        if (d / "lab.toml").is_file():
-            return d, "project"
-        if (d / STANDARDS_MARKER).is_file() or ((d / "copier.yml").is_file() and (d / "labkit" / "python").is_dir()):
-            return d, "standards"
-    return None
-
-
-def lab_dir(root: Path) -> Path:
-    d = root / LAB_DIR
-    if not d.is_dir():
-        d.mkdir(parents=True)
-    gi = d / ".gitignore"
-    if not gi.is_file():
-        gi.write_text(GITIGNORE, encoding="utf-8")
-    return d
-
-
-# ---- presence ----
-def get_presence(root: Path) -> str:
-    f = root / LAB_DIR / "presence"
-    if f.is_file():
-        v = f.read_text(encoding="utf-8").strip()
-        if v in PRESENCE_VALUES:
-            return v
-    return DEFAULT_PRESENCE
+    """(root, "project" | "standards")。省略時は cwd から探す."""
+    return _find_scope(start or Path.cwd())
 
 
 def set_presence(root: Path, value: str) -> str:
@@ -73,48 +55,9 @@ def set_presence(root: Path, value: str) -> str:
 
 
 # ---- queue ----
-def _now() -> _dt.datetime:
-    return _dt.datetime.now().astimezone()
-
-
-def _iso(t: _dt.datetime) -> str:
-    return t.isoformat(timespec="seconds")
-
-
-def queue_dir(root: Path) -> Path:
-    d = lab_dir(root) / "queue"
-    d.mkdir(exist_ok=True)
-    return d
-
-
-def approvals_dir(root: Path) -> Path:
-    d = lab_dir(root) / "approvals"
-    d.mkdir(exist_ok=True)
-    return d
-
-
-def next_id(root: Path) -> str:
-    nums = []
-    for d in (root / LAB_DIR / "queue", root / LAB_DIR / "approvals"):
-        if d.is_dir():
-            nums += [int(p.stem[1:]) for p in d.glob("Q*.json") if p.stem[1:].isdigit()]
-    return f"Q{(max(nums) + 1) if nums else 1:03d}"
-
-
-def list_queue(root: Path) -> list[dict]:
-    d = root / LAB_DIR / "queue"
-    if not d.is_dir():
-        return []
-    out = []
-    for p in sorted(d.glob("Q*.json")):
-        try:
-            out.append(json.loads(p.read_text(encoding="utf-8")))
-        except json.JSONDecodeError:
-            out.append({"id": p.stem, "kind": "broken", "status": "broken"})
-    return out
-
-
 def get_item(root: Path, qid: str) -> dict:
+    import json
+
     p = root / LAB_DIR / "queue" / f"{qid}.json"
     if not p.is_file():
         raise FileNotFoundError(f"キューに {qid} がありません（`labkit queue list`）")
@@ -122,43 +65,9 @@ def get_item(root: Path, qid: str) -> dict:
 
 
 def save_item(root: Path, item: dict) -> Path:
-    p = queue_dir(root) / f"{item['id']}.json"
+    p = lab_dir(root) / "queue" / f"{item['id']}.json"
     write_json_atomic(p, item)
     return p
-
-
-def git_head(cwd: Path) -> str | None:
-    try:
-        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=cwd, capture_output=True, text=True,
-                              check=True).stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
-
-
-def git_branch(cwd: Path) -> str | None:
-    try:
-        return subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd, capture_output=True,
-                              text=True, check=True).stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
-
-
-def request_approval(root: Path, command: str, *, cwd: Path, reason: str, session_id: str = "",
-                     diff_summary: str = "") -> dict:
-    """承認待ち要求を積む。同じコマンド・同じ HEAD の pending があればそれを返す（重複させない）."""
-    head = git_head(cwd)
-    for it in list_queue(root):
-        if (it.get("kind") == "approval" and it.get("status") == "pending" and it.get("command") == command
-                and it.get("head") == head):
-            return it
-    item = {
-        "id": next_id(root), "kind": "approval", "status": "pending",
-        "command": command, "cwd": str(cwd), "branch": git_branch(cwd), "head": head,
-        "diff_summary": diff_summary, "reason": reason,
-        "created": _iso(_now()), "session_id": session_id,
-    }
-    save_item(root, item)
-    return item
 
 
 def ask_question(root: Path, question: str, *, options: list[str], assumed: str, impact: str = "",
@@ -218,7 +127,9 @@ def approve(root: Path, qid: str, *, ttl_hours: float, who: dict) -> dict:
         "approved_at": _iso(now), "expires_at": _iso(now + _dt.timedelta(hours=ttl_hours)),
         "used_at": None, **who,
     }
-    write_json_atomic(approvals_dir(root) / f"{qid}.json", rec)
+    d = lab_dir(root) / "approvals"
+    d.mkdir(exist_ok=True)
+    write_json_atomic(d / f"{qid}.json", rec)
     it.update(status="approved", approved=_iso(now))
     save_item(root, it)
     return rec
@@ -236,46 +147,9 @@ def reject(root: Path, qid: str, note: str = "") -> dict:
 
 
 def list_approvals(root: Path) -> list[dict]:
+    import json
+
     d = root / LAB_DIR / "approvals"
     if not d.is_dir():
         return []
     return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(d.glob("Q*.json"))]
-
-
-def find_valid_approval(root: Path, command: str, head: str | None,
-                        now: _dt.datetime | None = None) -> dict | None:
-    """コマンド全文と HEAD が一致し、未使用かつ期限内の承認を返す."""
-    now = now or _now()
-    for rec in list_approvals(root):
-        if rec.get("command") != command or rec.get("head") != head or rec.get("used_at"):
-            continue
-        try:
-            exp = _dt.datetime.fromisoformat(rec["expires_at"])
-        except (KeyError, ValueError):
-            continue
-        if exp < now:
-            continue
-        return rec
-    return None
-
-
-def consume_approval(root: Path, rec: dict) -> None:
-    rec["used_at"] = _iso(_now())
-    write_json_atomic(root / LAB_DIR / "approvals" / f"{rec['id']}.json", rec)
-    try:
-        it = get_item(root, rec["id"])
-        it.update(status="executed", executed=rec["used_at"])
-        save_item(root, it)
-    except FileNotFoundError:
-        pass
-
-
-def pending_summary(root: Path) -> dict[str, list[dict]]:
-    """SessionStart / UserPromptSubmit が文脈に入れる要約."""
-    q = list_queue(root)
-    return {
-        "pending": [i for i in q if i.get("kind") == "approval" and i.get("status") == "pending"],
-        "approved": [i for i in q if i.get("kind") == "approval" and i.get("status") == "approved"],
-        "open_questions": [i for i in q if i.get("kind") == "question" and i.get("status") == "open"],
-        "answered": [i for i in q if i.get("kind") == "question" and i.get("status") == "answered"],
-    }
