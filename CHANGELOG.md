@@ -30,6 +30,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- hooks: `python3` が 3.11 未満（tomllib なし）のとき、黙って検査を無効化せず exit 1 と説明を出す（macOS の標準 python3 は 3.9 で、
+  ハーネス全体が静かに動かなかった）。SETUP に python3 のバージョン要件を追記。
 - `labkit cite` の既定の表示を「有効数字 4 桁」の 1 規則に統一（以前は 123456.789 だけ全桁になるなど不揃い）。
   1 万以上の整数は `2e+04` のように指数表示になるので、整数のまま出したいときは `--digits 0`。
 - 記録に書く相対パス（meta.json の inputs/outputs、サイドカー、`data/raw/MANIFEST.sha256`）とディレクトリ入力の sha256 を

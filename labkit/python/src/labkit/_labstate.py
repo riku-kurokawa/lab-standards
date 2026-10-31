@@ -359,6 +359,6 @@ def load_gate_conf(root: Path, kind: str) -> dict:
                 user = tomllib.load(f).get("gate", {})
             if isinstance(user, dict):
                 conf = deep_merge(conf, user)
-        except (OSError, ValueError, ImportError):
+        except (OSError, ValueError):  # ImportError は握りつぶさない（3.11 未満は _labcommon が止める）
             pass
     return conf

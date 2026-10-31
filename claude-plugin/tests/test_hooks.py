@@ -150,3 +150,19 @@ def test_stop_runs_ruff_once(proj, monkeypatch, tmp_path_factory):
         env=env,
     )
     assert res.returncode == 2 and "ruff check" in res.stderr and "F821" in res.stderr
+
+
+def test_old_python_fails_loudly(proj):
+    """python3 が 3.11 未満なら黙って無効化せず exit 1 と説明（非ブロックの通知）。version_info を偽装して確かめる."""
+    code = (
+        "import sys, runpy; sys.version_info = (3, 9, 6, 'final', 0); "
+        "sys.argv = [sys.argv[1]]; sys.path.insert(0, __import__('os').path.dirname(sys.argv[0])); runpy.run_path(sys.argv[0], run_name='__main__')"
+    )
+    res = subprocess.run(
+        [sys.executable, "-c", code, str(SCRIPTS / "guard_write.py")],
+        input=json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(proj / "lab.toml"), "content": "x"}}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert res.returncode == 1 and "3.11" in res.stderr.splitlines()[0]

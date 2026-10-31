@@ -8,10 +8,16 @@ import shutil
 import sys
 from pathlib import Path
 
-try:
-    import tomllib
-except ImportError:  # Python < 3.11: 規約を読めないので何もしない
-    tomllib = None
+# 3.11 未満（tomllib なし）では黙って無効化せず、人間に見える形で失敗する（exit 1 = 非ブロックの通知）。
+# macOS の Command Line Tools の python3 は 3.9 なので、これが無いとハーネス全体が静かに動かなくなる
+if sys.version_info < (3, 11):  # noqa: UP036  （意図的: 3.11 未満で大声で止まるための検査）
+    sys.stderr.write(
+        "lab-rules: python3 が 3.11 未満（tomllib なし）のため規約の検査を行えません。"
+        "python3 を 3.11 以上にするか、PATH の先頭に uv 管理の python3 を置いてください\n"
+    )
+    sys.exit(1)
+
+import tomllib  # noqa: E402
 
 # Claude Code との入出力は UTF-8。Windows では既定がコンソールのコードページ（cp932 など）になり、
 # 日本語のメッセージが文字化けし、日本語を含むパスの JSON 入力が読めなくなるので固定する
@@ -48,9 +54,7 @@ def find_root(start: str | os.PathLike | None) -> Path | None:
 
 
 def load_lab(root: Path) -> dict:
-    """lab.toml を既定値（_labstate.DEFAULTS、labkit と同一）に重ねる。tomllib が無ければ {}（hooks は何もしない）."""
-    if tomllib is None:
-        return {}
+    """lab.toml を既定値（_labstate.DEFAULTS、labkit と同一）に重ねる."""
     from _labstate import DEFAULTS, deep_merge
 
     with open(root / "lab.toml", "rb") as f:

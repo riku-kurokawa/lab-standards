@@ -13,6 +13,7 @@ gh auth setup-git                 # git が gh の認証を使うようにする
 
 curl -LsSf https://astral.sh/uv/install.sh | sh     # uv（Python 環境管理）
 uv tool install copier                              # 雛形ツール
+python3 --version                                   # hooks 用。3.11 以上（macOS の Command Line Tools は 3.9 なので uv python install 3.12 等で入れ替える）
 curl -fsSL https://install.julialang.org | sh       # juliaup（Julia 1.11 以上）
 ```
 
