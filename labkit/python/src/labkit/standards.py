@@ -181,7 +181,16 @@ def template(ref: str, root: Path | None = None) -> int:
         cmd += ["--data", f"standards_ref={ref}"]
     rc = _run(cmd, root, check=False)
     if rc == 0:
-        print("\n差分を確認し（git diff）、衝突（.rej や <<<<<<<）があれば解消してから commit してください。")
+        from labkit.check import Checker
+
+        ch = Checker(root)  # copier は衝突をファイル内のマーカーとして残す（index の UU ではない）
+        ch.conflict_markers()
+        conflicted = sorted({i.where.split(":")[0] for i in ch.issues if i.code == "L004"})
+        print(
+            "\n差分を確認し（git diff）、衝突があれば解消してから commit してください（残った衝突マーカーは `labkit check` L004 が検出）。"
+        )
+        if conflicted:
+            print("衝突したファイル:\n  " + "\n  ".join(conflicted))
     return rc
 
 

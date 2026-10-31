@@ -3,6 +3,7 @@
 コード一覧:
     L001 トップレベルに許可されていないファイル/ディレクトリ
     L002 data/raw が MANIFEST と一致しない      L003 data/raw が書き込み可能
+    L004 マージの衝突マーカー（<<<<<<< / >>>>>>>）が残っている
     L010 描画ライブラリの直接 import（図は labkit fig のテンプレートで作る）
     L011 src が scripts/notebooks を import している（依存の向き違反）
     L012 コードに絶対パスが直書きされている（configs/paths/*.toml を使う）
@@ -102,6 +103,7 @@ class Checker:
     def run(self) -> list[Issue]:
         for f in (
             self.layout,
+            self.conflict_markers,
             self.standards_link,
             self.rawdata,
             self.code_rules,
@@ -128,6 +130,30 @@ class Checker:
                 self.add(
                     "L001", p, "トップレベルに置けません（lab.toml の layout.allowed 参照。一時ファイルは scratch/ へ）"
                 )
+
+    def conflict_markers(self) -> None:
+        """copier update などの 3-way merge が残した衝突マーカー。pre-commit が無くても check（Stop hook・CI）で止める."""
+        big = {"data", "runs", ".lab"} | SKIP_DIRS  # 大きな木には入らない
+        tops = [p for p in self.root.iterdir() if p.name not in big]
+        for p in (q for t in tops for q in ([t] if t.is_file() else t.rglob("*"))):
+            if set(p.parts) & SKIP_DIRS or not p.is_file() or p.suffix.lower() in FIG_EXT | DATA_EXT:
+                continue
+            try:
+                with open(p, "rb") as f:
+                    head = f.read(8192)
+                if b"\0" in head or (b"<<<<<<< " not in head and b">>>>>>> " not in head and p.stat().st_size <= 8192):
+                    continue  # バイナリ、または小さくてマーカーの無いファイル
+                text = p.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for i, line in enumerate(text.splitlines(), 1):
+                if line.startswith(("<<<<<<< ", ">>>>>>> ")):
+                    self.add(
+                        "L004",
+                        f"{p.relative_to(self.root).as_posix()}:{i}",
+                        "マージの衝突マーカーが残っています（解消してから commit）",
+                    )
+                    break
 
     def standards_link(self) -> None:
         if not (self.root / "pyproject.toml").is_file():

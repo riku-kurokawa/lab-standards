@@ -631,3 +631,15 @@
   パスのリストを返すことを docstring に記す。exitcode は Int32 なので Int に。呼び出し側に例外や Process に依存する所は無し。
 - 結論: 採用。
 - 規模: cli.jl +6 行。LabKit.jl 16/16。wrapper 自体のテストは Python CLI が要るため無し（生成プロジェクトで実測）。
+
+### 69. 2026-11-01 — copier update の衝突マーカーが commit まで素通りしていた
+- 観点: 利用者が管理ファイル（CLAUDE.md、Makefile）を編集した v0.2.0 プロジェクトを `labkit standards template --ref HEAD` で更新する。
+- 発見: CLAUDE.md の追記は 3-way merge で保たれるが、Makefile は衝突してマーカーが残る。copier はマーカーをファイル内に書くだけで index は
+  unmerged にしないので `git commit -a` が通り、`labkit check` も違反なし。止められるのは pre-commit の check-merge-conflict だけだが、
+  pre-commit install は任意で、Stop hook と CI が実行するのは `labkit check`。
+- 提案: check に L004（`<<<<<<< ` / `>>>>>>> ` で始まる行。`=======` は Markdown の見出し下線と衝突するので対象外、字下げも対象外）。
+  data/ runs/ .lab/ と SKIP_DIRS には入らず、先頭 8 KB に NUL があればバイナリとして飛ばす。`standards template` は更新後に同じ検査で衝突ファイルを列挙。
+- 監査: 採用（変更付き）: 最初の実装は `git status` の UU を見ていたが copier の衝突では決して立たない → check の検査を再利用。README の行順、
+  バイナリの保護、否定のテスト（`=======` 単独・字下げは検出しない）。新しい規則は「実証された失敗」に対するもので、CLAUDE.md 規約 5 に沿う。
+- 結論: 採用。
+- 規模: check.py +25 行、standards.py ±5 行、README +1 行、テスト +6 行。labkit 67 / hooks 91 passed。

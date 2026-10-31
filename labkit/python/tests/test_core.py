@@ -66,6 +66,12 @@ def test_run_failure_recorded(project):
 
 def test_check_detects_violations(project):
     (project / "stray.txt").write_text("x", encoding="utf-8", newline="\n")
+    (project / "docs" / "notes.md").write_text(
+        "a\n<<<<<<< HEAD\nb\n=======\nc\n>>>>>>> template\n", encoding="utf-8", newline="\n"
+    )
+    (project / "docs" / "ok.md").write_text(
+        "見出し\n=======\n  <<<<<<< 字下げは対象外\n", encoding="utf-8", newline="\n"
+    )  # L004 にならない（======= 単独、字下げ）
     (project / "src" / "a.py").write_text(
         "import matplotlib.pyplot as plt\nimport pickle\nP='/home/me/x'\n", encoding="utf-8", newline="\n"
     )
@@ -74,8 +80,10 @@ def test_check_detects_violations(project):
     (project / "scripts" / "fig.png").write_bytes(b"x")
     (project / "docs" / "devlog" / "today.md").write_text("x", encoding="utf-8", newline="\n")
     (project / "data" / "raw" / "r.bin").write_bytes(b"123")
-    codes = {i.code for i in run_check()[0]}
-    assert {"L001", "L002", "L010", "L011", "L012", "L013", "L014", "L030"} <= codes
+    issues = run_check()[0]
+    codes = {i.code for i in issues}
+    assert {"L001", "L002", "L004", "L010", "L011", "L012", "L013", "L014", "L030"} <= codes
+    assert [i.where for i in issues if i.code == "L004"] == ["docs/notes.md:2"]
 
 
 def test_raw_freeze_verify(project):
