@@ -45,8 +45,9 @@ def main() -> None:
         return
     session = str(data.get("session_id") or "")
 
+    # このセッションが積んだ承認待ちがあるときだけ終了を許す（他セッションの要求では規約チェックを緩めない）
     pend = pending_summary(root)["pending"]
-    mine = [i for i in pend if not session or i.get("session_id") in ("", None, session)]
+    mine = [i for i in pend if session and i.get("session_id") == session]
     if mine:
         ids = ", ".join(f"#{i['id']}" for i in mine)
         print(json.dumps({"systemMessage": f"[lab-rules] 承認待ち {ids} があるため終了を許可します。"
@@ -79,7 +80,7 @@ def main() -> None:
         cf.unlink(missing_ok=True)
         return
     limit = int(lab.get("claude", {}).get("max_stop_blocks", 3))
-    if state["blocks"] >= limit or (data.get("stop_hook_active") and state["blocks"] >= limit - 1):
+    if state["blocks"] >= limit:
         cf.unlink(missing_ok=True)
         print(json.dumps({"systemMessage": f"[lab-rules] 規約違反が {limit} 回の修正で解消しませんでした。人間の確認が必要です。"},
                          ensure_ascii=False))

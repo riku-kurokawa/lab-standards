@@ -18,6 +18,18 @@ cat > "runs/$RUN/meta.json" <<JSON
  "inputs": [], "outputs": [], "tags": {}, "error": null}
 JSON
 printf '{"snr_db": 12.345, "n_samples": 2000}\n' > "runs/$RUN/metrics.json"
+# labkit を使えるようにする（本体チェックアウトの labkit を editable で入れる。LAB_STANDARDS_DEV か ~/dev/lab-standards）
+DEV="${LAB_STANDARDS_DEV:-$HOME/dev/lab-standards}"
+cat > pyproject.toml <<TOML
+[project]
+name = "evalproj"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = ["labkit"]
+[tool.uv.sources]
+labkit = { path = "$DEV/labkit/python", editable = true }
+TOML
+uv sync --quiet
 git init -q -b main
 git -c user.email=eval@example.com -c user.name=eval add -A
 git -c user.email=eval@example.com -c user.name=eval commit -qm "init"

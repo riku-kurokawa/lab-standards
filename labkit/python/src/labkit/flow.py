@@ -119,10 +119,16 @@ def abort(root: Path, name: str) -> dict:
     return st
 
 
-def unmet(root: Path, st: dict) -> list[str]:
+EXPENSIVE = {"standards_tests", "standards_released"}  # テスト実行・ネットワーク。status では省く
+
+
+def unmet(root: Path, st: dict, quick: bool = False) -> list[str]:
     """現在の段階の、まだ満たしていない完了条件（人間が読める文）."""
     out = []
     for cond in stage_def(st)["done"]:
+        if quick and cond.get("type") in EXPENSIVE:
+            out.append(f"{cond['type']}: advance 時に検査（status では省略）")
+            continue
         fn = CONDITIONS.get(cond.get("type"))
         if fn is None:
             out.append(f"未知の条件 type={cond.get('type')!r}（flow 定義の誤り）")
@@ -153,6 +159,7 @@ def advance(root: Path, name: str, session_id: str = "") -> tuple[dict, str]:
         head = state.git_head(root)
         rec = state.find_valid_approval(root, cmd, head)
         if rec is None:
+            session_id = session_id or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
             item = state.request_approval(root, cmd, cwd=root, session_id=session_id,
                                           reason=f"flow {name}: 段階 {cur['name']} → {nxt['name']} の承認")
             raise SystemExit(
@@ -174,7 +181,7 @@ def describe(root: Path, st: dict) -> str:
         lines.append(f"  この段階で禁止: {', '.join(cur['forbid'])}")
     if cur["approval"]:
         lines.append("  次へ進むには人間の承認が必要（labkit flow advance → キュー → labkit approve）")
-    missing = unmet(root, st) if st["status"] == "active" else []
+    missing = unmet(root, st, quick=True) if st["status"] == "active" else []
     if missing:
         lines.append("  未達の条件:")
         lines += [f"    - {m}" for m in missing]
@@ -265,9 +272,14 @@ def c_review(root, st, c):
     from labkit.reviews import latest_pass
 
     stage = c.get("stage", st["stage"])
-    head = state.git_head(root)
+    target = root
+    if c.get("repo") == "standards":  # レビュー対象が本体の差分なら本体の HEAD に結び付ける
+        target = _standards_dev(root)
+        if target is None:
+            return "lab-standards 本体のチェックアウトが見つかりません"
+    head = state.git_head(target)
     r = latest_pass(root, st["flow"], stage, head)
-    return None if r else (f"現在の HEAD（{(head or '')[:7]}）に対する lab-reviewer の pass 記録がありません"
+    return None if r else (f"{'本体' if target != root else '現在'}の HEAD（{(head or '')[:7]}）に対する lab-reviewer の pass 記録がありません"
                            f"（docs/reviews/<date>_{st['flow']}_{stage}.md）")
 
 

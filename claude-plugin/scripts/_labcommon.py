@@ -45,8 +45,8 @@ PROTECTED_FILES = {"lab.toml", ".copier-answers.yml", ".claude/settings.json"}
 HARNESS_STATE_DIRS = (".lab/approvals", ".lab/queue", ".lab/flows")
 REVIEW_DIR = "docs/reviews"
 REVIEWER = "lab-reviewer"
-# hook の `ask` が人間に届くとは限らない permission mode（docs/notes/claude-code-spec.md）
-NO_PROMPT_MODES = {"bypassPermissions", "dontAsk", "auto"}
+# hook の `ask` が人間に届くとは限らない permission mode（docs/notes/claude-code-spec.md。auto では ask は確認画面に出る）
+NO_PROMPT_MODES = {"bypassPermissions", "dontAsk"}
 CODE_DIRS = {"src", "scripts", "jl", "configs", "tests", "figspecs", "jobs"}
 
 

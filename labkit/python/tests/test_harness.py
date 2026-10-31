@@ -183,7 +183,7 @@ def test_citations(repo):
     dev = repo / "docs" / "devlog" / "2026-11-01.md"
     body = "\n".join(f"## {h}" for h in ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"])
     ok = cite(rid, "snr_db", unit="dB")
-    assert ok == f"12.35 dB [run:{rid}:snr_db]" or ok == f"12.34 dB [run:{rid}:snr_db]"
+    assert ok == f"{12.345:.4g} dB [run:{rid}:snr_db]"  # format_value と num_matches は同じ丸め
     assert cite(rid, "snr_db", digits=1) == f"12.3 [run:{rid}:snr_db]"
     assert cite(rid, "n") == f"2000 [run:{rid}:n]"
     dev.write_text(body + f"\n- {rid}: SNR は {cite(rid, 'snr_db', digits=1, unit='dB')} だった\n")

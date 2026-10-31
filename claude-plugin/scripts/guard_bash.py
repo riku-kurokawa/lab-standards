@@ -88,7 +88,13 @@ def gate_check(data: dict, cmd: str, root, kind: str) -> None:
     if not g:
         return
     command = cmd.strip()
-    head = git_head(cwd)
+    # `git -C <dir> push` のように別リポジトリを操作するなら、承認はそのリポジトリの HEAD に結び付ける
+    target = cwd
+    for h in g:
+        if h.repo_dir:
+            target = (cwd / h.repo_dir) if not Path(h.repo_dir).is_absolute() else Path(h.repo_dir)
+            break
+    head = git_head(target)
     rec = find_valid_approval(root, command, head)
     if rec is not None:
         consume_approval(root, rec)
@@ -98,7 +104,7 @@ def gate_check(data: dict, cmd: str, root, kind: str) -> None:
     mode = str(data.get("permission_mode") or "")
     if presence == "here" and mode not in NO_PROMPT_MODES:
         decide("ask", f"{what}。承認ゲートの対象です。実行してよいか確認してください。")
-    item = request_approval(root, command, cwd=cwd, session_id=str(data.get("session_id") or ""),
+    item = request_approval(root, command, cwd=target, session_id=str(data.get("session_id") or ""),
                             reason=what + ("" if presence == "away" else f"（presence=here だが permission_mode={mode} では確認画面が出ないため）"))
     block(f"{what} は人間の承認が必要です（presence={presence}）。承認待ち #{item['id']} として記録しました。"
           f"この操作に依存しない作業を続け、終了時の報告に挙げてください。人間が `labkit approve {item['id']}` した後、"

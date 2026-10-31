@@ -2,7 +2,7 @@
   "name": "lab-rules",
   "displayName": "Lab Rules",
   "version": "0.3.0",
-  "description": "lab-standards 規約の強制（パス保護・自動整形・終了時チェック・compact 後のルール再注入）と、実験・図・開発ログ・文献サーベイの手順 skills",
+  "description": "lab-standards 規約の強制（パス保護・承認ゲート・手順の状態機械・レビュー記録の書き込み制御・終了時チェック・compact 後の再注入）と、実験・図・開発ログ・移行・本体改良の手順 skills",
   "author": { "name": "lab-standards" },
   "license": "MIT",
   "keywords": ["research", "reproducibility", "hpc", "julia", "python"]

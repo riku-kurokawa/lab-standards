@@ -44,7 +44,7 @@ description = "本体のテスト（labkit・hooks・Julia）を通し、lab-rev
 forbid = ["template", "release", "raw"]
 done = [
   { type = "standards_tests" },
-  { type = "review", stage = "test" },
+  { type = "review", stage = "test", repo = "standards" },   # 本体の HEAD に対する pass
 ]
 
 [[stage]]

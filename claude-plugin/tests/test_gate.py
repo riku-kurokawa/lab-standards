@@ -70,7 +70,15 @@ def standards(tmp_path: Path) -> Path:
     ("env FOO=1 git push", {"git_push"}),
     ("/usr/bin/git push", {"git_push"}),
     ("ls && git push", {"git_push"}),
-    ("git add -A; git commit -m x; git push", {"commit", "git_push"}),
+    ("git add -A; git commit -m x; git push", {"git_push"}),
+    ("ls & git push", {"git_push"}),
+    ("(git push)", {"git_push"}),
+    ("{ git push; }", {"git_push"}),
+    ("if true; then git push; fi", {"git_push"}),
+    ("echo origin | xargs git push", {"git_push"}),
+    ("uv run -m labkit.cli approve Q1", {"labkit_approve"}),
+    ("uv tool run labkit raw freeze", {"raw_freeze"}),
+    ("uvx copier@9.19 copy gh:x/y .", {"template"}),
     ("echo ok | git push", {"git_push"}),
     ("git tag v0.3.0", {"git_tag"}),
     ("git tag -a v1 -m msg", {"git_tag"}),
@@ -107,6 +115,11 @@ def test_classify(cmd, cats):
     assert {h.category for h in hits} == cats, hits
 
 
+def test_git_C_binds_to_other_repo():
+    hits = gate.classify("git -C ../standards push origin main", ["main"], "feat/x")
+    assert hits[0].category == "git_push" and hits[0].repo_dir == "../standards"
+
+
 def test_merge_on_feature_branch_not_gated():
     assert gate.gated(gate.classify("git merge main", ["main"], current_branch="feat/x")) == []
     assert gate.gated(gate.classify("git -C ../other merge main", ["main"], current_branch="feat/x"))  # 不明は保護側
@@ -129,7 +142,8 @@ def test_here_asks_but_not_in_bypass(proj):
     (proj / ".lab").mkdir()
     (proj / ".lab" / "presence").write_text("here\n")
     assert decision(bash(proj, "git push")) == "ask"
-    for mode in ("bypassPermissions", "dontAsk", "auto"):
+    assert decision(bash(proj, "git push", permission_mode="auto")) == "ask"   # auto でも ask は確認画面に出る
+    for mode in ("bypassPermissions", "dontAsk"):
         assert decision(bash(proj, "git push", permission_mode=mode)) == "deny"
     assert len(st.list_queue(proj)) == 1
 
@@ -258,6 +272,8 @@ def test_stop_not_blocking_when_waiting_for_approval(proj, monkeypatch, tmp_path
     (proj / "src" / "a.py").write_text("x = 1\n")  # コード変更あり・開発ログ無し → 本来は止める
     res = run("stop_check.py", {"cwd": str(proj), "session_id": "s1"})
     assert res.returncode == 2
-    bash(proj, "git push")  # 承認待ちを積む
+    bash(proj, "git push")  # このセッション（s1）が承認待ちを積む
     res = run("stop_check.py", {"cwd": str(proj), "session_id": "s1"})
     assert res.returncode == 0 and "承認待ち" in res.stdout
+    res = run("stop_check.py", {"cwd": str(proj), "session_id": "other"})  # 他セッションの承認待ちでは緩めない
+    assert res.returncode == 2

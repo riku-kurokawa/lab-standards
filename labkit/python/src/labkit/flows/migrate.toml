@@ -15,8 +15,8 @@ description = "既存プロジェクトを lab-standards の構造へ段階的�
 
 [[stage]]
 name = "freeze"
-description = "すべてを commit し、タグ pre-migration を打つ。git 管理外データのバックアップ有無を人間に確認する（質問はキューへ）"
-forbid = ["code", "experiments", "raw", "template", "link", "release"]
+description = "すべてを commit し、タグ pre-migration を打つ（承認ゲートの対象）。git 管理外データのバックアップ有無を人間に確認する（質問はキューへ）"
+forbid = ["code", "experiments", "raw", "template", "link"]
 done = [
   { type = "clean_tree" },
   { type = "git_tag", name = "pre-migration" },

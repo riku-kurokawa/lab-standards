@@ -166,7 +166,8 @@ def ask_question(root: Path, question: str, *, options: list[str], assumed: str,
     item = {
         "id": next_id(root), "kind": "question", "status": "open",
         "question": question, "options": options, "assumed": assumed, "impact": impact,
-        "answer": None, "created": _iso(_now()), "session_id": session_id,
+        "answer": None, "created": _iso(_now()),
+        "session_id": session_id or os.environ.get("CLAUDE_CODE_SESSION_ID", ""),
     }
     save_item(root, item)
     return item

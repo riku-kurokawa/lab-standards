@@ -45,8 +45,7 @@ def set_version(v: str) -> None:
         new, n = re.subn(pat, tpl.format(v=v), text, count=1, flags=re.M)
         if n != 1:
             raise SystemExit(f"{rel}: 版の行が見つかりません（パターン {pat}）")
-        p.write_text(new, encoding="utf-8", newline="
-")  # Windows でも LF のまま
+        p.write_text(new, encoding="utf-8", newline="\n")  # Windows でも LF のまま
 
 
 def check(expected: str | None = None) -> list[str]:
