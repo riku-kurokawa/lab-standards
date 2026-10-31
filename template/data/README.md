@@ -3,7 +3,7 @@
 | ディレクトリ | 中身 | 規則 |
 |---|---|---|
 | `raw/` | 取得した生データ | **不変**。`labkit raw freeze` で `MANIFEST.sha256` に登録し読み取り専用化。git には MANIFEST だけ |
-| `external/` | 外部から取得したデータ（公開データセット等） | 取得元 URL・取得日・ライセンスを `docs/data-dictionary.md` に記録 |
+| `external/` | 外部から取得したデータ（公開データセット等） | 取得元 URL・取得日・ライセンスを `docs/data-dictionary.md` に記録（検査なし） |
 | `interim/` | 中間生成物 | `labkit.save` / `writer` 経由でのみ作る。消してよい |
 | `processed/` | 解析に使う最終派生データ | 同上。生データ + コード + 設定から再生成できること |
 

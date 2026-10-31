@@ -200,3 +200,13 @@
 - 監査: 採用。`c_standards_*` の `or ""` は本体チェックアウト相手なので触らない。
 - 結論: 採用。
 - 規模: flow.py +2 行、guard_bash.py ±0、docs +1 行、テスト +5 行。
+
+### 20. 2026-11-01 — 雛形 README の、検査の無い規約を削る・明示する
+- 観点: 本体 CLAUDE.md 規約 5「文章だけの規約を増やさない」を、既存の文章規約に当てはめる。
+- 発見: prompts/README の frontmatter 項目（purpose, inputs, output_format, created, changelog）と `{{変数名}}` は何も読まない死んだ仕様。
+  notebooks の「必ず scripts 化」は L032/L033 が下流で実質的に強制している。data/external の来歴記録は検査が無い。
+- 提案: prompts は「1 ファイル 1 プロンプト」「版を上げて上書きしない（検査なし）」だけに。notebooks は検査への参照に言い換え。
+  data/external は「検査なし」と明示。新しい check は足さない。
+- 監査: 採用（規約 5 は「増やさない」であり既存の削除は「減らす」価値で判断、各規約ごとに失敗の有無で判断）。
+- 結論: 採用。
+- 規模: prompts/README 8 → 6 行、他 2 行の言い換え。概念 −1（プロンプトの frontmatter 仕様）。
