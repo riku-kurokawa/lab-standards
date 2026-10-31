@@ -210,7 +210,9 @@ def test_flow_migrate_transitions_and_approval(repo, capsys):
     (repo / "data" / "raw" / "in.bin").write_bytes(b"abc")
     freeze()  # 人間が実行する想定（承認ゲートの対象）
     assert flow.advance(repo, "migrate")[0]["stage"] == "code"
-    assert flow.advance(repo, "migrate")[0]["stage"] == "reproduce"  # check（L050/L021/L002/L003 は無視）
+    assert (
+        flow.advance(repo, "migrate")[0]["stage"] == "reproduce"
+    )  # check（この最小プロジェクトでは無視リストは効いていない）
     with pytest.raises(SystemExit, match="finished の run"):
         flow.advance(repo, "migrate")
     with Run("repro", {}) as run:
@@ -223,7 +225,8 @@ def test_flow_migrate_transitions_and_approval(repo, capsys):
     d = repo / "docs" / "reviews"
     d.mkdir(parents=True, exist_ok=True)
     (d / f"{dt.date.today().isoformat()}_migrate_reproduce.md").write_text(
-        tpl.replace("verdict: changes-requested", "verdict: pass").replace('  - "<path>:<line> 指摘（根拠）"\n', "")
+        tpl.replace("verdict: changes-requested", "verdict: pass").replace('  - "<path>:<line> 指摘（根拠）"\n', ""),
+        encoding="utf-8",
     )
     assert flow.advance(repo, "migrate")[0]["stage"] == "strict"
     with pytest.raises(SystemExit, match="'strict'"):
@@ -249,7 +252,8 @@ def test_flow_review_condition(repo):
     p.write_text(
         reviews.template("migrate", "reproduce", head)
         .replace("verdict: changes-requested", "verdict: pass")
-        .replace('  - "<path>:<line> 指摘（根拠）"\n', "")
+        .replace('  - "<path>:<line> 指摘（根拠）"\n', ""),
+        encoding="utf-8",
     )
     assert flow.unmet(repo, st) == []
     git(repo, "commit", "-q", "--allow-empty", "-m", "new head")  # HEAD が変わると無効
@@ -496,7 +500,8 @@ def test_flow_improve_standards_walkthrough(repo, tmp_path_factory, monkeypatch,
     d = repo / "docs" / "reviews"
     d.mkdir(parents=True, exist_ok=True)
     (d / f"{dt.date.today().isoformat()}_{name}_test.md").write_text(
-        tpl.replace("verdict: changes-requested", "verdict: pass").replace('  - "<path>:<line> 指摘（根拠）"\n', "")
+        tpl.replace("verdict: changes-requested", "verdict: pass").replace('  - "<path>:<line> 指摘（根拠）"\n', ""),
+        encoding="utf-8",
     )
     assert flow.advance(repo, name)[0]["stage"] == "release"
     assert approve_and_advance("Q002")["stage"] == "adopt"
