@@ -29,6 +29,9 @@
 | 大配列（4×10^6 Float64）の save を Python と Julia で揃える | 実測: 両者 gzip レベル 4、サイズ 30.8 MB で同一、相互に読める。違うのはチャンク形状だけ（Python 自動 (1,7813)、Julia (4,4096)）で形式の差ではない。Julia の 3.0 s は JIT 込み | 2026-11-01 |
 | 承認ゲートの `make raw-freeze` / `make std-*` 検出を削る（現行の雛形に無い target） | サイクル 10 で意図的に残した互換（v0.2.0 の Makefile を持つプロジェクトで生データ凍結がゲートを素通りしないため） | 2026-11-01 |
 | HEAD から生成したプロジェクトの通し実行（link → Python/Julia の例 → 図 3 枚 → Pkg.test / pytest / ruff / check --strict）で直す点を探す | すべて正常（違反は link 中の L050 のみで、Stop hook は無視する）。初回に見えた `ruff format --check` の失敗は copier が既定で最新タグ v0.2.0 を使ったため。HEAD を試すには `--vcs-ref HEAD` で、CI と skill improve-standards に記載済み | 2026-11-01 |
+| 参照されない labkit サブコマンドを削る（全 18 サブコマンド × 動作を skills/docs/雛形/hooks で照合） | 参照ゼロは `lit key` / `lit check` のみで Q-019 として人間に確認中（仮: 残す）。`paths` は README 1 か所で現役 | 2026-11-01 |
+| skills/docs/雛形に書かれた `labkit <sub> <action> --opt` 46 形をパーサと機械照合し、存在しない形を直す | 不一致 3 件はすべて偽陽性（AGENT_QUEUE の過去報告・仮定の文、rawdata.py のヘッダ文字列）。ドリフトなし | 2026-11-01 |
+| hooks が Claude に見せる文面（SessionStart / flow の拒否 / 承認待ち / Stop）を生成プロジェクトで実際に出して直す | 文面は明確で重複なし。flow の拒否が条件を内部名（`clean_tree; git_tag(name=...)`）で示すが `labkit flow status` を案内しており、hooks は標準ライブラリのみで評価器を持てない。表示パスの `\` は Windows の自然な表記 | 2026-11-01 |
 | use_julia=false のプロジェクトで Julia 由来の設定（sandbox の ~/.julia と julialang ドメイン）を条件分岐で消す | Python のみの生成を実測: jl/ 無し、link・status・pytest・check・example すべて正常。残るのは settings.json の 2 エントリで無害。JSON 内の jinja 分岐はカンマの扱いが脆いので見送り | 2026-11-01 |
 | 図テンプレート（8 種）の整理・統合 | `labkit fig list` の説明・必須 data・例が揃っていて重複なし。変更なし | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
