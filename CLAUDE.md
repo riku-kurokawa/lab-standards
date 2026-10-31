@@ -18,11 +18,13 @@
 2. **Python と Julia を揃える**。関数名・引数・ファイル形式（meta.json、サイドカー、HDF5 の軸順）を変えたら両方を直す。スキーマは `labkit/python/src/labkit/schemas/` が正本。
 3. **テストを書いて通す**:
    ```bash
-   (cd labkit/python && uv run --extra dev pytest -q)
-   uv run --with pytest pytest -q claude-plugin/tests
-   julia --project=labkit/julia/LabKit -e 'using Pkg; Pkg.test()'   # Julia を変えたとき
+   make test          # 版の整合性 + lint（ruff check / format）+ labkit + hooks
+   make test-julia    # Julia を変えたとき
+   make test-cross    # Julia が書いたファイルを Python が読む（対称性。julia が要る）
    ```
    図テンプレートを追加したら `labkit/python/tests/test_io.py::test_figure_templates` に例を足す。
+   `.lab/` の読み書きは `claude-plugin/scripts/_labstate.py` が正本で、`labkit/python/src/labkit/_labstate.py` はそのコピー
+   （変えたら `cp` で揃える。テストが一致を検査する）。
 4. **後方互換を保つ**。既存プロジェクトの `lab.toml`、figspec、run の meta.json が新しい版でもそのまま動くこと。
    壊す場合はメジャー版を上げ、`docs/decisions/` に ADR を書き、CHANGELOG に移行手順を書く。
 5. **新しい規約には機械的な検証を付ける**（check のルール、hook、スキーマ）。文章だけの規約を増やさない。
@@ -34,6 +36,7 @@
 
 1. `CHANGELOG.md` の先頭に `## vX.Y.Z — YYYY-MM-DD` の節を書く（追加・変更・移行手順）。
 2. `python tools/release.py X.Y.Z` で全ファイルの版を揃える（labkit, LabKit.jl, plugin, 雛形の既定値）。
-3. テストを通し、commit → main にマージ → `git tag vX.Y.Z` → `git push origin main --tags`。push は人間の承認後。
+3. テストを通し、commit → main にマージ → `git tag vX.Y.Z` → `git push origin main --tags`。
+   本体でも承認ゲートが効く（`.lab-standards-root`）: merge / tag / push は拒否されて `.lab/queue` に積まれ、人間の `labkit approve` 後に通る。
 
 版の付け方: 互換を保つ機能追加はマイナー（0.2.0 → 0.3.0）、修正のみはパッチ（0.2.1）、互換を壊す変更はメジャー。
