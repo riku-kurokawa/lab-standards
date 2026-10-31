@@ -200,6 +200,7 @@ def classify_segment(seg: str, protected: list[str], current_branch: str | None)
         return hits
 
     if b == "make":
+        # raw-freeze / std-* は v0.3.0 の雛形から削除済み。古い Makefile を持つプロジェクトのために検出は残す
         targets = [t for t in toks[1:] if not t.startswith("-") and "=" not in t]
         if "raw-freeze" in targets:
             hits.append(Hit("raw_freeze", seg, "make raw-freeze"))

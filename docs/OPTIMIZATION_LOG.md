@@ -75,3 +75,12 @@
   しておくことで書きかけの記録が flow を通さない（半端な記録は fail-closed）。`list` と `review_path` は削除、引数は位置引数に。
 - 結論: 採用（accept-with-changes）。
 - 規模: cli.py −22 行、reviews.py −14 行、テスト ±0。CLI のサブ動作 2 → 1。
+
+### 8. 2026-11-01 — 雛形の Makefile から単発コマンドのラッパーを削除
+- 観点: 同じ操作に 2 つの語彙。Makefile の 16 ターゲットのうち 9 つは `uv run labkit <同じ語>` の薄いラッパーで、README・skills は
+  既に `uv run labkit ...` を使っていた（Makefile だけが矛盾）。ゲートはその語彙を不完全に鏡写しにしていた。
+- 提案: 複数手順をまとめる check / test / lint / fmt / example / mlflow-* だけ残す。
+- 監査: 全ターゲットが uv 経由なので HPC でも利点なし。ただし古いプロジェクトは古い Makefile を持ち続けるので、ゲートの
+  `make raw-freeze` / `make std-*` 検出は互換のため残す（削ると生データ凍結がゲートを素通りする）。`make -C dir raw-freeze` のテストを追加。
+- 結論: 採用（accept-with-changes）。
+- 規模: Makefile.jinja 60 → 29 行。ゲート ±0（コメント +1）。概念 −1（Makefile は「まとめ」専用）。

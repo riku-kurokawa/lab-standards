@@ -16,8 +16,8 @@ docs/reviews/*.md    ←── lab-reviewer agent だけが書く（agent_type �
 ## 1. 承認ゲート
 
 対象: `git push`、`git tag`（作成・削除）、保護ブランチ（`[gate] protected_branches`、既定 main/master）への `git merge`、
-`gh pr merge`、`gh release`（create/edit/delete/upload）、`labkit raw freeze`（`make raw-freeze`）、
-`copier copy|update|recopy`、`labkit standards template`（`make std-template`）。
+`gh pr merge`、`gh release`（create/edit/delete/upload）、`labkit raw freeze`、
+`copier copy|update|recopy`、`labkit standards template`（古い雛形の `make raw-freeze` / `make std-*` も検出）。
 `command git push`、`git -c x=y -C dir push`、`sudo`/`env`/`VAR=x` 接頭辞、`&&`/`;`/`|`/改行で連結したもの、
 `uv run labkit ...`、`python -m labkit.cli ...` も検出する（`claude-plugin/scripts/_labgate.py`、shlex でトークン化）。
 

@@ -94,7 +94,8 @@ def standards(tmp_path: Path) -> Path:
     ("uv run labkit raw freeze", {"raw_freeze"}),
     ("uv run --project ../x --quiet labkit raw freeze", {"raw_freeze"}),
     ("python -m labkit.cli raw freeze", {"raw_freeze"}),
-    ("make raw-freeze", {"raw_freeze"}),
+    ("make raw-freeze", {"raw_freeze"}),             # 旧雛形の Makefile
+    ("make -C proj raw-freeze", {"raw_freeze"}),
     ("copier copy gh:me/x .", {"template"}),
     ("uvx copier update", {"template"}),
     ("uv run labkit standards template --ref v1", {"template"}),
