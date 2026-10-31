@@ -44,12 +44,46 @@ def _offends(call: ast.Call) -> bool:
     return False
 
 
-def test_text_io_specifies_encoding():
+def _mode(call: ast.Call) -> str:
+    mode = _kw(call, "mode")
+    if mode is None and isinstance(call.func, ast.Name) and len(call.args) >= 2:
+        mode = call.args[1]
+    if mode is None and isinstance(call.func, ast.Attribute) and call.func.attr == "open" and call.args:
+        mode = call.args[0]
+    return mode.value if isinstance(mode, ast.Constant) and isinstance(mode.value, str) else "r"
+
+
+def _offends_newline(call: ast.Call) -> bool:
+    """テキストを書く呼び出しは newline="\\n" を明示する（Windows の既定は CRLF。Julia 側は LF で、機械間で差分が出る）."""
+    f = call.func
+    if isinstance(f, ast.Attribute) and f.attr == "write_text":
+        return _kw(call, "newline") is None
+    is_open = (isinstance(f, ast.Name) and f.id == "open") or (
+        isinstance(f, ast.Attribute)
+        and f.attr == "open"
+        and not (isinstance(f.value, ast.Name) and f.value.id in NOT_FILE_OPEN)
+    )
+    if is_open and not _is_binary(call) and any(ch in _mode(call) for ch in "wax"):
+        return _kw(call, "newline") is None
+    return False
+
+
+def _scan(pred) -> list[str]:
     bad = []
     for t in TARGETS:
         for p in sorted((ROOT / t).rglob("*.py")):
             tree = ast.parse(p.read_text(encoding="utf-8"), filename=str(p))
             for node in ast.walk(tree):
-                if isinstance(node, ast.Call) and _offends(node):
+                if isinstance(node, ast.Call) and pred(node):
                     bad.append(f"{p.relative_to(ROOT).as_posix()}:{node.lineno}: {ast.unparse(node)[:90]}")
+    return bad
+
+
+def test_text_io_specifies_encoding():
+    bad = _scan(_offends)
     assert not bad, "encoding を明示する:\n" + "\n".join(bad)
+
+
+def test_text_writes_specify_newline():
+    bad = _scan(_offends_newline)
+    assert not bad, 'newline="\\n" を明示する:\n' + "\n".join(bad)

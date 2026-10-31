@@ -604,3 +604,19 @@
 - 監査: 発見は独立エージェント。仕様の確認は `claude plugin eval --help` と docs/notes の記録。
 - 結論: 採用。evals の実行自体は費用がかかるので Q-004 のまま人間に委ねる。
 - 規模: 16 ファイル、+17 −8 行。
+
+### 66. 2026-11-01 — 一度も実行されていない経路を動かす（pre-commit、release.py、Slurm 雛形）
+- 観点: サイクル 65 の教訓。生成プロジェクトで `pre-commit run --all-files`、使い捨てコピーで `tools/release.py 0.3.1`、生成された
+  `jobs/slurm_example.sh` を `bash -n`。
+- 発見: pre-commit は ruff / nbstripout / labkit check（L050 で止めるのは設計どおり）が動く。Slurm 雛形は構文 OK。release.py は CHANGELOG の節が無いと
+  エラーを出しつつ 6 ファイルの版を書き換えていた（半端な状態が残る）。副産物として git の警告から、`labkit standards link` が書く pyproject / Project.toml が
+  CRLF になっていることに気づき、調べると **labkit が Windows で書くテキストはすべて CRLF**（meta.json、metrics、log、サイドカー、devlog、MANIFEST）。
+  Julia は LF。機械間・言語間で行末が混ざる。
+- 提案: すべてのテキスト書き込みに `newline="
+"`（両 _labstate を同時に）。AST の guard テストに「書き込みは newline を明示」を追加。run のファイルと
+  MANIFEST が LF であるテストを追加。release.py は CHANGELOG を先に確かめる（使い捨てコピーで: 節が無ければ 0 ファイル、あれば 7 ファイル）。
+- 監査: 採用。追記モードでも Linux では無変化、MANIFEST は hash 対象外で読み手は splitlines、_labstate は stdlib のみで両コピー一致、guard の判定を
+  合成例で確認。
+- 結論: 採用。
+- 規模: 18 ファイル、+163 −73 行（大半は `newline="
+"` の追加）。labkit 67 passed。

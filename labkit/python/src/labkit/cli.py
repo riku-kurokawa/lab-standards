@@ -266,7 +266,7 @@ def cmd_devlog(a) -> int:
     p = root / lab["devlog"]["dir"] / f"{date}.md"
     if not p.exists():
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(_tpl("devlog.md").replace("{{date}}", date), encoding="utf-8")
+        p.write_text(_tpl("devlog.md").replace("{{date}}", date), encoding="utf-8", newline="\n")
     print(p)
     return 0
 
@@ -288,6 +288,7 @@ def cmd_adr(a) -> int:
         .replace("{{title}}", a.title)
         .replace("{{date}}", _dt.date.today().isoformat()),
         encoding="utf-8",
+        newline="\n",
     )
     print(p)
     return 0
@@ -312,7 +313,11 @@ def cmd_lit(a) -> int:
         if p.exists():
             raise SystemExit(f"既に存在します: {p}")
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(_tpl("survey.md").replace("{{date}}", date).replace("{{question}}", a.question), encoding="utf-8")
+        p.write_text(
+            _tpl("survey.md").replace("{{date}}", date).replace("{{question}}", a.question),
+            encoding="utf-8",
+            newline="\n",
+        )
         print(p)
     elif a.action == "index":
         print(lit.build_index(root, lab))

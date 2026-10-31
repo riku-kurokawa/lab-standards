@@ -126,14 +126,14 @@ class Run:
 
     def log_metric(self, key: str, value: float, step: int | None = None) -> None:
         rec = {"key": key, "value": float(value), "step": step, "time": time.time()}
-        with open(self.dir / "metrics.jsonl", "a", encoding="utf-8") as f:
+        with open(self.dir / "metrics.jsonl", "a", encoding="utf-8", newline="\n") as f:
             f.write(json.dumps(rec) + "\n")
         self._last[key] = rec["value"]
 
     def log(self, message: str) -> None:
         line = f"[{now_iso()}] {message}"
         print(line)
-        with open(self.dir / "log.txt", "a", encoding="utf-8") as f:
+        with open(self.dir / "log.txt", "a", encoding="utf-8", newline="\n") as f:
             f.write(line + "\n")
 
     def add_input(self, path: str | os.PathLike) -> None:

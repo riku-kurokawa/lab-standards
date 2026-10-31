@@ -27,20 +27,22 @@ LabKit = { url = "https://github.com/me/lab-standards.git", subdir = "labkit/jul
 @pytest.fixture
 def dev(tmp_path_factory) -> Path:
     d = tmp_path_factory.mktemp("lab-standards")
-    (d / "copier.yml").write_text("_subdirectory: template\n", encoding="utf-8")
+    (d / "copier.yml").write_text("_subdirectory: template\n", encoding="utf-8", newline="\n")
     (d / "labkit" / "python").mkdir(parents=True)
-    (d / "labkit" / "python" / "pyproject.toml").write_text("[project]\nname='labkit'\n", encoding="utf-8")
+    (d / "labkit" / "python" / "pyproject.toml").write_text(
+        "[project]\nname='labkit'\n", encoding="utf-8", newline="\n"
+    )
     (d / "labkit" / "julia" / "LabKit").mkdir(parents=True)
     return d
 
 
 @pytest.fixture
 def proj(project: Path) -> Path:
-    (project / "pyproject.toml").write_text(PYPROJECT, encoding="utf-8")
+    (project / "pyproject.toml").write_text(PYPROJECT, encoding="utf-8", newline="\n")
     (project / "jl").mkdir()
-    (project / "jl" / "Project.toml").write_text(JL, encoding="utf-8")
+    (project / "jl" / "Project.toml").write_text(JL, encoding="utf-8", newline="\n")
     (project / ".copier-answers.yml").write_text(
-        "_commit: v0.1.0\nstandards_repo: me/lab-standards\nstandards_ref: v0.1.0\n"
+        "_commit: v0.1.0\nstandards_repo: me/lab-standards\nstandards_ref: v0.1.0\n", newline="\n"
     )
     return project
 

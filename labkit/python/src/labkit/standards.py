@@ -92,7 +92,7 @@ def _replace(path: Path, pattern: re.Pattern, new_line: str, what: str) -> None:
     text = path.read_text(encoding="utf-8")
     if not pattern.search(text):
         raise SystemExit(f"{path} に {what} の参照行が見つかりません（雛形から生成したファイルか確認してください）")
-    path.write_text(pattern.sub(lambda _m: new_line, text, count=1), encoding="utf-8")
+    path.write_text(pattern.sub(lambda _m: new_line, text, count=1), encoding="utf-8", newline="\n")
 
 
 def _run(cmd: list[str], cwd: Path, check: bool = True) -> int:

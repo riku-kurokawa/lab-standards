@@ -190,7 +190,7 @@ def _iso(t: _dt.datetime) -> str:
 def _write_json(path: Path, obj: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + f".tmp-{os.getpid()}")
-    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     os.replace(tmp, path)
 
 
@@ -199,7 +199,7 @@ def lab_dir(root: Path) -> Path:
     d.mkdir(exist_ok=True)
     gi = d / ".gitignore"
     if not gi.is_file():
-        gi.write_text(GITIGNORE, encoding="utf-8")
+        gi.write_text(GITIGNORE, encoding="utf-8", newline="\n")
     return d
 
 

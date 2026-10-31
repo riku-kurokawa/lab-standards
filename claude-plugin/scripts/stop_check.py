@@ -136,7 +136,7 @@ def main() -> None:
         )
         return
     state["blocks"] += 1
-    cf.write_text(json.dumps(state), encoding="utf-8")
+    cf.write_text(json.dumps(state), encoding="utf-8", newline="\n")
     print(
         "[lab-rules] 作業完了の条件を満たしていません。以下を解消してから終了してください:\n\n" + "\n\n".join(problems),
         file=sys.stderr,

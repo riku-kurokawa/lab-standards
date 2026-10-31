@@ -52,7 +52,9 @@ def freeze(root: Path | None = None, chmod: bool = True, progress=print) -> Path
     if mf.exists():
         os.chmod(mf, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
     header = f"# labkit raw manifest — updated {now_iso()}\n"
-    mf.write_text(header + "\n".join(sorted(lines, key=lambda s: s.split(None, 2)[2])) + "\n", encoding="utf-8")
+    mf.write_text(
+        header + "\n".join(sorted(lines, key=lambda s: s.split(None, 2)[2])) + "\n", encoding="utf-8", newline="\n"
+    )
     if chmod:
         ro = stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
         for p in _files(raw):

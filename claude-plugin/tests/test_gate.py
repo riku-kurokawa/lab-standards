@@ -57,7 +57,7 @@ def git(cwd: Path, *args: str) -> str:
 
 @pytest.fixture
 def proj(tmp_path: Path) -> Path:
-    (tmp_path / "lab.toml").write_text('[lab]\nproject = "t"\n', encoding="utf-8")
+    (tmp_path / "lab.toml").write_text('[lab]\nproject = "t"\n', encoding="utf-8", newline="\n")
     for d in ("src", "scripts", "docs", "scratch", "data/raw", "runs"):
         (tmp_path / d).mkdir(parents=True)
     git(tmp_path, "init", "-q", "-b", "main")
@@ -67,7 +67,7 @@ def proj(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def standards(tmp_path: Path) -> Path:
-    (tmp_path / "copier.yml").write_text("_subdirectory: template\n", encoding="utf-8")
+    (tmp_path / "copier.yml").write_text("_subdirectory: template\n", encoding="utf-8", newline="\n")
     (tmp_path / "labkit" / "python").mkdir(parents=True)
     git(tmp_path, "init", "-q", "-b", "main")
     git(tmp_path, "commit", "-q", "--allow-empty", "-m", "init")
@@ -159,7 +159,7 @@ def test_away_denies_and_queues(proj):
 
 def test_here_asks_but_not_in_bypass(proj):
     (proj / ".lab").mkdir()
-    (proj / ".lab" / "presence").write_text("here\n", encoding="utf-8")
+    (proj / ".lab" / "presence").write_text("here\n", encoding="utf-8", newline="\n")
     assert decision(bash(proj, "git push")) == "ask"
     assert decision(bash(proj, "git push", permission_mode="auto")) == "ask"  # auto でも ask は確認画面に出る
     for mode in ("bypassPermissions", "dontAsk"):
@@ -180,7 +180,7 @@ def _approve(root: Path, qid: str, *, command=None, head=None, hours=24.0, used=
         "used_at": used,
     }
     (root / ".lab" / "approvals").mkdir(exist_ok=True)
-    (root / ".lab" / "approvals" / f"{qid}.json").write_text(json.dumps(rec), encoding="utf-8")
+    (root / ".lab" / "approvals" / f"{qid}.json").write_text(json.dumps(rec), encoding="utf-8", newline="\n")
     return rec
 
 
@@ -237,7 +237,7 @@ def test_claude_cannot_approve(proj):
 
 
 def test_gate_disabled_in_lab_toml(proj):
-    (proj / "lab.toml").write_text('[lab]\nproject = "t"\n[gate]\nenabled = false\n', encoding="utf-8")
+    (proj / "lab.toml").write_text('[lab]\nproject = "t"\n[gate]\nenabled = false\n', encoding="utf-8", newline="\n")
     assert decision(bash(proj, "git push")) == "pass"
 
 
@@ -289,6 +289,7 @@ def _flow(root: Path, stage: str, forbid: list[str]):
             }
         ),
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -381,7 +382,9 @@ def test_reviewer_bash_is_read_only(proj):
 # ---- Stop hook は承認待ちでは止め直さない ----
 def test_stop_not_blocking_when_waiting_for_approval(proj, monkeypatch, tmp_path_factory):
     monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path_factory.mktemp("plugin-data")))  # 止めた回数の保存先を隔離
-    (proj / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")  # コード変更あり・開発ログ無し → 本来は止める
+    (proj / "src" / "a.py").write_text(
+        "x = 1\n", encoding="utf-8", newline="\n"
+    )  # コード変更あり・開発ログ無し → 本来は止める
     res = run("stop_check.py", {"cwd": str(proj), "session_id": "s1"})
     assert res.returncode == 2
     bash(proj, "git push")  # このセッション（s1）が承認待ちを積む
@@ -399,13 +402,13 @@ def test_prompt_context_only_deltas(proj):
     _approve(proj, "Q001")
     item = json.loads((proj / ".lab/queue/Q001.json").read_text(encoding="utf-8"))
     item["status"] = "approved"  # labkit approve が行う状態更新
-    (proj / ".lab/queue/Q001.json").write_text(json.dumps(item), encoding="utf-8")
+    (proj / ".lab/queue/Q001.json").write_text(json.dumps(item), encoding="utf-8", newline="\n")
     out = run("prompt_context.py", {"cwd": str(proj)}).stdout
     assert "承認済み・未実行 #Q001" in out and "承認待ち" not in out and "flow=" not in out
     item = json.loads((proj / ".lab/queue/Q001.json").read_text(encoding="utf-8"))
     item["status"] = "rejected"
     item["note"] = "まだ早い"
-    (proj / ".lab/queue/Q001.json").write_text(json.dumps(item), encoding="utf-8")
+    (proj / ".lab/queue/Q001.json").write_text(json.dumps(item), encoding="utf-8", newline="\n")
     (proj / ".lab/approvals/Q001.json").unlink()
     out = run("prompt_context.py", {"cwd": str(proj)}).stdout
     assert "却下 #Q001" in out and "まだ早い" in out
@@ -416,10 +419,12 @@ def test_stop_ignores_julia_env_files(proj, monkeypatch, tmp_path_factory):
     """standards link / Pkg.instantiate が書き換える jl/Project.toml・Manifest.toml はコード変更と見なさない."""
     monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path_factory.mktemp("plugin-data")))
     (proj / "jl").mkdir()
-    (proj / "jl" / "Project.toml").write_text('[deps]\nX = "1"\n', encoding="utf-8")
-    (proj / "jl" / "Manifest.toml").write_text("# v2\n", encoding="utf-8")
+    (proj / "jl" / "Project.toml").write_text('[deps]\nX = "1"\n', encoding="utf-8", newline="\n")
+    (proj / "jl" / "Manifest.toml").write_text("# v2\n", encoding="utf-8", newline="\n")
     assert "開発ログ" not in run("stop_check.py", {"cwd": str(proj), "session_id": "s7"}).stderr
     (proj / "jl" / "src").mkdir()
-    (proj / "jl" / "src" / "x.jl").write_text("x = 1\n", encoding="utf-8")  # 本物のコード変更 → 開発ログを求めて止める
+    (proj / "jl" / "src" / "x.jl").write_text(
+        "x = 1\n", encoding="utf-8", newline="\n"
+    )  # 本物のコード変更 → 開発ログを求めて止める
     res = run("stop_check.py", {"cwd": str(proj), "session_id": "s7"})
     assert res.returncode == 2 and "開発ログ" in res.stderr and "jl/src/x.jl" in res.stderr

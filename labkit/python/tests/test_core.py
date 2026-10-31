@@ -21,8 +21,12 @@ BIB = """@article{whatever,
 
 
 def test_config_extends_and_overrides(project):
-    (project / "configs" / "base.toml").write_text("seed = 0\n[filter]\ncutoff = 10\norder = 4\n", encoding="utf-8")
-    (project / "configs" / "exp.toml").write_text('extends = "base.toml"\n[filter]\ncutoff = 50\n', encoding="utf-8")
+    (project / "configs" / "base.toml").write_text(
+        "seed = 0\n[filter]\ncutoff = 10\norder = 4\n", encoding="utf-8", newline="\n"
+    )
+    (project / "configs" / "exp.toml").write_text(
+        'extends = "base.toml"\n[filter]\ncutoff = 50\n', encoding="utf-8", newline="\n"
+    )
     cfg = load_config(project / "configs" / "exp.toml", ["filter.order=8", "name=abc"])
     assert cfg["filter"] == {"cutoff": 50, "order": 8}
     assert cfg["seed"] == 0 and cfg["name"] == "abc"
@@ -30,12 +34,12 @@ def test_config_extends_and_overrides(project):
 
 
 def test_run_lifecycle_and_freeze(project):
-    (project / "configs" / "e.toml").write_text("a = 1\n", encoding="utf-8")
+    (project / "configs" / "e.toml").write_text("a = 1\n", encoding="utf-8", newline="\n")
     cfg = load_config(project / "configs" / "e.toml")
     with Run("My Exp", cfg) as run:
         log_metric(run, "loss", 1.0, step=0)
         log_metric(run, "loss", 0.5, step=1)
-        runpath(run, "note.txt").write_text("x", encoding="utf-8")
+        runpath(run, "note.txt").write_text("x", encoding="utf-8", newline="\n")
         (project / "data" / "raw" / "in.bin").write_bytes(b"abc")
         add_input(run, project / "data" / "raw" / "in.bin")
         log_message(run, "hello")
@@ -61,14 +65,14 @@ def test_run_failure_recorded(project):
 
 
 def test_check_detects_violations(project):
-    (project / "stray.txt").write_text("x", encoding="utf-8")
+    (project / "stray.txt").write_text("x", encoding="utf-8", newline="\n")
     (project / "src" / "a.py").write_text(
-        "import matplotlib.pyplot as plt\nimport pickle\nP='/home/me/x'\n", encoding="utf-8"
+        "import matplotlib.pyplot as plt\nimport pickle\nP='/home/me/x'\n", encoding="utf-8", newline="\n"
     )
-    (project / "src" / "b.py").write_text("from scripts import run\n", encoding="utf-8")
-    (project / "scripts" / "c.jl").write_text("using CairoMakie\n", encoding="utf-8")
+    (project / "src" / "b.py").write_text("from scripts import run\n", encoding="utf-8", newline="\n")
+    (project / "scripts" / "c.jl").write_text("using CairoMakie\n", encoding="utf-8", newline="\n")
     (project / "scripts" / "fig.png").write_bytes(b"x")
-    (project / "docs" / "devlog" / "today.md").write_text("x", encoding="utf-8")
+    (project / "docs" / "devlog" / "today.md").write_text("x", encoding="utf-8", newline="\n")
     (project / "data" / "raw" / "r.bin").write_bytes(b"123")
     codes = {i.code for i in run_check()[0]}
     assert {"L001", "L002", "L010", "L011", "L012", "L013", "L014", "L030"} <= codes
@@ -99,6 +103,7 @@ def test_literature(project):
     s.write_text(
         '---\ndate: 2026-10-30\nquestion: "q"\nsearch: {}\n---\n見た [@muller2023fast] と [@ghost2020x]\n',
         encoding="utf-8",
+        newline="\n",
     )
     codes = [i for i in run_check()[0] if i.code.startswith("L04")]
     assert [i.code for i in codes] == ["L046"], codes
@@ -126,5 +131,5 @@ def test_legacy_windows_manifest_lines_verify(project):
     (raw / "sub").mkdir()
     (raw / "sub" / "r.bin").write_bytes(b"x")
     digest = hashlib.sha256(b"x").hexdigest()
-    (raw / "MANIFEST.sha256").write_text(f"# legacy\n{digest}  1  sub\\r.bin\n", encoding="utf-8")
+    (raw / "MANIFEST.sha256").write_text(f"# legacy\n{digest}  1  sub\\r.bin\n", encoding="utf-8", newline="\n")
     assert [i for i in verify(full=True) if i[0] == "L002"] == []

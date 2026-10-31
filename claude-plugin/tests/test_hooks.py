@@ -23,7 +23,7 @@ def run(script: str, payload: dict) -> int:
 
 @pytest.fixture
 def proj(tmp_path: Path) -> Path:
-    (tmp_path / "lab.toml").write_text('[lab]\nproject = "t"\n', encoding="utf-8")
+    (tmp_path / "lab.toml").write_text('[lab]\nproject = "t"\n', encoding="utf-8", newline="\n")
     for d in ("src", "scripts", "data/raw", "runs", "scratch"):
         (tmp_path / d).mkdir(parents=True)
     return tmp_path
@@ -123,11 +123,11 @@ def test_tool_cmd_finds_venv_on_both_layouts(tmp_path, monkeypatch):
     assert _labcommon.tool_cmd(tmp_path, "ruff") is None
     win = tmp_path / ".venv" / "Scripts" / "ruff.exe"
     win.parent.mkdir(parents=True)
-    win.write_text("", encoding="utf-8")
+    win.write_text("", encoding="utf-8", newline="\n")
     assert _labcommon.tool_cmd(tmp_path, "ruff") == [str(win)]
     posix = tmp_path / ".venv" / "bin" / "ruff"
     posix.parent.mkdir(parents=True)
-    posix.write_text("", encoding="utf-8")
+    posix.write_text("", encoding="utf-8", newline="\n")
     assert _labcommon.tool_cmd(tmp_path, "ruff") == [str(posix)]
     assert _labcommon.labkit_cmd(tmp_path) is None
 
@@ -138,9 +138,9 @@ def test_stop_runs_ruff_once(proj, monkeypatch, tmp_path_factory):
     import os
 
     monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path_factory.mktemp("plugin-data")))
-    (proj / "src" / "bad.py").write_text("def f():\n    return undefined_name\n", encoding="utf-8")
+    (proj / "src" / "bad.py").write_text("def f():\n    return undefined_name\n", encoding="utf-8", newline="\n")
     (proj / "docs" / "devlog").mkdir(parents=True)
-    (proj / "docs" / "devlog" / f"{datetime.date.today()}.md").write_text("x", encoding="utf-8")
+    (proj / "docs" / "devlog" / f"{datetime.date.today()}.md").write_text("x", encoding="utf-8", newline="\n")
     # ruff は本体 labkit の venv のものを PATH 経由で使う（tool_cmd の PATH 探索）
     venv = SCRIPTS.parents[1] / "labkit" / "python" / ".venv"
     bindir = next(d for d in (venv / "Scripts", venv / "bin") if d.is_dir())

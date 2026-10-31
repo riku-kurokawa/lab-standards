@@ -93,13 +93,29 @@ def test_figure_templates(project):
         "eb.toml": 'template = "errorbar"\n[data]\nfile = "res.parquet"\nx = "method"\ny = "rmse"\n',
     }
     for name, text in specs.items():
-        (project / "figspecs" / name).write_text(text, encoding="utf-8")
+        (project / "figspecs" / name).write_text(text, encoding="utf-8", newline="\n")
         out = render(project / "figspecs" / name, run_id=run.run_id)
         assert all(p.exists() for p in out)
     assert (run.dir / "figures" / "ts.figmeta.json").exists()
     # 向きを取り違えた配列（(len(y), len(x))）は黙って描かず拒否する
     (project / "figspecs" / "bad.toml").write_text(
-        'template = "heatmap"\n[data]\nfile = "field.h5"\nz = "uT"\nx = "xgrid"\ny = "ygrid"\n', encoding="utf-8"
+        'template = "heatmap"\n[data]\nfile = "field.h5"\nz = "uT"\nx = "xgrid"\ny = "ygrid"\n',
+        encoding="utf-8",
+        newline="\n",
     )
     with pytest.raises(ValueError, match="len\\(x\\), len\\(y\\)"):
         render(project / "figspecs" / "bad.toml", run_id=run.run_id)
+
+
+def test_written_text_files_use_lf(project):
+    """labkit が書くテキスト（meta.json, metrics, log, サイドカー）は OS に依らず LF。Windows の既定 CRLF だと Julia 側（LF）と機械間で差分が出る."""
+    with Run("lf") as run:
+        save(runpath(run, "x.h5"), {"x": np.ones(2)})
+        run.log_metric("m", 1.0, step=0)
+        run.log("hello")
+    from labkit.rawdata import freeze
+
+    (project / "data" / "raw" / "in.bin").write_bytes(b"abc")
+    files = list(run.dir.glob("*.json")) + list(run.dir.glob("*.jsonl")) + [run.dir / "log.txt", freeze(chmod=False)]
+    for f in files:
+        assert b"\r\n" not in f.read_bytes(), f.name

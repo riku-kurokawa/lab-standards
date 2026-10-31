@@ -168,7 +168,7 @@ def add_entry(
     bad = [t for t in tags or [] if vocab and t not in vocab]
     if bad:
         raise ValueError(f"tags.toml に無いタグ: {bad}。先に tags.toml へ追加するか既存タグを使う")
-    with open(bibf, "a", encoding="utf-8") as f:
+    with open(bibf, "a", encoding="utf-8", newline="\n") as f:
         f.write(("\n" if bibf.exists() and bibf.stat().st_size else "") + format_entry(citekey, fields))
     has_pdf = False
     if pdf is not None:

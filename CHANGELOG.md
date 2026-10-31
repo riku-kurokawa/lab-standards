@@ -30,6 +30,9 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md を改訂。plugin の skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- labkit が書くテキスト（meta.json、metrics、log、サイドカー、MANIFEST、devlog/ADR の雛形、link の書き換え）を OS に依らず LF に
+  （Windows では CRLF になり、LF で書く Julia 側や他の機械との間で差分が出ていた）。テストが機械的に検査する。
+- `tools/release.py X.Y.Z` は CHANGELOG の節を確かめてから版を書き換える（従来は 6 ファイルを書き換えた後に失敗していた）。
 - plugin eval の scaffold: 種の meta.json に必須の `command` が無く、すべてのケースが Stop hook の L020 で止まっていた。Git Bash では本体の
   パスが `file:///C:/c/...` になり scaffold が失敗していた（cygpath で変換）。`case.yaml` の未定義キー `tags` を削除。
 - HDF5 の bool（配列・スカラー）を uint8 + データセット属性 `labkit_dtype="bool"` で保存し、Python / Julia とも bool に戻す。

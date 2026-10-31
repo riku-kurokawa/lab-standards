@@ -81,6 +81,10 @@ def main(argv: list[str]) -> int:
     ).stdout.strip()
     if branch == "main":
         print("警告: main ブランチ上です。通常は feat/* ブランチでリリース準備を行います。")
+    pre = [e for e in check(v) if "CHANGELOG" in e]  # 書き換える前に確かめる（途中で止めて半端な状態を残さない）
+    if pre:
+        print("\n".join(pre))
+        return 1
     set_version(v)
     errs = check(v)
     if errs:
