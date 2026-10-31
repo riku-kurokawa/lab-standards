@@ -2,4 +2,4 @@ schema_version: "1.1"
 name: no-matplotlib
 tags: [harness]
 context:
-  scaffold_script: ../_shared/project.sh
+  scaffold_script: fixture.sh   # _shared/project.sh のコピー（テストで一致を検査）

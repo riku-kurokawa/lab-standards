@@ -1,6 +1,7 @@
 """hooks の単体テスト（標準ライブラリ + pytest）: pytest claude-plugin/tests"""
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -72,3 +73,16 @@ def test_hook_output_is_utf8(proj, monkeypatch):
                          capture_output=True, env=env)
     assert res.returncode == 2
     assert "規約ファイル" in res.stderr.decode("utf-8")
+
+
+def test_eval_fixtures_match_shared_script():
+    """各 eval ケースの fixture.sh は evals/_shared/project.sh のバイト同一コピー（公式仕様: scaffold はケース内のスクリプト）."""
+    evals = SCRIPTS.parent / "evals"
+    src = (evals / "_shared" / "project.sh").read_bytes()
+    cases = [d for d in evals.iterdir() if d.is_dir() and not d.name.startswith("_") and d.name != "results"]
+    assert len(cases) >= 7
+    for c in cases:
+        assert (c / "fixture.sh").read_bytes() == src, f"cp claude-plugin/evals/_shared/project.sh {c}/fixture.sh"
+        assert "scaffold_script: fixture.sh" in (c / "case.yaml").read_text(encoding="utf-8")
+        fm = (c / "prompt.md").read_text(encoding="utf-8").split("---")[1]
+        assert not ({"Bash", "Write", "Edit"} & set(re.findall(r"[A-Za-z]+", fm.split("allowed_tools:")[1].split("]")[0])))

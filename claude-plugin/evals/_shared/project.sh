@@ -18,8 +18,9 @@ cat > "runs/$RUN/meta.json" <<JSON
  "inputs": [], "outputs": [], "tags": {}, "error": null}
 JSON
 printf '{"snr_db": 12.345, "n_samples": 2000}\n' > "runs/$RUN/metrics.json"
-# labkit を使えるようにする（本体チェックアウトの labkit を editable で入れる。LAB_STANDARDS_DEV か ~/dev/lab-standards）
-DEV="${LAB_STANDARDS_DEV:-$HOME/dev/lab-standards}"
+# labkit を使えるようにする（本体チェックアウトの labkit を editable で入れる）。
+# scaffold は一時的な HOME・空の環境で走るので、このスクリプト自身の場所（<repo>/claude-plugin/evals/<case>/fixture.sh）から本体を求める
+DEV="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cat > pyproject.toml <<TOML
 [project]
 name = "evalproj"

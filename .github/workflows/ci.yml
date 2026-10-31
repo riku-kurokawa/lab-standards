@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm install -g @anthropic-ai/claude-code
-      - run: claude plugin eval claude-plugin --trust-plugin --allow-tools Bash Write Edit --runs 1 --ablation none --no-publish --max-cost-usd 10 --json results.json
+      - run: claude plugin eval claude-plugin --trust-plugin --scaffold --allow-tools Bash Write Edit --runs 1 --ablation none --no-publish --max-cost-usd 10 --json results.json
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       - uses: actions/upload-artifact@v4

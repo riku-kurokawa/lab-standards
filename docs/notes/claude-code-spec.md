@@ -67,6 +67,12 @@
   `tags`, `runs`, `env`）+ `graders/<name>.md`（frontmatter `type: llm | regex | tool_used | tool_order |
   file_exists | baseline`, `weight`, `arm`）+ 任意の `case.yaml`（`schema_version: "1.1"`, `name`,
   `context.scaffold_script`, `context.add_dirs`, `context.history_file`）。`results/` は生成物（.gitignore）。
+- `context.scaffold_script` は "A Bash script in the case directory"（ケースディレクトリ内）。`--scaffold` を付けたときだけ、
+  空の作業ディレクトリで Claude の前に実行される（HOME は run 用の一時ディレクトリ）。120 秒超・非ゼロ終了で `scaffold failed`。
+- `allowed_tools` で付与できるのは読み取り系（Read, Glob, Grep, NotebookRead, Skill, AskUserQuestion, Agent, TodoWrite, Task*）だけ。
+  Bash / Write / Edit / WebFetch / WebSearch は `--allow-tools` で付与しないとセッションから外される。
+- grader: `tool_used`（`tool`, `input_match`, `min`, `max`）、`file_exists`（`path` glob, `exists`。"Only files created during the run count"）、
+  `regex`（`pattern`, `flags`, `match`, `target`）、`llm`（本文が基準）、`tool_order`、`baseline`。
 - 実行: `claude plugin eval <plugin-dir> [--case <glob>] [--runs N] [--ablation none|with-without]
   [--allow-tools Bash Write Edit ...] [--threshold 0..1] [--max-cost-usd N] [--json path] [--trust-plugin]`。
   既定は各ケース 3 回 × with/without の 2 腕。Bash/Write/Edit は `--allow-tools` で明示しないと使えない。

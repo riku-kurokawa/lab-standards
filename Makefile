@@ -22,5 +22,5 @@ validate:
 CASE ?=
 MAX_USD ?= 10
 eval:
-	claude plugin eval claude-plugin --trust-plugin --allow-tools Bash Write Edit --runs 1 --ablation none \
+	claude plugin eval claude-plugin --trust-plugin --scaffold --allow-tools Bash Write Edit --runs 1 --ablation none \
 	  --max-cost-usd $(MAX_USD) $(if $(CASE),--case $(CASE),)
