@@ -581,3 +581,13 @@
   監査が実測: HDF5.jl 0.17.4 で `attrs(g[k])` は `g[k] = arr` 直後に使える、N 次元も `_from_c` 後に変換されるので正しい。
 - 結論: 採用。
 - 規模: io.py +7 行、io.jl +8 行、テスト 3 スイートに追加。labkit 65 / LabKit.jl 16 passed。
+
+### 64. 2026-11-01 — 人間が読む CLI 出力の見直し
+- 観点: 人間がレビューしやすいか。生成プロジェクトに run・承認待ち 2 件・質問 1 件・進行中の flow を作り、`runs list/show`、`queue list`、`flow status`、
+  `check`、`standards status`、`presence status`、`fig list` を実際に読んだ。
+- 発見: いずれも 1 画面で状況が分かり、次の操作（approve の ID、advance の条件、unlink の手順）が書かれている。唯一、`standards status` の
+  「本体の手元」だけ Windows の `\` 区切りで、同じ画面の link 先（`/`）と混在していた。
+- 提案: 表示を `/` に揃える（1 行）。`runs show` が meta.json をそのまま出すのは機械可読を優先した設計で据え置き。
+- 監査: 1 行の表示修正のため独立監査は省略（判断の余地なし）。labkit 65 passed。
+- 結論: 採用。
+- 規模: standards.py ±1 行。

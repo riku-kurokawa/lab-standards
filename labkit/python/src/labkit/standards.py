@@ -210,7 +210,7 @@ def describe(st: Status) -> str:
     ]
     try:
         dev = dev_checkout(None)
-        lines.append(f"本体の手元    : {dev}（最新タグ {latest_local_tag(dev) or '-'}）")
+        lines.append(f"本体の手元    : {dev.as_posix()}（最新タグ {latest_local_tag(dev) or '-'}）")
     except SystemExit:
         lines.append("本体の手元    : 未設定（LAB_STANDARDS_DEV か ~/dev/lab-standards）")
     if st.linked:
