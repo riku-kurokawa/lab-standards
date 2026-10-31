@@ -37,6 +37,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `icacls <run> /grant "%USERNAME%:(OI)(CI)F" /t` か Julia の `chmod(dir, 0o755; recursive=true)` で戻せる。
 
 ### 変更
+- hooks: 編集ごとの ruff（PostToolUse の自動整形と lint）を廃止し、終了時（Stop）に `ruff check` を 1 回だけ行う。
+  整形は commit 時の pre-commit と `make fmt` に任せる（編集直後の自動整形は次の Edit の old_string を外す原因だった）。
 - 雛形の pre-commit: ruff と nbstripout を `repo: local`（`uv run ...`）で動かし、uv.lock の版を使う（`make lint` と同じ ruff。
   ruff-pre-commit の版を別に管理しない）。pre-commit-hooks を v6.0.0 に。dev 依存の下限を ruff>=0.17, pre-commit>=3.2, nbstripout>=0.9 に。
   既存プロジェクトは `labkit standards template --ref v0.3.0` の後に `uv sync && uv run pre-commit install`（hook ID が ruff → ruff-check に変わる）。

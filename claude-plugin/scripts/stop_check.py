@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from _labcommon import find_root, labkit_cmd, load_lab, read_input
+from _labcommon import find_root, labkit_cmd, load_lab, read_input, tool_cmd
 from _labstate import pending_summary
 
 
@@ -73,6 +73,21 @@ def main() -> None:
             problems.append("`labkit check` の違反:\n" + (res.stdout + res.stderr).strip()[-3500:])
     else:
         problems.append("labkit が見つかりません。`uv sync` で環境を作ってください。")
+
+    # lint は編集ごとではなく、終了時に 1 回（整形は commit 時の pre-commit / make fmt に任せる）
+    ruff = tool_cmd(root, "ruff")
+    dirs = [d for d in ("src", "scripts", "tests") if (root / d).is_dir()]
+    if ruff and dirs:
+        r = subprocess.run(
+            [*ruff, "check", "--output-format", "concise", *dirs],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        if r.returncode != 0 and r.stdout.strip():
+            problems.append("`ruff check` の違反（`make fmt` で直るものは直す）:\n" + r.stdout.strip()[-2000:])
 
     if lab.get("claude", {}).get("require_devlog", True):
         changed = changed_code(root)

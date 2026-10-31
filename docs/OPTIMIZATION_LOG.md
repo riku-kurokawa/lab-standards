@@ -228,3 +228,12 @@
   手で往復させた結果は一致（row0 = [1,3,5]、check 違反なし）。
 - 結論: 採用。
 - 規模: テスト +35 行、CI +4 行、Makefile +3 行。文章だけだった規約 1 つが機械的検証に。
+
+### 23. 2026-11-01 — 編集ごとの ruff hook を廃止し、終了時に 1 回
+- 観点: 同じ lint が 3 層（編集ごとの PostToolUse hook、pre-commit、make lint）で走っていた。
+- 発見: 編集ごとの自動整形は、Claude が直後に行う Edit の old_string を外す原因になる（整形後の本文と食い違う）。
+  一方、自動修正できない違反（F821 未定義名、禁止 API）を Stop 前に捕まえる価値は残る。
+- 提案: post_edit.py と PostToolUse を削除し、Stop hook（既に labkit check を回す）で `ruff check` を 1 回。整形は pre-commit / make fmt。
+- 監査: 採用（move-to-Stop）。`make lint` を hook から呼ぶと make と Makefile に依存するので ruff を直接呼ぶ。
+- 結論: 採用。
+- 規模: −42 行 + 8 行。hook の数 5 → 4。ruff の実行回数は編集ごと → ターンごと。

@@ -109,7 +109,7 @@ def test_eval_fixtures_match_shared_script():
 
 
 def test_tool_cmd_finds_venv_on_both_layouts(tmp_path, monkeypatch):
-    """venv のツール探索は POSIX（.venv/bin）と Windows（.venv/Scripts/*.exe）の両方を見る（post_edit と labkit_cmd で共有）."""
+    """venv のツール探索は POSIX（.venv/bin）と Windows（.venv/Scripts/*.exe）の両方を見る（stop_check と labkit_cmd で共有）."""
     sys.path.insert(0, str(SCRIPTS))
     import shutil
 
@@ -126,3 +126,27 @@ def test_tool_cmd_finds_venv_on_both_layouts(tmp_path, monkeypatch):
     posix.write_text("")
     assert _labcommon.tool_cmd(tmp_path, "ruff") == [str(posix)]
     assert _labcommon.labkit_cmd(tmp_path) is None
+
+
+def test_stop_runs_ruff_once(proj, monkeypatch, tmp_path_factory):
+    """Stop hook は src/scripts/tests を ruff check し、自動修正できない違反（未定義名など）で止める."""
+    import datetime
+    import os
+
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path_factory.mktemp("plugin-data")))
+    (proj / "src" / "bad.py").write_text("def f():\n    return undefined_name\n")
+    (proj / "docs" / "devlog").mkdir(parents=True)
+    (proj / "docs" / "devlog" / f"{datetime.date.today()}.md").write_text("x")
+    # ruff は本体 labkit の venv のものを PATH 経由で使う（tool_cmd の PATH 探索）
+    venv = SCRIPTS.parents[1] / "labkit" / "python" / ".venv"
+    bindir = next(d for d in (venv / "Scripts", venv / "bin") if d.is_dir())
+    env = {**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+    res = subprocess.run(
+        [sys.executable, str(SCRIPTS / "stop_check.py")],
+        input=json.dumps({"cwd": str(proj), "session_id": "s9"}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+    )
+    assert res.returncode == 2 and "ruff check" in res.stderr and "F821" in res.stderr
