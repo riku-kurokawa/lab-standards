@@ -99,10 +99,6 @@ class Checker:
         w = where.relative_to(self.root).as_posix() if isinstance(where, Path) and where.is_absolute() else str(where)
         self.issues.append(Issue(code, w, msg, severity))
 
-    @property
-    def errors(self) -> list[Issue]:
-        return [i for i in self.issues if i.severity == "error"]
-
     def run(self) -> list[Issue]:
         for f in (
             self.layout,

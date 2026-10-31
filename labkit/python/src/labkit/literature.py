@@ -245,18 +245,17 @@ def build_index(root: Path, lab: dict) -> Path:
     return out
 
 
-def check_literature(root: Path, lab: dict) -> list[tuple[str, str, str]]:
+def check_literature(root: Path, lab: dict) -> list[tuple[str, Path, str]]:
     """(code, location, message) のリスト."""
-    issues: list[tuple[str, str, str]] = []
+    issues: list[tuple[str, Path, str]] = []  # 位置は絶対 Path のまま返す（Checker.add が / 区切りの相対に直す）
     d = lit_dir(root, lab)
     if not d.is_dir():
         return issues
-    rel = lambda p: str(p.relative_to(root))  # noqa: E731
     bibf = d / "references.bib"
     bib = parse_bib(bibf.read_text(encoding="utf-8")) if bibf.exists() else {}
     for k in bib:
         if not KEY_RE.match(k):
-            issues.append(("L040", rel(bibf), f"citekey {k} が規約（小文字の姓+年+語）に合いません"))
+            issues.append(("L040", bibf, f"citekey {k} が規約（小文字の姓+年+語）に合いません"))
     vocab = load_tags(root, lab)
     notes = d / "notes"
     if notes.is_dir():
@@ -265,40 +264,40 @@ def check_literature(root: Path, lab: dict) -> list[tuple[str, str, str]]:
                 continue
             fm, _ = read_frontmatter(n)
             if fm is None:
-                issues.append(("L041", rel(n), "YAML frontmatter がありません"))
+                issues.append(("L041", n, "YAML frontmatter がありません"))
                 continue
             if n.stem not in bib:
-                issues.append(("L042", rel(n), f"{n.stem} が references.bib にありません"))
+                issues.append(("L042", n, f"{n.stem} が references.bib にありません"))
             if fm.get("citekey") != n.stem:
-                issues.append(("L041", rel(n), "frontmatter の citekey とファイル名が一致しません"))
+                issues.append(("L041", n, "frontmatter の citekey とファイル名が一致しません"))
             if fm.get("status") not in STATUS:
-                issues.append(("L041", rel(n), f"status は {sorted(STATUS)} のいずれか"))
+                issues.append(("L041", n, f"status は {sorted(STATUS)} のいずれか"))
             for t in fm.get("tags", []) or []:
                 if vocab and t not in vocab:
-                    issues.append(("L043", rel(n), f"タグ {t!r} が tags.toml にありません"))
+                    issues.append(("L043", n, f"タグ {t!r} が tags.toml にありません"))
     pdfdir = root / lab["literature"]["pdf_dir"]
     if pdfdir.is_dir():
         for p in sorted(pdfdir.iterdir()):
             if p.name.startswith(".") or p.name == ".gitkeep":
                 continue
             if p.suffix.lower() != ".pdf" or p.stem not in bib:
-                issues.append(("L044", rel(p), "PDF は <references.bib の citekey>.pdf という名前にする"))
+                issues.append(("L044", p, "PDF は <references.bib の citekey>.pdf という名前にする"))
     surveys = d / "surveys"
     if surveys.is_dir():
         for s in sorted(surveys.glob("*.md")):
             if s.name.startswith("_"):
                 continue
             if not re.match(r"^\d{4}-\d{2}-\d{2}_[a-z0-9-]+\.md$", s.name):
-                issues.append(("L045", rel(s), "サーベイは YYYY-MM-DD_<slug>.md（slug は小文字英数とハイフン）"))
+                issues.append(("L045", s, "サーベイは YYYY-MM-DD_<slug>.md（slug は小文字英数とハイフン）"))
             fm, body = read_frontmatter(s)
             if fm is None:
-                issues.append(("L045", rel(s), "YAML frontmatter がありません"))
+                issues.append(("L045", s, "YAML frontmatter がありません"))
                 continue
             for req in ("date", "question", "search"):
                 if req not in fm:
-                    issues.append(("L045", rel(s), f"frontmatter に {req} がありません"))
+                    issues.append(("L045", s, f"frontmatter に {req} がありません"))
             for m in CITE_RE.finditer(body):
                 key = next(g for g in m.groups() if g)
                 if KEY_RE.match(key) and key not in bib:
-                    issues.append(("L046", rel(s), f"引用 @{key} が references.bib にありません"))
+                    issues.append(("L046", s, f"引用 @{key} が references.bib にありません"))
     return issues

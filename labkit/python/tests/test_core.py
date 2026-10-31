@@ -97,6 +97,7 @@ def test_literature(project):
     s.write_text('---\ndate: 2026-10-30\nquestion: "q"\nsearch: {}\n---\n見た [@muller2023fast] と [@ghost2020x]\n')
     codes = [i for i in run_check()[0] if i.code.startswith("L04")]
     assert [i.code for i in codes] == ["L046"], codes
+    assert all("\\" not in i.where for i in codes), codes  # 位置は literature/surveys/... の / 区切り
 
 
 def test_check_paths_are_posix_and_ok_dirs_apply(project):

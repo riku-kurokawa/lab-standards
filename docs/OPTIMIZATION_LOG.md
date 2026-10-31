@@ -464,3 +464,15 @@
 - 監査: 提案自体が独立のエージェントによる読み合わせ。私が該当箇所を読んで包含関係を確認。hooks 91 passed、挙動の差なし。
 - 結論: 採用。
 - 規模: _labgate.py −19 行。
+
+### 52. 2026-11-01 — check / literature / flow の重複と未使用を削除
+- 観点: サイクル 51 と同じ読み合わせを、check.py + literature.py と flow.py + state.py + _labstate.py に対して 2 つの独立エージェントで並行。
+- 発見: (1) `Checker.errors` プロパティは参照ゼロ（cli / flow は同じフィルタを行内で書く）。(2) `check_literature` は位置を OS 区切りの str で
+  返していた（サイクル 33 の「位置は / 区切り」から漏れていた唯一の箇所。Windows で `literature\surveys\...` と出る）。
+  (3) `flow.active_flows` は `_labstate.active_flows` の行単位の写し（_labstate 側は OSError も握る分だけ安全）。
+  それ以外（CONDITIONS 16 種、EXPENSIVE、DEFAULTS["check"] の全キー、pending_summary の 5 キー、L032/L033 の関係）はすべて現役。
+- 提案: (1) 削除、(2) 絶対 Path のまま返して `Checker.add` に正規化させる（lambda 削除）、(3) flow から `state.active_flows` を再公開。
+  見送り: root 直下の L015（L001 と重複するが `layout.allowed` に図を加えた利用者への警告が消える＝弱化）、`flow._git` の統合（timeout が増える挙動変更）。
+- 監査: 提案は独立エージェント 2 体。私が各箇所を読んで確認。テストに literature の位置に `\` が無いことを追加。labkit 60 / hooks 91 passed。
+- 結論: 採用。
+- 規模: −33 行 +15 行（check.py −4、literature.py −1 と型注釈、flow.py −13、テスト +1）。

@@ -22,6 +22,7 @@ from pathlib import Path
 from labkit import state
 from labkit._util import now_iso, write_json_atomic
 from labkit.config import load_lab
+from labkit.state import active_flows  # noqa: F401  （cli が flow.active_flows として参照。実体は _labstate）
 
 ADVANCE_COMMAND = "labkit flow advance {name}"
 
@@ -55,21 +56,6 @@ def load_state(root: Path, name: str) -> dict | None:
 
 def save_state(root: Path, st: dict) -> None:
     write_json_atomic(_state_path(root, st["flow"]), st)
-
-
-def active_flows(root: Path) -> list[dict]:
-    d = root / state.LAB_DIR / "flows"
-    if not d.is_dir():
-        return []
-    out = []
-    for p in sorted(d.glob("*.json")):
-        try:
-            st = json.loads(p.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            continue
-        if st.get("status") == "active":
-            out.append(st)
-    return out
 
 
 def stage_def(st: dict, name: str | None = None) -> dict:
