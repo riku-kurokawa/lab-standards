@@ -30,6 +30,7 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md を改訂。plugin の skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- 雛形の `.claude/settings.json` の `env` に `PYTHONUTF8=1`（Windows で自作スクリプトの出力や他ツールも UTF-8 に揃える。SETUP.md に端末側の設定も記載）。
 - `labkit` CLI の出力を UTF-8 に固定（hooks と同じ）。cp932 既定の Windows でパイプ越し（Claude Code の Bash、Stop hook、Julia の `cite`）に日本語が文字化けしていた。
 - Windows（PYTHONUTF8 無し、既定 cp932）で、日本語を含む meta.json / サイドカー / devlog の読み書きや hooks の出力が壊れうる箇所を修正:
   すべてのテキスト入出力と子プロセスの復号に `encoding="utf-8"` を明示。hooks の UTF-8 固定を python 版の検査より前に。新しいテストが違反を機械的に検出する。

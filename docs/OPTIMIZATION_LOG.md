@@ -557,3 +557,13 @@
 - 監査: 採用。capsys との相互作用なし（CaptureIO も TextIOWrapper）。Julia / release.py に変更不要。
 - 結論: 採用。
 - 規模: cli.py +8 行、テスト +12 行。labkit 64 passed。
+
+### 60. 2026-11-01 — 雛形の settings.json に `PYTHONUTF8=1`
+- 観点: サイクル 58–59 の残り。labkit と hooks は自分の入出力を固定したが、利用者のスクリプト（`Run.log` の print、自作の print）や他ツールは
+  cp932 のまま。ライブラリが stdio を触るのは筋が悪い。
+- 提案: 雛形の `.claude/settings.json` の `env` に `PYTHONUTF8=1`（既に MLflow の 2 変数を同じ仕組みで置いている）。公式ドキュメント（settings-reference、
+  env-vars）で確認: `env` は「every session and the subprocesses Claude Code starts」に効き、プロジェクトの settings.json に置ける（フォルダを
+  信頼した後に有効、シェルの同名変数を上書き）。SETUP.md に Windows の端末側の設定（ユーザー環境変数）も記載。
+- 監査: 仕様の確認を独立エージェントに依頼（上記）。変更は 1 行 + 文書で、JSON の妥当性を確認。
+- 結論: 採用。
+- 規模: settings.json.jinja +1 行、SETUP.md +7 行、CHANGELOG +1 行。

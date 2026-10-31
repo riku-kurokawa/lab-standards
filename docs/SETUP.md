@@ -26,6 +26,14 @@ make --version                                      # GNU make（雛形・本体
 echo 'export MLFLOW_DISABLE_TELEMETRY=true DO_NOT_TRACK=true' >> ~/.zshrc
 ```
 
+Windows ネイティブでは Python の既定の文字コードがコンソールのコードページ（cp932）になる。labkit と hooks は自分の入出力を UTF-8 に固定しているが、
+自作スクリプトの print や他ツールも含めて揃えるには `PYTHONUTF8=1` を置く。雛形の `.claude/settings.json` の `env` に入っているので Claude Code の
+セッション内は既定で有効。自分の端末でも使うなら、ユーザー環境変数にも設定する:
+
+```powershell
+[Environment]::SetEnvironmentVariable('PYTHONUTF8', '1', 'User')   # 新しい端末から有効
+```
+
 ## 1. 本体を手元に置く
 
 ```bash
