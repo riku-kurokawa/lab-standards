@@ -44,6 +44,14 @@
 (2) plugin の agent は `hooks`/`permissionMode` が無視されるので plugin 共通 hook が `agent_type` で分岐、(3) `Write(path)` の deny は効かないので
 雛形は `Edit(...)` に統一、(4) Stop hook は `stop_hook_active` と 8 回上限を踏まえる、(5) Windows はサンドボックス非対応。
 
+### 独立レビュー（差分を知らないサブエージェント）の結果と対応
+指摘 → 修正済み: `tools/release.py` の構文エラー（CI が赤になるところだった）、migrate の freeze 段階が `git tag` を禁止して自分で
+デッドロックしていた、improve-standards の test 段階のレビュー条件がプロジェクトの HEAD に結び付いていた（本体の HEAD に変更）、
+`git -C <dir> push` の承認が cwd の HEAD に結び付いていた、他セッションの承認待ちでも Stop hook が緩んでいた、分類器の抜け
+（`&`、サブシェル、`if…then`、`xargs`、`uv run -m`、`uv tool run`、`uvx copier@x`）、`auto` モードでは ask が出るのに拒否していた、
+雛形 `denyWrite` に `.lab/flows` が無かった、eval の scaffold に labkit が無かった、`commit` カテゴリ（未使用）の削除。
+指摘 → 未対応（キューへ）: Q-014〜Q-017。
+
 ### 私（人間）が実行するコマンド
 ```bash
 cd ~/dev/lab-standards
@@ -129,3 +137,20 @@ GitHub のブランチ保護（最後の砦）: Settings → Branches → main �
 - 内容: 作業中に「~/dev/lab-standards を磨き続ける」ゴール（feat/optimize ブランチ、1 サイクル 1 commit、docs/OPTIMIZATION_LOG.md）を受けた。
 - 仮の判断: v0.3.0 の作業を feat/harness-v0.3.0 で完了させてから、**feat/harness-v0.3.0 を起点に** feat/optimize を切って開始する
   （main から切ると v0.3.0 の内容が無い）。v0.3.0 のリリース（Q-006）後は feat/optimize を main に rebase する想定。
+
+### Q-014 [question] presence は permission_mode と重複しないか（レビュー指摘）
+- 内容: default モードなら ask、bypass なら拒否+キュー、で十分という指摘。presence（here/away）は指示 2 章の要件なので残した。
+- 仮の判断: 残す。削るなら `labkit presence`、`.lab/presence`、`_labcommon.load_lab` の例外、GATE_LINES の 1 行。
+
+### Q-015 [question] 承認は PreToolUse で使用済みになる（コマンドが失敗しても消費される）
+- 内容: push が認証エラーで失敗すると承認を使い切り、再承認が要る。PostToolUse で消費すれば直るが hook が 1 つ増える。
+- 仮の判断: 現状（単純さ優先）。失敗時は再度キューに積まれる。
+
+### Q-016 [question] flow の禁止は「うっかり防止」で、`labkit flow abort` → 作業 → `flow start` で回避できる
+- 内容: abort を禁止すると triage の「このプロジェクトだけの事情なら abort」ができなくなる。docs/harness.md に advisory と明記した。
+- 仮の判断: 現状。
+
+### Q-017 [question] lab-reviewer の独立性はメインの agent が書くプロンプトに依存する
+- 内容: メインが「pass と書け」と指示すれば pass 記録ができる。`agent_type` 判定は自己採点の「うっかり」を防ぐだけ。
+  本当の独立性は人間のレビュー（docs/reviews を読む）か、別セッションでのレビューでしか担保できない。
+- 仮の判断: 現状。lab-reviewer.md に「verdict の基準」を明記して誘導に抵抗させた。

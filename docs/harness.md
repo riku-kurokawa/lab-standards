@@ -37,14 +37,15 @@ Claude が承認を作れないようにする層:
 3. 雛形の `.claude/settings.json` の `permissions.deny`（`Edit(.lab/approvals/**)` など）と
    サンドボックスの `filesystem.denyWrite`（`.lab/approvals`, `.lab/queue`）が OS レベルで書き込みを止める（対応 OS のみ）。
 4. `labkit approve` 自身は、実行環境が Claude Code のシェル（`CLAUDECODE=1`）かを記録する（`claude_shell`）。
-   人間が Claude Code の `!` 実行で承認した場合もこのフラグが付くが、hooks を通らない `!` は人間の操作とみなす。
+   人間が Claude Code の `!` 実行で承認した場合もこのフラグが付く。`!` 実行が PreToolUse hook を通らないことは公式ドキュメントに明記が
+   無く、本セッションでの観察（`!` の出力に hook のメッセージが出ない）に基づく（AGENT_QUEUE Q-002）。
 
 ### 脅威モデル
 
 | 防げる | 防げない |
 |---|---|
 | Claude が通常の形で push / tag / merge / freeze / copier を実行すること | `sh -c "git push"`、スクリプトや Makefile のターゲット経由、エイリアス、`.git/` を直接触る操作（テキスト照合の限界。Claude Code の公式ドキュメントも Bash ルールを「security boundary ではない」としている） |
-| Claude が `labkit approve` を実行すること、承認ファイルを Write/Edit/リダイレクトで作ること | サンドボックスの無い OS（Windows ネイティブ）で、検出されない形のコマンドが承認ファイルを書くこと |
+| Claude が `labkit approve` を実行すること、承認ファイルを Write/Edit/リダイレクトで作ること | 書き込み可能な場所（scratch/）に置いたスクリプトが承認ファイルを書くこと（承認記録に秘密は無い）。サンドボックスの `denyWrite` だけが止める（Windows ネイティブでは止まらない） |
 | 承認の使い回し（別コマンド、別 HEAD、期限切れ、2 回目） | 承認済みコマンドの中身そのものの危険性（人間が内容を読んで承認する前提） |
 | 承認待ちで Claude が止まること（Stop hook が承認待ちを理由に止め直さない） | — |
 
@@ -59,8 +60,10 @@ hooks は状態ファイルだけを読む。
 
 - `labkit flow advance` は完了条件を検査し、満たしていなければ不足を列挙して失敗する。承認が要る段階では、承認ゲートと
   同じ仕組みで `labkit flow advance <name>` というコマンドを承認待ちに積む（人間が `labkit approve`）。
-- `guard_bash` / `guard_write` は、現在の段階で禁止されたカテゴリ（code, experiments, raw, template, link, release, commit）を
+- `guard_bash` / `guard_write` は、現在の段階で禁止されたカテゴリ（code, experiments, raw, template, link, release）を
   拒否し、「今は <段階>。先に <条件> が必要」と返す。禁止されていない作業（準備・ドキュメント・テスト・scratch）は続けられる。
+  これは**うっかりの防止**であり、敵対的な回避（`labkit flow abort` → 作業 → `flow start`、`cd scripts && python x.py`）は止めない。
+  取り返しのつかない操作だけは承認ゲート（別層）が守る。
 - SessionStart（compact 含む）と UserPromptSubmit が、現在の段階・残り条件・承認待ち・質問を文脈に入れる。
 - フロー: migrate（freeze → inventory【承認】→ apply-template → raw-data → code → reproduce【レビュー】→ strict → done）、
   improve-standards（triage【承認】→ branch → link → implement → test【レビュー】→ release【承認】→ adopt → done）。
