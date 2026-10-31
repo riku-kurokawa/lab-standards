@@ -24,6 +24,8 @@
 | README と雛形 CLAUDE.md を通読して矛盾を直す | README に削除済み手順番号「⑥」と旧 link 条件が残っていたので修正（docs commit）。雛形 CLAUDE.md は現状と一致 | 2026-11-01 |
 | 文献管理（lit add --pdf / survey / index / L04x）の Windows 対応を直す | 実測: 生成プロジェクトで一連の操作が正常（citekey 生成、PDF の移動、INDEX 生成、check 違反なし）| 2026-11-01 |
 | 雛形コードが推移的依存（labkit 経由の numpy/scipy）に頼っていないか | pyproject.toml.jinja は numpy と scipy を明示。問題なし | 2026-11-01 |
+| skills の説明文（Claude の選択基準）の重複・曖昧さを直す | 11 件を読み合わせ、対象と場面が互いに重ならない。変更なし | 2026-11-01 |
+| CLI の help 文言をサブコマンド削除後に見直す | queue / flow / approve / review / cite / presence の help は現状と一致。変更なし | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
 | Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
