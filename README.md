@@ -48,27 +48,19 @@ lab-standards/
 
 ---
 
-## 初期設定（1 回だけ）
+## 初期設定（別の PC で 1 回）
 
-手順の詳細は `docs/SETUP.md`。要点:
+1. `git clone` で本体を `~/dev/lab-standards` に置く（別の場所なら `LAB_STANDARDS_DEV`）。
+2. git・gh（`gh auth login` + `gh auth setup-git`）・uv・copier・Julia を入れる。
+3. Claude Code で `/plugin marketplace add ~/dev/lab-standards` → `/plugin install lab-rules@lab-standards`
+   （他の PC では `/plugin marketplace add riku-kurokawa/lab-standards`）。
 
-1. この repo を **`~/dev/lab-standards`** に置く（ここが本体を編集する唯一の場所になる）。
-2. `copier.yml` の `YOUR_GITHUB` を自分の GitHub ユーザー名に書き換える。
-3. `git init` → commit → **`git tag v0.2.0`** → GitHub に非公開リポジトリを作って push（タグも）。
-4. uv・copier・Julia を入れる。
-5. Claude Code で、自分の PC では**手元のパス**から plugin を登録する（本体の hooks・skills の編集がすぐ効く）:
-   ```
-   /plugin marketplace add ~/dev/lab-standards
-   /plugin install lab-rules@lab-standards
-   ```
-   他の PC では `/plugin marketplace add <you>/lab-standards`（GitHub から）。
-
-plugin は `lab.toml` があるディレクトリでのみ動作し、他のプロジェクトでは何もしない。
+詳細は `docs/SETUP.md`。plugin は `lab.toml` があるプロジェクトと本体でだけ動く。
 
 ## 新しいプロジェクトを作る
 
 ```bash
-copier copy gh:<you>/lab-standards ~/research/myproj
+copier copy gh:riku-kurokawa/lab-standards ~/research/myproj
 cd ~/research/myproj
 git init && git add -A && git commit -m "init from lab-standards"
 uv sync

@@ -257,3 +257,13 @@
   `cite` は Python CLI 依存なので Julia テストからは除外（往復テストが代替）。
 - 結論: 採用。
 - 規模: Julia テスト +7 行、Python テスト +5 行。
+
+### 26. 2026-11-01 — SETUP.md を「初回公開の台本」から「別の PC / 新規プロジェクトの手順」に
+- 観点: 新しい PC でこの文書を読む人。SETUP.md の 1〜4 節と末尾のエージェント用プロンプトは v0.2.0 の初回公開（zip 展開、
+  YOUR_GITHUB 置換、git init、tag v0.2.0、gh repo create）で、既に実行済み。再実行すると害がある（copier.yml の既定値は設定済み）。
+- 提案: 0 前提ツール / 1 clone / 2 plugin 登録 / 3 承認ゲート / 4 動作確認（README へのポインタ + standards status）に絞る。
+  README の初期設定も 3 行にして SETUP へ誘導。リリース手順は CLAUDE.md のみ。
+- 監査: 採用。残すべきは `~/dev/lab-standards` の正規位置と `LAB_STANDARDS_DEV`、`gh auth setup-git`。エージェント用プロンプトは
+  git 履歴で再現でき、フォークには別の文言が必要なので削除。Julia UUID 等の v0.2.0 事前注意はテストが通った今は不要。
+- 結論: 採用。
+- 規模: SETUP.md 164 → 72 行、README −8 行。版固有のコマンドが文書から消えた。
