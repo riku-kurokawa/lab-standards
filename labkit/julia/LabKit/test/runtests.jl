@@ -26,6 +26,12 @@ using Test, LabKit, DataFrames, JSON3
             p2 = writer(datapath("interim", "big.bin"); fmt="raw") do tmp; write(tmp, "xyz"); end
             @test read(p2, String) == "xyz" && load_meta(p2)["format"] == "raw"
             @test meta["status"] == "finished" && meta["language"] == "julia"
+            # JSON の数値は Python と同じ型で書く（2.0 を 2 にしない）
+            @test occursin(r"\"duration_s\": \d+\.\d+", read(joinpath(run.dir, "meta.json"), String))
+            pj = LabKit.write_json_atomic(joinpath(dir, "j.json"), Dict("f" => 2.0, "i" => 2, "e" => Dict(), "s" => "a\"{b"))
+            txt = read(pj, String)
+            @test occursin("\"f\": 2.0", txt) && occursin("\"i\": 2,", txt) && occursin("\"e\": {}", txt)
+            @test JSON3.read(txt, Dict{String,Any})["s"] == "a\"{b"
             d = load(joinpath(run.dir, "a.h5"); verify=true)
             @test d["x"] == x && length(d["v"]) == 2000
             @test load_meta(joinpath(run.dir, "a.h5"))["attrs"]["fs"] == 100.0

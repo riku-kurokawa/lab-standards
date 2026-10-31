@@ -307,3 +307,14 @@
   copier update が base.toml に 1 行足すだけ。
 - 結論: 採用。
 - 規模: base.toml +1 行、Julia モジュール +7 行、テスト +2 行、スクリプト ±0。直書きの数値 5 個が 0 に。
+
+### 32. 2026-11-01 — Julia が書く JSON で 2.0 が 2 になっていた
+- 観点: Julia の run から図を作る（初めて）。図は 3 枚とも出たが、サイドカーの `fs` が Julia では `1000`、Python では `1000.0`。
+- 原因: `JSON3.pretty` は文字列を読み直して整数化できる浮動小数を Int にする（JSON3 1.14.4 の read.jl、`numbertype=nothing`）。
+  オブジェクトを直接渡しても内部で同じ経路。`numbertype=Float64` は逆に整数を 5.0 にする。標準ライブラリ JSON は無い。
+- 提案: `JSON3.write` の出力を再パースせずに字下げする 30 行の関数に置き換える（一行 JSON は人間と git diff の可読性を落とすので不採用）。
+  meta.json / metrics.json / サイドカーすべてが `write_json_atomic` を通るので 1 か所の修正で済む。
+- 監査: 採用（上記は監査がソースで確認）。Julia 側のテキスト検査と、往復テストに「2.0 が Python で float になる」assert を追加。
+  既存の Julia 製 run のディスク上の `2` はそのまま（読む側は数値比較なので実害なし）。
+- 結論: 採用。
+- 規模: util.jl +30 行、テスト +9 行。対称性の実害 1 件を解消。

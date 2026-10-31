@@ -30,6 +30,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- LabKit.jl の JSON 書き出し（meta.json / metrics.json / サイドカー）で `2.0` が `2` になっていた（JSON3.pretty が数値を
+  読み直して整数化する）。再パースしない字下げに置き換え、Python の json.dumps と同じ型・同じ形で書く。
 - `labkit flow`: lab.toml が無いディレクトリでも git の最上位を root として動く（migrate の freeze / inventory は雛形適用前に行うため）。
   他のコマンドは従来どおり lab.toml を要求する。
 - LabKit.jl `freeze_run`: Windows ではディレクトリの chmod を省く。Julia の chmod は削除権限の無い ACL を書き、完了した run を

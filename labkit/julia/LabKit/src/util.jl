@@ -26,11 +26,51 @@ end
 tmp_sibling(path::AbstractString) =
     joinpath(dirname(path), ".$(basename(path)).tmp-$(getpid())-$(randstring(6))")
 
+"""JSON3.write の出力を再パースせずに字下げする。
+JSON3.pretty は数値を読み直して 2.0 を 2 にしてしまい、Python（json.dumps）が書く meta.json / サイドカーと型が食い違う。
+出力は Python の `json.dumps(indent=2, ensure_ascii=False)` と同じ形。"""
+function write_json_pretty(io::IO, obj; indent::Int=2)
+    s = codeunits(JSON3.write(obj))
+    level, instr, esc, i = 0, false, false, 1
+    nl() = print(io, '\n', ' '^(indent * level))
+    while i <= length(s)
+        c = Char(s[i])
+        if instr
+            write(io, s[i])
+            esc ? (esc = false) : c == '\\' ? (esc = true) : c == '"' && (instr = false)
+        elseif c == '"'
+            instr = true
+            write(io, s[i])
+        elseif c == '{' || c == '['
+            write(io, s[i])
+            if s[i + 1] == UInt8(c == '{' ? '}' : ']')   # 空の {} / [] は 1 行（Python と同じ）
+                write(io, s[i + 1])
+                i += 1
+            else
+                level += 1
+                nl()
+            end
+        elseif c == '}' || c == ']'
+            level -= 1
+            nl()
+            write(io, s[i])
+        elseif c == ','
+            write(io, s[i])
+            nl()
+        elseif c == ':'
+            print(io, ": ")
+        else
+            write(io, s[i])
+        end
+        i += 1
+    end
+end
+
 function write_json_atomic(path::AbstractString, obj)
     mkpath(dirname(path))
     tmp = tmp_sibling(path)
     open(tmp, "w") do io
-        JSON3.pretty(io, JSON3.write(obj))
+        write_json_pretty(io, obj)
         println(io)
     end
     mv(tmp, path; force=true)
