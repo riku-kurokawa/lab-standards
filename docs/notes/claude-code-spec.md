@@ -102,5 +102,5 @@
 | here モードでは常に `ask` | bypassPermissions/dontAsk での hook `ask` は未記述。dontAsk は「prompt するものは拒否」 | `permission_mode` が bypassPermissions / dontAsk / auto なら here でも拒否＋キュー（Q-001） |
 | lab-reviewer に専用 hook を付けて書き込みを制限 | plugin agent の `hooks` は無視される | plugin 共通の PreToolUse hook が `agent_type` で分岐 |
 | 雛形 settings.json の `Write(data/raw/**)` deny | `Write(path)` ルールは効かない | `Edit(...)` に統一（Edit の deny は Write も止める） |
-| Stop hook のループ防止を独自カウンタのみで | `stop_hook_active` と 8 回上限がある | `stop_hook_active` も見る。承認待ちが理由なら止め直さない |
+| Stop hook のループ防止を独自カウンタのみで | `stop_hook_active` と 8 回上限がある | 独自カウンタは Claude Code の 8 回上限より小さい既定（3 回）にし、承認待ちが理由なら止め直さない |
 | サンドボックスを全 OS で | Windows ネイティブは非対応 | Windows では hooks + chmod のみに劣化（docs/harness.md） |

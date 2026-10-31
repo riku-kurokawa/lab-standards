@@ -65,7 +65,8 @@ hooks は状態ファイルだけを読む。
   拒否し、「今は <段階>。先に <条件> が必要」と返す。禁止されていない作業（準備・ドキュメント・テスト・scratch）は続けられる。
   これは**うっかりの防止**であり、敵対的な回避（`labkit flow abort` → 作業 → `flow start`、`cd scripts && python x.py`）は止めない。
   取り返しのつかない操作だけは承認ゲート（別層）が守る。
-- SessionStart（compact 含む）と UserPromptSubmit が、現在の段階・残り条件・承認待ち・質問を文脈に入れる。
+- SessionStart（compact 含む）が現在の段階・残り条件・承認待ち・質問を文脈に入れる。UserPromptSubmit は人間の操作による差分
+  （承認済み・未実行、回答あり、却下）だけを添える。
 - フロー: migrate（freeze → inventory【承認】→ apply-template → raw-data → code → reproduce【レビュー】→ strict → done）、
   improve-standards（triage【承認】→ branch → implement → test【レビュー】→ release【承認】→ adopt → done。本体の labkit/ を変えたら link 必須）。
   improve-standards の状態は**プロジェクト側**に置く。本体側の push/tag/merge は本体ディレクトリの承認ゲートが守る。

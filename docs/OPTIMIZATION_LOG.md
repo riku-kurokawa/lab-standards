@@ -283,3 +283,9 @@
 - 結論: 採用。
 - 実装で判明: 未追跡のディレクトリを git は `jl/` とだけ報告するので、`--untracked-files=all` でファイル単位に見る必要があった。
 - 規模: stop_check.py +8 行、テスト +12 行。
+
+### 29. 2026-11-01 — 一連の作業後に git が見るもの（変更なし）
+- 観点: 生成プロジェクトで run・図・開発ログ・質問・flow 開始を行った後の `git status -uall`。
+- 観察: 見えるのは link による pyproject / jl/Project.toml の変更、開発ログ、`.lab/.gitignore` と `.lab/flows/`、uv.lock / Manifest.toml
+  （再現性のため追跡対象）だけ。runs/・data/・.lab/queue・presence は出ない。
+- 結論: 変更なし。
