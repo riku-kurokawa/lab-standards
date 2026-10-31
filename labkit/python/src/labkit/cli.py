@@ -25,14 +25,213 @@ def cmd_check(a) -> int:
         mode = "warn"
     if a.strict:
         mode = "strict"
+    errors = [i for i in issues if i.severity == "error"]
+    warns = [i for i in issues if i.severity != "error"]
     if a.json:
         print(json.dumps([vars(i) for i in issues], ensure_ascii=False, indent=2))
     else:
         for i in issues:
             print(i)
-        print(f"\nlabkit check: {len(issues)} 件の違反（mode={mode}{', full' if a.full else ''}）"
-              if issues else "labkit check: 違反なし ✓")
-    return 1 if issues and mode == "strict" else 0
+        if issues:
+            print(f"\nlabkit check: {len(errors)} 件の違反、{len(warns)} 件の警告（mode={mode}{', full' if a.full else ''}）")
+        else:
+            print("labkit check: 違反なし ✓")
+    return 1 if errors and mode == "strict" else 0
+
+
+# ---- v0.3.0 ハーネス: 在席状態・承認キュー・手順・引用・レビュー ----
+def _scope_root():
+    from labkit.state import find_scope
+
+    sc = find_scope()
+    if sc is None:
+        raise SystemExit("lab.toml のあるプロジェクトか lab-standards 本体の中で実行してください")
+    return sc[0]
+
+
+def _gate_conf(root) -> dict:
+    from labkit.config import DEFAULTS, load_lab
+
+    if (root / "lab.toml").is_file():
+        return load_lab(root)["gate"]
+    return dict(DEFAULTS["gate"])
+
+
+def cmd_presence(a) -> int:
+    from labkit import state
+
+    root = _scope_root()
+    if a.value == "status":
+        print(f"presence = {state.get_presence(root)}（既定 away。here: 確認画面を出す / away: 拒否してキューに積む）")
+    else:
+        print(f"presence = {state.set_presence(root, a.value)}")
+    return 0
+
+
+def _print_item(it: dict) -> None:
+    if it.get("kind") == "approval":
+        print(f"{it['id']}  [{it.get('status')}]  {it.get('command')}")
+        print(f"      cwd={it.get('cwd')} branch={it.get('branch')} head={(it.get('head') or '')[:7]} "
+              f"created={it.get('created')}")
+        if it.get("reason"):
+            print(f"      理由: {it['reason']}")
+    elif it.get("kind") == "question":
+        print(f"{it['id']}  [{it.get('status')}]  質問: {it.get('question')}")
+        if it.get("options"):
+            print(f"      選択肢: {' / '.join(it['options'])}")
+        print(f"      仮の判断: {it.get('assumed')}" + (f"（変更時の影響: {it['impact']}）" if it.get("impact") else ""))
+        if it.get("answer"):
+            print(f"      回答: {it['answer']}")
+    else:
+        print(f"{it.get('id')}  [{it.get('status')}]")
+
+
+def cmd_queue(a) -> int:
+    from labkit import state
+
+    root = _scope_root()
+    if a.action == "list":
+        items = state.list_queue(root)
+        if a.all is False:
+            items = [i for i in items if i.get("status") in ("pending", "approved", "open", "answered")]
+        if not items:
+            print("キューは空です")
+        for it in items:
+            _print_item(it)
+    elif a.action == "ask":
+        if not a.text or not a.assumed:
+            raise SystemExit("queue ask <質問> --assumed <仮の判断> [--options A B ...] [--impact ...]")
+        it = state.ask_question(root, a.text, options=a.options or [], assumed=a.assumed, impact=a.impact or "")
+        print(f"質問 #{it['id']} を積みました。仮の判断（{a.assumed}）で先に進んでください。人間: `labkit answer {it['id']} \"...\"`")
+    elif a.action == "done":
+        if not a.text:
+            raise SystemExit("queue done <ID>")
+        it = state.mark_done(root, a.text)
+        print(f"{it['id']} を done にしました")
+    elif a.action == "show":
+        if not a.text:
+            raise SystemExit("queue show <ID>")
+        print(json.dumps(state.get_item(root, a.text), ensure_ascii=False, indent=2))
+    return 0
+
+
+def _confirm_human(qid: str, yes: bool) -> dict:
+    from labkit import state
+
+    who = state.human_check(yes)
+    if who["tty"] and not yes:
+        try:
+            typed = input(f"承認する ID を再入力してください [{qid}]: ").strip()
+        except EOFError:  # isatty が真でも入力が無い環境（一部の Windows シェル）
+            typed = None
+        if typed is None:
+            raise SystemExit("入力を受け取れません。人間が実行していることを示すため --yes を付けてください")
+        if typed != qid:
+            raise SystemExit("ID が一致しません。中止")
+    elif not yes:
+        raise SystemExit("対話端末ではありません。人間が実行していることを示すため --yes を付けてください"
+                         "（Claude Code の `!` 実行からも可）")
+    return who
+
+
+def cmd_approve(a) -> int:
+    from labkit import state
+
+    root = _scope_root()
+    who = _confirm_human(a.id, a.yes)
+    rec = state.approve(root, a.id, ttl_hours=float(_gate_conf(root)["approval_ttl_hours"]), who=who)
+    print(f"承認しました: {rec['id']}  {rec['command']}\n  HEAD={(rec['head'] or '')[:7]}  期限={rec['expires_at']}  1 回限り")
+    if who["claude_shell"] and not who["tty"]:
+        print("  注意: Claude Code のシェル環境から承認しました（記録に claude_shell=true）")
+    return 0
+
+
+def cmd_reject(a) -> int:
+    from labkit import state
+
+    root = _scope_root()
+    _confirm_human(a.id, a.yes)
+    it = state.reject(root, a.id, note=a.note or "")
+    print(f"却下しました: {it['id']}")
+    return 0
+
+
+def cmd_answer(a) -> int:
+    from labkit import state
+
+    root = _scope_root()
+    it = state.answer_question(root, a.id, a.text)
+    print(f"回答を記録しました: {it['id']}（Claude は次のプロンプトで文脈に受け取り、取り込んだら `labkit queue done {it['id']}`）")
+    return 0
+
+
+def cmd_flow(a) -> int:
+    from labkit import flow
+    from labkit.config import find_root
+
+    root = find_root()
+    if a.action == "start":
+        if not a.name:
+            raise SystemExit(f"flow start <name>  （{', '.join(sorted(flow.definitions()))}）")
+        st = flow.start(root, a.name)
+        print(flow.describe(root, st))
+    elif a.action == "status":
+        flows = flow.active_flows(root)
+        if a.name:
+            st = flow.load_state(root, a.name)
+            flows = [st] if st else []
+        if not flows:
+            print("進行中の flow はありません（`labkit flow start migrate|improve-standards`）")
+        for st in flows:
+            print(flow.describe(root, st))
+    elif a.action == "advance":
+        names = [a.name] if a.name else [f["flow"] for f in flow.active_flows(root)]
+        if len(names) != 1:
+            raise SystemExit("flow advance <name>（進行中の flow が 1 つなら省略可）")
+        st, msg = flow.advance(root, names[0])
+        print(msg)
+        print(flow.describe(root, st))
+    elif a.action == "abort":
+        names = [a.name] if a.name else [f["flow"] for f in flow.active_flows(root)]
+        if len(names) != 1:
+            raise SystemExit("flow abort <name>")
+        flow.abort(root, names[0])
+        print(f"flow {names[0]} を中止しました")
+    elif a.action == "list":
+        for name, d in sorted(flow.definitions().items()):
+            print(f"{name}: {d.get('description', '')}")
+            print("  " + " → ".join(s["name"] + ("【承認】" if s.get("approval") else "") for s in d["stage"]))
+    return 0
+
+
+def cmd_cite(a) -> int:
+    from labkit.check import cite
+
+    print(cite(a.run_id, a.key, digits=a.digits, unit=a.unit or ""))
+    return 0
+
+
+def cmd_review(a) -> int:
+    from labkit import reviews, state
+    from labkit.config import find_root
+
+    root = find_root()
+    if a.action == "list":
+        rs = reviews.list_reviews(root)
+        if not rs:
+            print("レビュー記録はありません（docs/reviews/）")
+        for r in rs:
+            flag = "NG " if r.errors else "   "
+            print(f"{flag}{r.path.name}  {r.verdict:18s} commit={r.commit[:7]}  指摘 {len(r.findings)} 件")
+            for e in r.errors:
+                print(f"      書式違反: {e}")
+    elif a.action == "template":
+        if not a.flow or not a.stage:
+            raise SystemExit("review template --flow <flow> --stage <stage>")
+        head = state.git_head(root) or ""
+        print(f"# 保存先: {reviews.review_path(root, a.flow, a.stage).relative_to(root)}")
+        print(reviews.template(a.flow, a.stage, head), end="")
+    return 0
 
 
 def cmd_fig(a) -> int:
@@ -247,6 +446,54 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("paths", help="現在の LAB_ENV で解決されるパスを表示")
     s.set_defaults(func=cmd_paths)
+
+    # --- v0.3.0 ハーネス ---
+    s = sub.add_parser("presence", help="在席状態（here: 確認画面 / away: 拒否してキューへ。既定 away）")
+    s.add_argument("value", choices=["here", "away", "status"])
+    s.set_defaults(func=cmd_presence)
+
+    s = sub.add_parser("queue", help="承認待ち・質問のキュー（list / ask / done / show）")
+    s.add_argument("action", choices=["list", "ask", "done", "show"])
+    s.add_argument("text", nargs="?", help="ask: 質問文 / done, show: ID")
+    s.add_argument("--options", nargs="*", help="ask: 選択肢")
+    s.add_argument("--assumed", help="ask: 仮に採用した判断とその理由")
+    s.add_argument("--impact", help="ask: 後で変える場合の影響範囲")
+    s.add_argument("--all", action="store_true", help="list: 完了・却下済みも表示")
+    s.set_defaults(func=cmd_queue)
+
+    s = sub.add_parser("approve", help="承認（人間のみ。Claude の Bash からは hooks が拒否する）")
+    s.add_argument("id")
+    s.add_argument("--yes", action="store_true", help="対話端末でないときに人間の実行であることを明示")
+    s.set_defaults(func=cmd_approve)
+
+    s = sub.add_parser("reject", help="却下（人間のみ）")
+    s.add_argument("id")
+    s.add_argument("--note")
+    s.add_argument("--yes", action="store_true")
+    s.set_defaults(func=cmd_reject)
+
+    s = sub.add_parser("answer", help="質問に回答する（人間のみ）")
+    s.add_argument("id")
+    s.add_argument("text")
+    s.set_defaults(func=cmd_answer)
+
+    s = sub.add_parser("flow", help="手順の状態機械（start / status / advance / abort / list）")
+    s.add_argument("action", choices=["start", "status", "advance", "abort", "list"])
+    s.add_argument("name", nargs="?", help="migrate | improve-standards")
+    s.set_defaults(func=cmd_flow)
+
+    s = sub.add_parser("cite", help="run の指標を検証可能な書式で出す: 12.3 dB [run:<id>:<key>]")
+    s.add_argument("run_id")
+    s.add_argument("key")
+    s.add_argument("--digits", type=int, help="小数点以下の桁数")
+    s.add_argument("--unit", help="単位（例: dB）")
+    s.set_defaults(func=cmd_cite)
+
+    s = sub.add_parser("review", help="独立レビューの記録（list / template）")
+    s.add_argument("action", choices=["list", "template"])
+    s.add_argument("--flow")
+    s.add_argument("--stage")
+    s.set_defaults(func=cmd_review)
     return p
 
 

@@ -17,7 +17,7 @@ DEFAULTS: dict = {
             ".gitignore", ".gitattributes", ".pre-commit-config.yaml", ".copier-answers.yml",
             ".python-version", ".claude", ".git", ".venv", ".mlflow", ".pytest_cache",
             ".ruff_cache", "src", "scripts", "jl", "configs", "tests", "data", "runs",
-            "notebooks", "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "legacy",
+            "notebooks", "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "legacy", ".lab",
         ],
         "writable": [
             "src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs",
@@ -44,6 +44,8 @@ DEFAULTS: dict = {
         "figure_ok_dirs": ["docs/assets", "literature/pdfs", "literature/inbox", "scratch"],
         "data_ok_dirs": ["tests/fixtures", "scratch"],
         "skip": [],
+        # L033: run ID と同じ行にある書式なしの数値を警告する（"warn" | "off"）
+        "cite_bare_numbers": "warn",
     },
     "devlog": {
         "dir": "docs/devlog",
@@ -59,6 +61,12 @@ DEFAULTS: dict = {
     "runs": {"hash_inputs_max_gb": 2.0},
     "literature": {"dir": "literature", "pdf_dir": "literature/pdfs"},
     "claude": {"require_devlog": True, "max_stop_blocks": 3},
+    # 承認ゲート（claude-plugin の hooks と labkit flow / approve が読む）
+    "gate": {
+        "enabled": True,
+        "protected_branches": ["main", "master"],
+        "approval_ttl_hours": 24,
+    },
 }
 
 

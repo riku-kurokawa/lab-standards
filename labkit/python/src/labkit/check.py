@@ -11,6 +11,9 @@
     L020 run の meta.json が無い/スキーマ違反   L021 run が未完了（running のまま）
     L022 data/ の派生ファイルにサイドカーが無い/スキーマ違反
     L030 開発ログの書式違反                     L031 ADR の書式違反
+    L032 文書が引用する run ID が runs/ に無い（meta.json が無い）。failed/link の run の引用は警告
+    L033 run の数値の引用が `12.3 dB [run:<run_id>:<key>]` 書式でない／metrics.json と一致しない
+    L035 レビュー記録（docs/reviews/）の書式違反
     L050 lab-standards 本体を手元参照（link）したまま（commit 禁止）
     L040-L046 文献管理（literature.py 参照）
 """
@@ -38,9 +41,20 @@ class Issue:
     code: str
     where: str
     message: str
+    severity: str = "error"  # "error" | "warn"（warn は strict でも失敗にしない）
 
     def __str__(self) -> str:
-        return f"{self.code}  {self.where}  {self.message}"
+        tag = "  (warn)" if self.severity == "warn" else ""
+        return f"{self.code}{tag}  {self.where}  {self.message}"
+
+
+# run ID: YYYYMMDD-HHMMSS_<slug>_<commit7|nogit>_<hex4>（runs.make_run_id と同じ）
+RUN_ID_RE = re.compile(r"\b(\d{8}-\d{6}_[a-z0-9-]+_(?:[0-9a-f]{7}|nogit)_[0-9a-f]{4})\b")
+# 数値の引用: <数値> [<単位>] [run:<run_id>:<key>]（`labkit cite` が出力する書式）
+CITE_RE = re.compile(
+    r"(?P<num>[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*(?P<unit>[^\s\[\]\d][^\s\[\]]{0,11})?\s*"
+    r"\[run:(?P<run>[^:\]\s]+):(?P<key>[^\]\s]+)\]")
+NUMBER_RE = re.compile(r"(?<![\w./:-])[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?![\w./:-])")
 
 
 class Checker:
@@ -51,15 +65,20 @@ class Checker:
         self.issues: list[Issue] = []
         self.skip = set(self.lab["check"]["skip"]) | set(ignore or ())
 
-    def add(self, code: str, where: Path | str, msg: str) -> None:
+    def add(self, code: str, where: Path | str, msg: str, severity: str = "error") -> None:
         if code in self.skip:
             return
         w = str(where.relative_to(self.root)) if isinstance(where, Path) and where.is_absolute() else str(where)
-        self.issues.append(Issue(code, w, msg))
+        self.issues.append(Issue(code, w, msg, severity))
+
+    @property
+    def errors(self) -> list[Issue]:
+        return [i for i in self.issues if i.severity == "error"]
 
     def run(self) -> list[Issue]:
         for f in (self.layout, self.standards_link, self.rawdata, self.code_rules, self.stray_files,
-                  self.runs_meta, self.data_sidecars, self.devlog, self.adr, self.literature):
+                  self.runs_meta, self.data_sidecars, self.devlog, self.adr, self.reviews, self.citations,
+                  self.literature):
             try:
                 f()
             except Exception as e:  # チェッカー自身の失敗も報告する
@@ -68,7 +87,7 @@ class Checker:
 
     # ---- 構造 ----
     def layout(self) -> None:
-        allowed = set(self.lab["layout"]["allowed"])
+        allowed = set(self.lab["layout"]["allowed"]) | {".lab", "AGENT_QUEUE.md"}  # v0.3.0 ハーネスの状態
         for p in sorted(self.root.iterdir()):
             if p.name not in allowed:
                 self.add("L001", p, "トップレベルに置けません（lab.toml の layout.allowed 参照。一時ファイルは scratch/ へ）")
@@ -253,11 +272,141 @@ class Checker:
             if missing:
                 self.add("L031", p, f"必須見出しが不足: {missing}")
 
+    def reviews(self) -> None:
+        from labkit.reviews import REVIEW_DIR, list_reviews
+
+        if not (self.root / REVIEW_DIR).is_dir():
+            return
+        for r in list_reviews(self.root):
+            for e in r.errors:
+                self.add("L035", r.path, e)
+
+    # ---- 報告と実データの照合（L032 / L033） ----
+    def _doc_files(self):
+        from labkit.reviews import REVIEW_DIR
+
+        dirs = [self.lab["devlog"]["dir"], self.lab["adr"]["dir"], REVIEW_DIR,
+                str(Path(self.lab["literature"]["dir"]) / "surveys")]
+        for d in dirs:
+            base = self.root / d
+            if base.is_dir():
+                yield from sorted(p for p in base.glob("*.md") if p.name != "README.md")
+
+    def _run_index(self) -> dict[str, dict | None]:
+        """run_id -> meta（meta.json が無ければ None）."""
+        from labkit.paths import runs_root
+
+        base = runs_root(self.root)
+        out: dict[str, dict | None] = {}
+        if base.is_dir():
+            for d in base.iterdir():
+                if d.is_dir():
+                    mf = d / "meta.json"
+                    try:
+                        out[d.name] = json.loads(mf.read_text(encoding="utf-8")) if mf.is_file() else None
+                    except json.JSONDecodeError:
+                        out[d.name] = None
+        return out
+
+    def citations(self) -> None:
+        from labkit.paths import runs_root
+
+        runs = self._run_index()
+        bare = self.lab["check"].get("cite_bare_numbers", "warn")
+        cache: dict[str, dict] = {}
+
+        def metrics(run_id: str) -> dict:
+            if run_id not in cache:
+                mf = runs_root(self.root) / run_id / "metrics.json"
+                try:
+                    cache[run_id] = json.loads(mf.read_text(encoding="utf-8")) if mf.is_file() else {}
+                except json.JSONDecodeError:
+                    cache[run_id] = {}
+            return cache[run_id]
+
+        for p in self._doc_files():
+            text = p.read_text(encoding="utf-8", errors="replace")
+            for n, line in enumerate(text.splitlines(), 1):
+                where = f"{p.relative_to(self.root)}:{n}"
+                ids = set(RUN_ID_RE.findall(line))
+                for rid in ids:  # L032: 引用された run の存在と状態
+                    if rid not in runs:
+                        self.add("L032", where, f"run {rid} が runs/ にありません（HPC の run なら meta.json を同期する）")
+                    elif runs[rid] is None:
+                        self.add("L032", where, f"run {rid} に meta.json がありません")
+                    else:
+                        m = runs[rid]
+                        if m.get("status") in ("failed", "interrupted", "running"):
+                            self.add("L032", where, f"run {rid} は status={m.get('status')}（結果として引用しない）", "warn")
+                        if (m.get("labkit_source") or {}).get("mode") == "link":
+                            self.add("L032", where, f"run {rid} は link 中の labkit で実行（正式版の結果ではない）", "warn")
+                rest = line
+                for m in CITE_RE.finditer(line):  # L033: 数値の引用を metrics.json と照合
+                    rest = rest.replace(m.group(0), " ")
+                    rid, key, num = m.group("run"), m.group("key"), m.group("num")
+                    if rid not in runs or runs[rid] is None:
+                        continue  # L032 で報告済み
+                    vals = metrics(rid)
+                    if key not in vals:
+                        self.add("L033", where, f"run {rid} の metrics.json に {key} がありません")
+                    elif not num_matches(num, vals[key]):
+                        self.add("L033", where, f"{num} は run {rid} の {key}={vals[key]} と一致しません（表示桁で丸めて比較）")
+                if ids and bare != "off" and not line.lstrip().startswith("#"):
+                    for rid in ids:
+                        rest = rest.replace(rid, " ")
+                    rest = re.sub(r"\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?", " ", rest)  # 日付・時刻は除く
+                    if NUMBER_RE.search(rest):
+                        self.add("L033", where, "run ID と同じ行に書式のない数値があります。`labkit cite <run_id> <key>` の "
+                                 "`値 [run:<run_id>:<key>]` 書式で書く（lab.toml の check.cite_bare_numbers = \"off\" で無効化）",
+                                 "warn")
+
     def literature(self) -> None:
         from labkit.literature import check_literature
 
         for code, where, msg in check_literature(self.root, self.lab):
             self.add(code, where, msg)
+
+
+def num_matches(text: str, value) -> bool:
+    """表示されている桁数で丸めて一致するか（"12.3" と 12.34 → True、"12.30" と 12.34 → False）."""
+    try:
+        shown = float(text)
+        v = float(value)
+    except (TypeError, ValueError):
+        return False
+    mant = text.lower().split("e")[0]
+    digits = len(mant.split(".")[1]) if "." in mant else 0
+    if "e" in text.lower():
+        return float(format(v, f".{digits}e")) == shown
+    return round(v, digits) == shown
+
+
+def format_value(value, digits: int | None) -> str:
+    """`labkit cite` 用。digits 指定なら小数点以下をその桁に丸める。未指定は有効数字 4 桁."""
+    v = float(value)
+    if digits is not None:
+        return f"{v:.{digits}f}"
+    if v == 0:
+        return "0"
+    if 1e-3 <= abs(v) < 1e6:
+        s = f"{v:.4g}"
+        return s if "e" not in s else f"{v:.6f}".rstrip("0").rstrip(".")
+    return f"{v:.3e}"
+
+
+def cite(run_id: str, key: str, digits: int | None = None, unit: str = "", root: Path | None = None) -> str:
+    """run の指標を `値 [単位] [run:<run_id>:<key>]` 書式で返す（L033 が検証できる書式）."""
+    from labkit.runs import find_run
+
+    d = find_run(run_id, root)
+    mf = d / "metrics.json"
+    if not mf.is_file():
+        raise FileNotFoundError(f"{d.name} に metrics.json がありません（run 完了後に生成される）")
+    vals = json.loads(mf.read_text(encoding="utf-8"))
+    if key not in vals:
+        raise KeyError(f"{d.name} の metrics.json に {key} がありません。あるキー: {', '.join(sorted(vals))}")
+    shown = format_value(vals[key], digits)
+    return f"{shown}{(' ' + unit) if unit else ''} [run:{d.name}:{key}]"
 
 
 def run_check(full: bool = False, root: Path | None = None, ignore: set[str] | None = None) -> tuple[list[Issue], str]:
