@@ -152,3 +152,13 @@
   uvx ではなく labkit の venv の ruff を使う（サイクル 13 と同じ「1 つの ruff」）。
 - 結論: 採用。機械的な整形は別 commit にして差分を読めるようにした（1 サイクル 2 commit）。
 - 規模: ruff.toml +6 行、Makefile +6 行、CI +2 行。コード自体は整形のみ（意味の変更なし）。
+
+### 15. 2026-11-01 — venv のツール探索を 1 関数に（post_edit が Windows で無動作だった）
+- 観点: 機械的に間違えられないこと / Windows 対称性。`post_edit.py` の ruff 探索は `.venv/bin/ruff` だけを見て、Windows の
+  `.venv/Scripts/ruff.exe` を見ないため、生成プロジェクトでは編集後の整形が黙って動いていなかった。同じ探索は `labkit_cmd` に
+  正しく実装済み（2 つの実装 → 片方がずれる、の再発）。
+- 提案: `_labcommon.tool_cmd(root, name)` に統一し、`labkit_cmd` と post_edit の両方がそれを使う。
+- 監査: 1 行修正より統一の方が小さい（正味 −7 行）。雛形の dev は dependency-group なので `uv sync` で ruff が venv に入り、
+  `uv run ruff` の経路はまれ。ruff が無い場合も hook は従来どおり黙って何もしない。
+- 結論: 採用。
+- 規模: −7 行、テスト +18 行。「venv のツールを探す」実装 2 → 1。

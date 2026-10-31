@@ -106,3 +106,23 @@ def test_eval_fixtures_match_shared_script():
         assert not (
             {"Bash", "Write", "Edit"} & set(re.findall(r"[A-Za-z]+", fm.split("allowed_tools:")[1].split("]")[0]))
         )
+
+
+def test_tool_cmd_finds_venv_on_both_layouts(tmp_path, monkeypatch):
+    """venv のツール探索は POSIX（.venv/bin）と Windows（.venv/Scripts/*.exe）の両方を見る（post_edit と labkit_cmd で共有）."""
+    sys.path.insert(0, str(SCRIPTS))
+    import shutil
+
+    import _labcommon
+
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    assert _labcommon.tool_cmd(tmp_path, "ruff") is None
+    win = tmp_path / ".venv" / "Scripts" / "ruff.exe"
+    win.parent.mkdir(parents=True)
+    win.write_text("")
+    assert _labcommon.tool_cmd(tmp_path, "ruff") == [str(win)]
+    posix = tmp_path / ".venv" / "bin" / "ruff"
+    posix.parent.mkdir(parents=True)
+    posix.write_text("")
+    assert _labcommon.tool_cmd(tmp_path, "ruff") == [str(posix)]
+    assert _labcommon.labkit_cmd(tmp_path) is None

@@ -86,15 +86,20 @@ def is_reviewer(data: dict) -> bool:
     return t == REVIEWER or t.endswith(":" + REVIEWER)
 
 
-def labkit_cmd(root: Path) -> list[str] | None:
-    for cand in (root / ".venv" / "bin" / "labkit", root / ".venv" / "Scripts" / "labkit.exe"):
+def tool_cmd(root: Path, name: str) -> list[str] | None:
+    """プロジェクトの venv（POSIX: .venv/bin、Windows: .venv/Scripts）→ PATH → `uv run` の順で実行形を返す."""
+    for cand in (root / ".venv" / "bin" / name, root / ".venv" / "Scripts" / f"{name}.exe"):
         if cand.is_file():
             return [str(cand)]
-    if shutil.which("labkit"):
-        return ["labkit"]
+    if shutil.which(name):
+        return [name]
     if shutil.which("uv") and (root / "pyproject.toml").is_file():
-        return ["uv", "run", "--quiet", "labkit"]
+        return ["uv", "run", "--quiet", name]
     return None
+
+
+def labkit_cmd(root: Path) -> list[str] | None:
+    return tool_cmd(root, "labkit")
 
 
 def rel(path: Path, root: Path) -> str | None:

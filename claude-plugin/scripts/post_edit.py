@@ -2,21 +2,11 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from _labcommon import find_root, read_input
-
-
-def ruff_cmd(root: Path) -> list[str] | None:
-    local = root / ".venv" / "bin" / "ruff"
-    if local.is_file():
-        return [str(local)]
-    if shutil.which("ruff"):
-        return ["ruff"]
-    return None
+from _labcommon import find_root, read_input, tool_cmd
 
 
 def main() -> None:
@@ -31,7 +21,7 @@ def main() -> None:
     rel = p.resolve().relative_to(root.resolve()).as_posix()
     if rel.startswith(("scratch/", "legacy/")):
         return
-    ruff = ruff_cmd(root)
+    ruff = tool_cmd(root, "ruff")
     if ruff is None:
         return
     subprocess.run([*ruff, "format", "--quiet", str(p)], cwd=root, check=False)
