@@ -32,6 +32,7 @@
 | 参照されない labkit サブコマンドを削る（全 18 サブコマンド × 動作を skills/docs/雛形/hooks で照合） | 参照ゼロは `lit key` / `lit check` のみで Q-019 として人間に確認中（仮: 残す）。`paths` は README 1 か所で現役 | 2026-11-01 |
 | skills/docs/雛形に書かれた `labkit <sub> <action> --opt` 46 形をパーサと機械照合し、存在しない形を直す | 不一致 3 件はすべて偽陽性（AGENT_QUEUE の過去報告・仮定の文、rawdata.py のヘッダ文字列）。ドリフトなし | 2026-11-01 |
 | hooks が Claude に見せる文面（SessionStart / flow の拒否 / 承認待ち / Stop）を生成プロジェクトで実際に出して直す | 文面は明確で重複なし。flow の拒否が条件を内部名（`clean_tree; git_tag(name=...)`）で示すが `labkit flow status` を案内しており、hooks は標準ライブラリのみで評価器を持てない。表示パスの `\` は Windows の自然な表記 | 2026-11-01 |
+| 空白を含むパス（`sp ace x/my proj`）のプロジェクトで壊れる所を直す | 実測: 生成 → link → Python/Julia の例 → 図 3 枚 → Pkg.test / pytest / ruff / check、hooks（SessionStart・ゲートの拒否とキュー・flow の拒否・Stop）すべて正常。日本語パス（既出）と合わせ、パスの扱いに問題なし | 2026-11-01 |
 | use_julia=false のプロジェクトで Julia 由来の設定（sandbox の ~/.julia と julialang ドメイン）を条件分岐で消す | Python のみの生成を実測: jl/ 無し、link・status・pytest・check・example すべて正常。残るのは settings.json の 2 エントリで無害。JSON 内の jinja 分岐はカンマの扱いが脆いので見送り | 2026-11-01 |
 | 図テンプレート（8 種）の整理・統合 | `labkit fig list` の説明・必須 data・例が揃っていて重複なし。変更なし | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
