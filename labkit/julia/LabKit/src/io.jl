@@ -150,6 +150,8 @@ end
 HDF5 → Dict{String,Any}、Parquet → DataFrame。`verify=true` でサイドカーの sha256 と照合。
 """
 function load(path::AbstractString; verify::Bool=false)
+    # 先に確かめる: verify ではサイドカーの不在が先に見つかり、原因を取り違えさせる
+    ispath(path) || error("$path がありません")
     if verify
         meta = load_meta(path)
         actual = isfile(path) ? sha256_file(path) : sha256_tree(path)

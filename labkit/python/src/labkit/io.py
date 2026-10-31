@@ -245,6 +245,9 @@ def load(path: str | os.PathLike, *, verify: bool = False, backend: str = "panda
     HDF5 -> dict[str, ndarray]、Parquet -> backend ("pandas" | "polars" | "arrow")
     """
     p = Path(path)
+    # 先に確かめる: verify ではサイドカーの不在が先に見つかり、原因を取り違えさせる
+    if not p.exists():
+        raise FileNotFoundError(f"{p} がありません")
     if verify:
         meta = load_meta(p)
         actual = sha256_file(p) if p.is_file() else sha256_tree(p)

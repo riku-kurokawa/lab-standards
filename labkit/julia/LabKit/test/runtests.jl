@@ -43,6 +43,8 @@ using Test, LabKit, DataFrames, JSON3
             p = save(datapath("processed", "t.parquet"), df)
             @test load(p; verify=true) == df
             @test_throws ErrorException save(datapath("raw", "x.h5"), Dict("x" => [1.0]))
+            @test_throws "nope.h5 がありません" load(datapath("processed", "nope.h5"))
+            @test_throws "nope.h5 がありません" load(datapath("processed", "nope.h5"); verify=true)
         end
     end
 end

@@ -428,3 +428,13 @@
   デバッグ用の環境変数は「必要が示されていない仕組み」として不採用。
 - 結論: 採用。同じ 16 通りを再実行して traceback 0。
 - 規模: cli.py +13 行、config.py +8 行、呼び出し側 3 か所で −6 行、テスト +20 行。labkit 59 passed。
+
+### 47. 2026-11-01 — `load()` が無いファイルをサイドカーの不在と報告していた
+- 観点: サイクル 46 と同じ「誤用」を Julia 側で。10 通り（raw への save、無いファイルの load、未対応拡張子、無い run、壊れた TOML、
+  プロジェクト外）を実行。メッセージは日本語で明確、Stacktrace が付くのは Julia の慣習。公開名は Python の `__all__` と Julia の export が一致。
+- 発見: 両言語とも `load(path, verify=true)` で path が無いと「サイドカー ... がありません（labkit の save 以外で作られたファイル？）」と
+  サイドカーを疑わせる。verify なしでは h5py / HDF5.jl 内部の英語メッセージ。
+- 提案: `load` の先頭で存在を確かめ `<path> がありません`（Python は FileNotFoundError、Julia は error）。ディレクトリ（Parquet 分割）も exists/ispath が真。
+- 監査: 採用（Julia のテストに verify なしの場合を追加、CHANGELOG、正規表現の `.` をエスケープ）。
+- 結論: 採用。
+- 規模: 各言語 +3 行、テスト +8 行。labkit 60 passed、LabKit.jl 14/14。

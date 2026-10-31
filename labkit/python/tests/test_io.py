@@ -41,6 +41,13 @@ def test_parquet_roundtrip(project):
     assert load(p, verify=True).equals(df)
 
 
+def test_load_missing_file_names_the_file(project):
+    p = datapath("processed", "nope.h5")
+    for kw in ({}, {"verify": True}):
+        with pytest.raises(FileNotFoundError, match=r"nope\.h5 がありません"):
+            load(p, **kw)
+
+
 def test_raw_is_readonly(project):
     with pytest.raises(ReadOnlyAreaError):
         save(datapath("raw", "x.h5"), {"x": np.ones(2)})
