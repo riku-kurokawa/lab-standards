@@ -51,8 +51,6 @@ def main() -> None:
     if root is None:
         return
     lab = load_lab(root)
-    if not lab:
-        return
     session = str(data.get("session_id") or "")
 
     # このセッションが積んだ承認待ちがあるときだけ終了を許す（他セッションの要求では規約チェックを緩めない）

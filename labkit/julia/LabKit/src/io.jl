@@ -88,8 +88,6 @@ function save(path::AbstractString, data; attrs::AbstractDict=Dict{String,Any}()
         elseif ext in TABLE_EXT
             Parquet2.writefile(tmp, data)
             fmt = "parquet"
-        elseif ext == ".zarr"
-            error("Zarr の save() は v0.2 予定。現状は writer() で包んで書いてください。")
         else
             error("save() が扱わない拡張子です: $ext（.h5 / .parquet）。それ以外は writer() を使う。")
         end

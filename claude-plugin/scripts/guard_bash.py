@@ -15,9 +15,10 @@ lab-standards 本体（copier.yml + labkit/）では 1〜4 だけを適用する
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import _labgate as gate
-from _labcommon import NO_PROMPT_MODES, block, decide, is_reviewer, load_lab, read_input
+from _labcommon import NO_PROMPT_MODES, block, decide, describe_condition, is_reviewer, load_lab, read_input
 from _labstate import (
     active_flows,
     consume_approval,
@@ -48,18 +49,18 @@ def raw_write(s: str) -> bool:
 
 def harness_state_write(s: str) -> bool:
     """承認記録・キュー・flow の状態を Bash で直接書き換えようとしているか."""
-    if re.search(r"\.lab/(?:approvals|queue|flows)", s) and re.search(
-        r">{1,2}|\btee\b|\bsed\s+-i|\b(?:rm|mv|cp|touch|install|truncate|python[0-9.]*\s+-c|perl|ruby|node\s+-e)\b", s
-    ):
-        return True
-    return False
+    return bool(
+        re.search(r"\.lab/(?:approvals|queue|flows)", s)
+        and re.search(
+            r">{1,2}|\btee\b|\bsed\s+-i|\b(?:rm|mv|cp|touch|install|truncate|python[0-9.]*\s+-c|perl|ruby|node\s+-e)\b",
+            s,
+        )
+    )
 
 
 def gate_check(data: dict, cmd: str, root, kind: str) -> None:
     conf = load_gate_conf(root, kind)
     cwd_s = data.get("cwd") or str(root)
-    from pathlib import Path
-
     cwd = Path(cwd_s)
     hits = gate.classify(cmd, conf.get("protected_branches", ["main", "master"]), git_branch(cwd))
 
@@ -73,8 +74,6 @@ def gate_check(data: dict, cmd: str, root, kind: str) -> None:
             s = current_stage(st)
             bad = gate.flow_hits(hits, s.get("forbid", []))
             if bad:
-                from _labcommon import describe_condition
-
                 conds = (
                     "; ".join(describe_condition(c) for c in s.get("done", [])) or "（この段階の作業を終えて advance）"
                 )

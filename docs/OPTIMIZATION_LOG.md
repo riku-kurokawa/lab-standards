@@ -476,3 +476,15 @@
 - 監査: 提案は独立エージェント 2 体。私が各箇所を読んで確認。テストに literature の位置に `\` が無いことを追加。labkit 60 / hooks 91 passed。
 - 結論: 採用。
 - 規模: −33 行 +15 行（check.py −4、literature.py −1 と型注釈、flow.py −13、テスト +1）。
+
+### 53. 2026-11-01 — 残りのモジュール（cli/io/runs/viz、Julia、hooks）の未使用・冗長を削除
+- 観点: サイクル 51–52 の読み合わせを残り全部に（独立エージェント 2 体、並行）。
+- 発見と採用: `Context.used_files`（読み書きゼロ）、`io.describe`（呼び出しゼロ・Julia にも無い）、`_json_default` の Path 分岐（既定と同じ）、
+  `io.__all__` の `rel_or_abs`（_util のもの）、hooks の `if not lab: return` 3 か所（load_lab は dict を返すか例外）、`decide(extra=)`（渡す側なし）、
+  `harness_state_write` の if/return、関数内 import 2 つ。`.zarr` の「v0.2 予定」分岐は 0.3.0 で古い約束になっていたので Python/Julia とも削除
+  （一般の「扱わない拡張子」に落ちる）。Julia の export に `current_run` を追加（Python の `__all__` にあり Julia にも定義済みだったが未 export）。
+- 見送り: `labkit_cli` の un-export（Julia の fig/check の実装基盤）、cli.jl `cite` の 2 行、io の save 前段の重複（Python と同じ構造を保つ）、
+  stop_check の CODE_DIRS との差（tests の編集では devlog を要求しない意図）、session_context の行順。
+- 監査: 提案は独立エージェント。各箇所を読んで確認。labkit 60 / hooks 91 / LabKit.jl 15 passed。
+- 結論: 採用。
+- 規模: 10 ファイル、−34 行 +13 行。サイクル 51–53 の合計で約 −70 行、挙動の差なし。

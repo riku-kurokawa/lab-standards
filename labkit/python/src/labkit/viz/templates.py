@@ -11,7 +11,7 @@ spec は figspecs/*.toml の内容。共通キー:
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -43,7 +43,6 @@ def template(name: str, required_data: list[str], description: str, example: str
 class Context:
     load: Callable[[str], Any]  # data.file -> 読み込んだデータ
     metrics: Callable[[], list[dict]]  # run の metrics.jsonl
-    used_files: list = field(default_factory=list)
 
 
 # ---------- 共通ヘルパ ----------

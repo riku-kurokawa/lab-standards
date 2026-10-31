@@ -22,7 +22,7 @@ using Dates, SHA, TOML, Random
 using JSON3, HDF5, DataFrames, Parquet2
 
 export find_root, load_lab, load_config,
-       Run, runpath, log_metric, log_message, add_input,
+       Run, current_run, runpath, log_metric, log_message, add_input,
        save, load, load_meta, writer,
        datapath, runs_root, fig, check, cite, labkit_cli
 

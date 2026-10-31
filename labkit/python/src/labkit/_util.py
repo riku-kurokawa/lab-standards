@@ -64,8 +64,6 @@ def _json_default(o: Any) -> Any:
             return o.tolist()
     except ImportError:  # pragma: no cover
         pass
-    if isinstance(o, Path):
-        return str(o)
     return str(o)
 
 

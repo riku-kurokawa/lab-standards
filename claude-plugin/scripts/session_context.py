@@ -54,8 +54,6 @@ def main() -> None:
         lines += queue_context(root)
     else:
         lab = load_lab(root)
-        if not lab:
-            return
         today = _dt.date.today().isoformat()
         devlog = root / lab.get("devlog", {}).get("dir", "docs/devlog") / f"{today}.md"
         lines += [

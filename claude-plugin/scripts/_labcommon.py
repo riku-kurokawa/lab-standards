@@ -70,7 +70,7 @@ def block(message: str) -> None:
     sys.exit(2)
 
 
-def decide(decision: str, reason: str, extra: dict | None = None) -> None:
+def decide(decision: str, reason: str) -> None:
     """PreToolUse の JSON 出力（allow / ask / deny）で終了する."""
     out = {
         "hookSpecificOutput": {
@@ -79,8 +79,6 @@ def decide(decision: str, reason: str, extra: dict | None = None) -> None:
             "permissionDecisionReason": f"[lab-rules] {reason}",
         }
     }
-    if extra:
-        out.update(extra)
     print(json.dumps(out, ensure_ascii=False))
     sys.exit(0)
 

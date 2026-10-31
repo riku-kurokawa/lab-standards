@@ -82,8 +82,6 @@ def main() -> None:
         return
 
     lab = load_lab(root)
-    if not lab:
-        return
     layout = lab["layout"]
     top = r.split("/", 1)[0]
 

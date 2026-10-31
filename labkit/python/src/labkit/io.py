@@ -158,8 +158,6 @@ def save(
 
             pq.write_table(_to_arrow(data), tmp, compression="zstd")
             fmt = "parquet"
-        elif ext == ".zarr":
-            raise NotImplementedError("Zarr の save() は v0.2 予定。現状は writer() で包んで書いてください。")
         else:
             raise ValueError(f"save() が扱わない拡張子です: {ext}（.h5 / .parquet）。それ以外は writer() を使う。")
         os.replace(tmp, p)
@@ -281,9 +279,4 @@ def load_meta(path: str | os.PathLike) -> dict:
     return json.loads(sc.read_text(encoding="utf-8"))
 
 
-def describe(path: str | os.PathLike) -> str:
-    p = Path(path)
-    return f"{p.name}: {json.dumps(load_meta(p), ensure_ascii=False, indent=2)}"
-
-
-__all__ = ["save", "load", "load_meta", "load_attrs", "writer", "ReadOnlyAreaError", "rel_or_abs"]
+__all__ = ["save", "load", "load_meta", "load_attrs", "writer", "ReadOnlyAreaError"]
