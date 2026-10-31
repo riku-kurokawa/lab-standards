@@ -59,3 +59,16 @@ def test_guard_write_ignores_other_projects(tmp_path):
 ])
 def test_guard_bash(proj, cmd, code):
     assert run("guard_bash.py", {"cwd": str(proj), "tool_input": {"command": cmd}}) == code
+
+
+def test_hook_output_is_utf8(proj, monkeypatch):
+    """Windows の既定コードページでも hook の出力（日本語）は UTF-8（Claude Code は UTF-8 として読む）."""
+    import os
+
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
+    res = subprocess.run([sys.executable, str(SCRIPTS / "guard_write.py")],
+                         input=json.dumps({"tool_name": "Write",
+                                           "tool_input": {"file_path": str(proj / "lab.toml"), "content": "x"}}).encode(),
+                         capture_output=True, env=env)
+    assert res.returncode == 2
+    assert "規約ファイル" in res.stderr.decode("utf-8")

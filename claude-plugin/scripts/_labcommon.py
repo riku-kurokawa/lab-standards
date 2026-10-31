@@ -13,6 +13,15 @@ try:
 except ImportError:  # Python < 3.11: 規約を読めないので何もしない
     tomllib = None
 
+# Claude Code との入出力は UTF-8。Windows では既定がコンソールのコードページ（cp932 など）になり、
+# 日本語のメッセージが文字化けし、日本語を含むパスの JSON 入力が読めなくなるので固定する
+for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
 FALLBACK = {
     "layout": {
         "writable": ["src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs", "literature",
