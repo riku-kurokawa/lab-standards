@@ -95,9 +95,8 @@ GitHub のブランチ保護（最後の砦）: Settings → Branches → main �
 - 選択肢: (a) 現状 / (b) `--yes` を廃止して TTY 必須（`!` からは承認不可） / (c) 承認用の別の秘密（環境変数のトークン）を要求。
 - 判断（2026-11-01、サイクル 41）: 儀式を撤去。TTY 再入力は Windows の非対話シェルで動かず、`--yes` は Claude も付けられるので、
   どちらも防壁にならない。唯一の防壁は hooks（`labkit approve` の拒否）。`labkit approve <ID>` は引数なしで承認し、実行者・claude_shell を記録する。
-- 追記（2026-11-01 の実測）: Claude Code の Bash から実行した `labkit approve` は Windows では `sys.stdin.isatty()` が True になり、
-  ID 再入力は EOF で失敗する（`--yes` が必要）。記録には `claude_shell: true` が残る。TTY 再入力は実端末でしか効かない。
-- 変える場合の影響: `cli.py` の `_confirm_human` のみ。
+- （サイクル 41 より前の実測）: Claude Code の Bash から実行した `labkit approve` は Windows では `sys.stdin.isatty()` が True になり、
+  ID 再入力は EOF で失敗した。記録には `claude_shell: true` が残る。この実測がサイクル 41 の撤去の根拠。
 
 ### Q-003 [question] improve-standards flow の状態をプロジェクト側に置く
 - 内容: flow の禁止は cwd のスコープで判定するため、本体ディレクトリで作業中は improve-standards の段階制限（例: test 前の release）は
@@ -140,15 +139,16 @@ GitHub のブランチ保護（最後の砦）: Settings → Branches → main �
   PreToolUse hook（`agent_type`）で行う。plugin を無効にして起動すれば制限は効かない。
 - 仮の判断: 現状（ドキュメントの制約）。
 
-### Q-012 [question] Windows の LabKit.jl `freeze_run` の ACL
+### Q-012 [解決済み] Windows の LabKit.jl `freeze_run` の ACL
 - 内容: v0.2.0 からの既知の非対称。Julia の `chmod(dir, 0o555)` が Windows で削除権限の無い ACL を書き、完了した run を通常の手段で削除できない
   （Python 側は読み取り専用属性のみ）。v0.3.0 の範囲外として未修正。
-- 仮の判断: 未修正。直すなら Julia 側で `Sys.iswindows()` のときディレクトリの chmod を省く（1 行）。
+- 判断（2026-11-01、サイクル 1、解決）: Julia 側で `Sys.iswindows()` のときディレクトリの chmod を省く（runs.jl）。Python と同じ挙動。人間の判断は不要。
 
-### Q-013 [question] 次の作業（ゴール「feat/optimize」）の起点
+### Q-013 [解決済み] 次の作業（ゴール「feat/optimize」）の起点
 - 内容: 作業中に「~/dev/lab-standards を磨き続ける」ゴール（feat/optimize ブランチ、1 サイクル 1 commit、docs/OPTIMIZATION_LOG.md）を受けた。
 - 仮の判断: v0.3.0 の作業を feat/harness-v0.3.0 で完了させてから、**feat/harness-v0.3.0 を起点に** feat/optimize を切って開始する
   （main から切ると v0.3.0 の内容が無い）。v0.3.0 のリリース（Q-006）後は feat/optimize を main に rebase する想定。
+- 結果: そのとおり実施（feat/optimize は feat/harness-v0.3.0 の先頭 91f2559 から）。マージ対象は feat/optimize（先頭の「現在の状況」）。
 
 ### Q-014 [question] presence は permission_mode と重複しないか（レビュー指摘）
 - 内容: default モードなら ask、bypass なら拒否+キュー、で十分という指摘。presence（here/away）は指示 2 章の要件なので残した。
