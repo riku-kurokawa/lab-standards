@@ -362,3 +362,4 @@
   新しい雛形の設定が使われるので、次の update から効く。
 - 結論: 採用。
 - 規模: copier.yml +8 行。概念の追加なし（copier の標準機能）。
+- 確認: 同じ実験を再実行し、書き換えた README / data-dictionary にマーカーが入らず、lab.toml の [gate] と Makefile は更新された。
