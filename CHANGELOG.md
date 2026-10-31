@@ -28,6 +28,11 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
 - 雛形: `.claude/settings.json` に sandbox（data/raw・lab.toml・.lab/approvals・.lab/queue を denyWrite、PyPI/GitHub/Julia を許可）、
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
+### 修正
+- LabKit.jl `freeze_run`: Windows ではディレクトリの chmod を省く。Julia の chmod は削除権限の無い ACL を書き、完了した run を
+  通常の手段で削除できなくしていた（Python 版はディレクトリに実質何もしない）。既に凍結済みの run は
+  `icacls <run> /grant "%USERNAME%:(OI)(CI)F" /t` か Julia の `chmod(dir, 0o755; recursive=true)` で戻せる。
+
 ### 変更
 - 雛形の `permissions.deny` から `Write(...)` を削除（公式ドキュメント上効かない。`Edit(...)` が Write も止める）。
 - `layout.allowed` / `writable` に `.lab`、`AGENT_QUEUE.md` を追加（古い lab.toml でも暗黙に許可）。

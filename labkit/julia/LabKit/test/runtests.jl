@@ -22,6 +22,9 @@ using Test, LabKit, DataFrames, JSON3
             d = load(joinpath(run.dir, "a.h5"); verify=true)
             @test d["x"] == x && length(d["v"]) == 2000
             @test load_meta(joinpath(run.dir, "a.h5"))["attrs"]["fs"] == 100.0
+            # 完了した run はコピーを通常の手段で削除できる（Windows の ACL 問題の回帰テスト）
+            tmp = joinpath(dir, "copy"); cp(run.dir, tmp); rm(tmp; recursive=true, force=true)
+            @test !ispath(tmp)
 
             df = DataFrame(m=["a", "b"], v=[1.0, 2.0])
             p = save(datapath("processed", "t.parquet"), df)

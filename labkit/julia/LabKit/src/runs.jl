@@ -141,7 +141,9 @@ function freeze_run(dir::AbstractString)
         for f in fs
             chmod(joinpath(d, f), 0o444)
         end
-        d == dir || chmod(d, 0o555)
+        # Windows: Julia の chmod はディレクトリに DELETE 権限の無い ACL を書き、run を削除不能にする。
+        # Python 版の os.chmod はディレクトリに実質何もしないので、ここでも揃えてスキップする。
+        Sys.iswindows() || d == dir || chmod(d, 0o555)
     end
 end
 
