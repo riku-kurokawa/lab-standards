@@ -6,7 +6,7 @@ import stat
 
 import pytest
 
-from labkit import Run, load_config, log_metric, runpath
+from labkit import Run, add_input, load_config, log_message, log_metric, runpath
 from labkit.check import run_check
 from labkit.config import load_lab
 from labkit.literature import add_entry, make_citekey, parse_bib
@@ -36,8 +36,13 @@ def test_run_lifecycle_and_freeze(project):
         log_metric(run, "loss", 1.0, step=0)
         log_metric(run, "loss", 0.5, step=1)
         runpath(run, "note.txt").write_text("x")
+        (project / "data" / "raw" / "in.bin").write_bytes(b"abc")
+        add_input(run, project / "data" / "raw" / "in.bin")
+        log_message(run, "hello")
     meta = json.loads((run.dir / "meta.json").read_text())
     assert meta["status"] == "finished"
+    assert "hello" in (run.dir / "log.txt").read_text(encoding="utf-8")
+    assert len(meta["inputs"]) == 1 and meta["inputs"][0]["sha256_source"] == "computed"
     assert meta["language"] == "python"
     assert json.loads((run.dir / "metrics.json").read_text()) == {"loss": 0.5}
     assert {o["path"] for o in meta["outputs"]} >= {"note.txt", "metrics.jsonl", "config.json"}

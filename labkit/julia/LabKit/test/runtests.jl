@@ -16,8 +16,15 @@ using Test, LabKit, DataFrames, JSON3
             run = Run("jl test", cfg) do run
                 save(runpath(run, "a.h5"), Dict("x" => x, "v" => collect(1:2000)); attrs=Dict("fs" => 100.0))
                 log_metric(run, "loss", 0.5; step=1)
+                write(datapath("raw", "in.bin"), "abc")
+                add_input(run, datapath("raw", "in.bin"))
+                log_message(run, "hello")
             end
             meta = JSON3.read(read(joinpath(run.dir, "meta.json"), String))
+            @test occursin("hello", read(joinpath(run.dir, "log.txt"), String))
+            @test length(meta["inputs"]) == 1 && meta["inputs"][1]["sha256_source"] == "computed"
+            p2 = writer(datapath("interim", "big.bin"); fmt="raw") do tmp; write(tmp, "xyz"); end
+            @test read(p2, String) == "xyz" && load_meta(p2)["format"] == "raw"
             @test meta["status"] == "finished" && meta["language"] == "julia"
             d = load(joinpath(run.dir, "a.h5"); verify=true)
             @test d["x"] == x && length(d["v"]) == 2000

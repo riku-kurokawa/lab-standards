@@ -6,7 +6,7 @@
 
 v0.3.0 の作業（下の報告）は feat/harness-v0.3.0 で完了し、その先頭から feat/optimize を切って改善サイクルを続けている
 （docs/OPTIMIZATION_LOG.md に 1 サイクル 1 commit で記録。棄却した案も載せている）。**マージ対象は feat/optimize**（feat/harness-v0.3.0 を含む）。
-テストの現在値: labkit 45 passed（Julia 往復テスト含む）、hooks 89 passed、LabKit.jl 7/7、`make lint`（ruff check + format）通過、`release.py --check` OK。
+テストの現在値: labkit 45 passed（Julia 往復テスト含む）、hooks 89 passed、LabKit.jl 10/10、`make lint`（ruff check + format）通過、`release.py --check` OK。
 下の v0.3.0 報告のうち、サイクルで変わった点: improve-standards の link 段階は削除（labkit/ を変えたときだけ link を要求）、
 `labkit review` は `template` のみ、雛形の Makefile は check/test/lint/fmt/example/mlflow-* のみ、`lab.standards_version` は廃止、
 pre-commit の ruff は uv.lock の版、AGENT_QUEUE.md はプロジェクト側の仕組みから除外。

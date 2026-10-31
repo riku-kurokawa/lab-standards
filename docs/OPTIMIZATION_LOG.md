@@ -247,3 +247,12 @@
   Makefile、pre-commit、README 群）。プロジェクト固有値（project 名）は保持。`.lab/` は labkit が初回に作る。
   注意: copier の `_src_path` が相対（`.` から生成）だと update が失敗する。実運用の `gh:` URL / 絶対パスでは問題ない。
 - 結論: 変更なし。移行手順は CHANGELOG の記述どおりに動く。
+
+### 25. 2026-11-01 — writer / add_input / log_message を両言語でテストする
+- 観点: 安定性。Julia 側の `writer`、`add_input`、`log_message` はテストが無く、サイクル 1 の `fmt` スコープのような
+  実行時にしか出ないバグが潜みうる。手で動かした結果は正常。
+- 提案: runtests.jl に 3 呼び出しと 4 つの assert を追加。
+- 監査: 採用。ただし Python 側も `add_input` / `log` は未テストだったので、規約 2（対称性）に従い同じ assert を test_core.py に足す。
+  `cite` は Python CLI 依存なので Julia テストからは除外（往復テストが代替）。
+- 結論: 採用。
+- 規模: Julia テスト +7 行、Python テスト +5 行。
