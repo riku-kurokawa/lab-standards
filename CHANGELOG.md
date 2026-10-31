@@ -56,7 +56,7 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
 uv run labkit standards unlink --to v0.3.0 && git commit -am "lab-standards v0.3.0"
 uv run labkit standards template --ref v0.3.0      # settings.json の sandbox、lab.toml の [gate]、docs/reviews/ を取り込む
 ```
-`.lab/` は最初に必要になったときに labkit が作る（`.lab/.gitignore` 付き）。承認ゲートは既定で有効（away）なので、
+v0.2.0 で生成したプロジェクトに対して衝突なく適用できることを確認済み（2026-11-01）。`.lab/` は最初に必要になったときに labkit が作る（`.lab/.gitignore` 付き）。承認ゲートは既定で有効（away）なので、
 初回の push は承認待ちになる。無効にするなら `lab.toml` の `[gate] enabled = false`。GitHub 側の main ブランチ保護を推奨。
 
 ## v0.2.0 — 2026-10-30

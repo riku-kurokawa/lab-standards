@@ -14,6 +14,7 @@
 | 生成プロジェクト直下に現れた `uv-<hash>.lock` を .gitignore / L001 で除外する | 原因は検証用シェルで `TMP=`（Windows の一時ディレクトリ変数）を上書きしたこと。uv はロックを `env::temp_dir()` に置く（uv ソースで確認、TMP 上書きで再現）。雛形の問題ではない | 2026-11-01 |
 | run が多いプロジェクトで `labkit check`（Stop hook が毎回実行）を速くする | 実測: run 0 件 0.23 s、300 件 3.0 s（約 9 ms/run）。Stop hook の timeout 300 s に対して十分速く、最適化は複雑さの追加になる | 2026-11-01 |
 | skills のうち他から参照されない data-pipeline / new-experiment / migrate-project を統合・削除 | skill は説明文で選ばれるので参照数は指標にならない。読むと手順が互いに重複せず、lab-conventions（参照表）とも役割が違う | 2026-11-01 |
+| hooks の拒否を exit 2（stderr）と JSON の permissionDecision の 2 方式から 1 方式に統一 | ask / allow は JSON でしか表せず、Stop hook は exit 2 が必要。公式ドキュメント上 exit 2 は deny と同じ扱いで、統一しても挙動は変わらず、テスト 80 件以上の書き換えだけが残る | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
 | Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
@@ -238,3 +239,11 @@
 - 監査: 採用（move-to-Stop）。`make lint` を hook から呼ぶと make と Makefile に依存するので ruff を直接呼ぶ。
 - 結論: 採用。
 - 規模: −42 行 + 8 行。hook の数 5 → 4。ruff の実行回数は編集ごと → ターンごと。
+
+### 24. 2026-11-01 — v0.2.0 プロジェクトの更新経路を実際に通す（変更なし）
+- 観点: CHANGELOG が約束する移行（`labkit standards template --ref v0.3.0` = copier update）を一度も動かしていなかった。
+- 観察: v0.2.0 タグから生成 → commit → `copier update --vcs-ref HEAD --data standards_ref=v0.3.0`。衝突（.rej）なし、15 ファイル変更、
+  差分は意図した v0.3.0 の内容だけ（lab.toml の [gate] と .lab、standards_version 削除、pyproject のタグと dev 下限、settings の Edit ルール、
+  Makefile、pre-commit、README 群）。プロジェクト固有値（project 名）は保持。`.lab/` は labkit が初回に作る。
+  注意: copier の `_src_path` が相対（`.` から生成）だと update が失敗する。実運用の `gh:` URL / 絶対パスでは問題ない。
+- 結論: 変更なし。移行手順は CHANGELOG の記述どおりに動く。
