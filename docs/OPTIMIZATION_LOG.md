@@ -18,6 +18,7 @@
 | 既存（v0.2.0）プロジェクトの .gitignore に .lab の除外を足す移行作業 | labkit が初回に書く `.lab/.gitignore` で、実リポジトリでも `presence` と `queue/` は ignored、`flows/` と `.gitignore` だけが追跡対象になることを確認。追加の移行作業は不要 | 2026-11-01 |
 | Stop hook（labkit check + ruff check）を軽くする | 実測: 生成プロジェクトで初回 0.9 s、以後 0.3 s。十分に軽い | 2026-11-01 |
 | 雛形の Slurm ジョブ（jobs/slurm_example.sh）を skill hpc-job の要件に合わせて直す | 読み合わせた結果、`set -euo pipefail`・未コミット検査・`LAB_ENV=hpc`・配列ジョブの上書き引数が揃っていて差異なし | 2026-11-01 |
+| Julia の `read_json`（JSON3.read）が Python 製 JSON の `100.0` を Int に読む非対称を直す | JSON3 は数値型を保持できず（`numbertype=Float64` は逆に整数を浮動小数にする）、Julia 側の利用は数値比較だけで実害なし。書き込み側はサイクル 32 で修正済み | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
 | Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
@@ -318,3 +319,13 @@
   既存の Julia 製 run のディスク上の `2` はそのまま（読む側は数値比較なので実害なし）。
 - 結論: 採用。
 - 規模: util.jl +30 行、テスト +9 行。対称性の実害 1 件を解消。
+
+### 33. 2026-11-01 — `labkit check` の位置表示と除外ディレクトリを OS 非依存に
+- 観点: 違反メッセージを読む研究者。典型的な違反 8 種を作って出力を読んだ。文言は行動につながるが、位置が Windows では `src\vi\bad.py:1`
+  と OS 区切りで、文書や hooks の `/` と食い違い、file:line リンクにもならない。
+- 発見（実測）: `figure_ok_dirs` の `docs/assets/` に置いた図が Windows では L014 になる（`startswith("docs/assets/")` を `\` 区切りと比較）。
+  `format_allowed` の glob は fnmatch が区切りを正規化するので効いていた。
+- 提案: 5 か所を `.as_posix()` に。POSIX では挙動不変。
+- 監査: 採用。既存テストは位置の行番号しか見ていないので影響なし。
+- 結論: 採用。
+- 規模: 5 行の置換、テスト +10 行。Windows の誤検出 1 件を解消。

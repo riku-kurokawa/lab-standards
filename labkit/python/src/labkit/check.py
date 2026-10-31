@@ -95,7 +95,8 @@ class Checker:
     def add(self, code: str, where: Path | str, msg: str, severity: str = "error") -> None:
         if code in self.skip:
             return
-        w = str(where.relative_to(self.root)) if isinstance(where, Path) and where.is_absolute() else str(where)
+        # 位置は OS に依らず / 区切り（lab.toml の glob や docs と同じ形。file:line のリンクにもなる）
+        w = where.relative_to(self.root).as_posix() if isinstance(where, Path) and where.is_absolute() else str(where)
         self.issues.append(Issue(code, w, msg, severity))
 
     @property
@@ -170,7 +171,7 @@ class Checker:
                     yield p
 
     def _allowed(self, p: Path, patterns: list[str]) -> bool:
-        rel = str(p.relative_to(self.root))
+        rel = p.relative_to(self.root).as_posix()
         return any(fnmatch.fnmatch(rel, pat) for pat in patterns)
 
     def code_rules(self) -> None:
@@ -196,7 +197,7 @@ class Checker:
             is_jl = p.suffix == ".jl"
 
             def line_of(m, p=p, text=text) -> str:
-                return f"{p.relative_to(self.root)}:{text.count(chr(10), 0, m.start()) + 1}"
+                return f"{p.relative_to(self.root).as_posix()}:{text.count(chr(10), 0, m.start()) + 1}"
 
             if not self._allowed(p, c["plot_import_allowed"]):
                 for m in (jl_plot if is_jl else py_plot).finditer(text):
@@ -228,7 +229,7 @@ class Checker:
             for p in base.rglob("*"):
                 if set(p.parts) & SKIP_DIRS or not p.is_file():
                     continue
-                rel = str(p.relative_to(self.root))
+                rel = p.relative_to(self.root).as_posix()  # figure_ok_dirs / data_ok_dirs は / 区切りで比較する
                 if p.suffix.lower() in FIG_EXT and not any(rel.startswith(d + "/") for d in c["figure_ok_dirs"]):
                     self.add("L014", p, "図は runs/<id>/figures に `labkit fig` で出力する（手作り図の混入）")
                 if p.suffix.lower() in DATA_EXT and not any(rel.startswith(d + "/") for d in c["data_ok_dirs"]):
@@ -387,7 +388,7 @@ class Checker:
         for p in self._doc_files():
             text = p.read_text(encoding="utf-8", errors="replace")
             for n, line in enumerate(text.splitlines(), 1):
-                where = f"{p.relative_to(self.root)}:{n}"
+                where = f"{p.relative_to(self.root).as_posix()}:{n}"
                 ids = set(RUN_ID_RE.findall(line))
                 for rid in ids:  # L032: 引用された run の存在と状態
                     if rid not in runs:

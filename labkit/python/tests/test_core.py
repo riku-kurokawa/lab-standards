@@ -97,3 +97,14 @@ def test_literature(project):
     s.write_text('---\ndate: 2026-10-30\nquestion: "q"\nsearch: {}\n---\n見た [@muller2023fast] と [@ghost2020x]\n')
     codes = [i for i in run_check()[0] if i.code.startswith("L04")]
     assert [i.code for i in codes] == ["L046"], codes
+
+
+def test_check_paths_are_posix_and_ok_dirs_apply(project):
+    """違反の位置は OS に依らず / 区切り。figure_ok_dirs / data_ok_dirs の除外が Windows でも効く（以前は \\ 比較で L014 誤検出）."""
+    (project / "docs" / "assets").mkdir(parents=True)
+    (project / "docs" / "assets" / "diagram.png").write_bytes(b"x")
+    (project / "scripts" / "stray.png").write_bytes(b"x")
+    issues, _ = run_check()
+    assert all("\\" not in i.where for i in issues), [i.where for i in issues]
+    l014 = [i.where for i in issues if i.code == "L014"]
+    assert l014 == ["scripts/stray.png"]
