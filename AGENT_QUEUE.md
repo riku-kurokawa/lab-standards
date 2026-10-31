@@ -1,7 +1,131 @@
 # AGENT_QUEUE — v0.3.0 ハーネス作業の質問・承認待ち
 
-（終了時の報告はこのファイルの先頭に書く。作業中は下の項目を随時追加する。）
+（終了時の報告は先頭。未解決項目はその下。作業中に追加する。）
+
+## 終了時の報告（v0.3.0、ブランチ feat/harness-v0.3.0、2026-11-01）
+
+### 実装した内容
+- **一次情報の確認** → `docs/notes/claude-code-spec.md`（hooks / permissions / sandboxing / plugin evals / subagents / plugin components。
+  食い違いと調整は末尾の表）。
+- **承認ゲート**（2 章）: `claude-plugin/scripts/_labgate.py`（shlex でトークン化。`command git push`、`git -c x=y -C dir push`、
+  `sudo`/`env`/`VAR=` 接頭辞、`&&`/`;`/`|`/改行の連結、`uv run labkit raw freeze`、`python -m labkit.cli`、`make raw-freeze` を検出）、
+  `_labstate.py`（.lab/ の読み書き、標準ライブラリのみ）、`guard_bash.py`（away: 拒否 + キュー / here: ask / 承認済み: 1 回だけ allow）。
+  `labkit presence|queue|approve|reject|answer`（`labkit/state.py`, `cli.py`）。承認はコマンド全文 + HEAD、24 時間、1 回限り。
+  Claude は approve/reject/answer を実行できず、`.lab/approvals|queue|flows` を Write/Edit/リダイレクトで書けない。
+  本体（`.lab-standards-root`）でもゲートだけ有効。
+- **手順の状態機械**（3 章）: `labkit/flow.py` + `labkit/flows/{migrate,improve-standards}.toml`。`labkit flow start|status|advance|abort|list`。
+  advance が完了条件（15 種の type）を検査、承認が要る段階はキューへ。hooks が段階の forbid（code/experiments/raw/template/link/release/commit）を拒否。
+  SessionStart・UserPromptSubmit（新 hook `prompt_context.py`）が段階・残り条件・承認待ち・質問を文脈に入れる。Stop hook は承認待ちでは止め直さない。
+  skills migrate-project / improve-standards を flow 前提に書き直し。
+- **独立レビュー**（4 章）: `labkit/reviews.py`、`docs/reviews/YYYY-MM-DD_<flow>_<段階>.md`（frontmatter）、`labkit review list|template`。
+  `guard_write.py` が `agent_type` で判定（lab-reviewer だけ書ける／lab-reviewer は他に書けない）。lab-reviewer の Bash は読み取り専用。
+  完了条件 `review` は現在の HEAD に対する pass。
+- **報告と実データの照合**（5 章）: `labkit check` L032 / L033 / L035、Issue.severity（warn は strict でも失敗にしない）、
+  `labkit cite`（Python `labkit.cite`、Julia `LabKit.cite`）。write-devlog skill と devlog 雛形を更新。
+- **回帰テストとサンドボックス**（6 章）: `claude-plugin/evals/` に 7 ケース + `_shared/project.sh`、`make eval`（本体 Makefile 新設）、
+  CI に手動起動の evals ジョブ。雛形 `.claude/settings.json` に sandbox（確認済みキー）。Windows では劣化（docs/harness.md 5 節）。
+- 版 0.3.0（`tools/release.py 0.3.0`、CHANGELOG v0.3.0、移行手順）。README・SETUP・雛形 CLAUDE.md・lab-conventions skill 更新。
+- ついでの修正: hooks の入出力を UTF-8 に固定（Windows で日本語メッセージが cp932 で文字化けしていた）。`release.py` が CRLF を書かないように。
+
+### テスト結果
+| 検査 | 結果 |
+|---|---|
+| `python tools/release.py --check` | OK（0.3.0） |
+| labkit（`uv run --extra dev pytest -q`） | 38 passed（新規 `tests/test_harness.py` 22 件: presence 切替、質問の往復、承認の一回性・HEAD・期限、hook と labkit の形式往復、flow 定義整合・遷移・承認・レビュー条件、L032/L033/L035、cite、警告の終了コード） |
+| hooks（`claude-plugin/tests`） | 75 passed（新規 `test_gate.py` 53 件: コマンド 40 変種の分類、away/here/bypass、承認の一致・使用済み・期限・HEAD、Claude が承認を作れないこと、本体スコープ、flow の禁止と解除、agent_type による書き込み制御、reviewer の読み取り専用、Stop hook）。UTF-8 出力テスト追加 |
+| LabKit.jl | 6/6 passed |
+| `claude plugin validate claude-plugin` | passed |
+| 生成プロジェクトで link して一連の流れ | copier（HEAD）→ link → `pytest` 2 passed → example 実行・図 3 枚 → `labkit check --ignore L050` 違反なし → `runs list` → `labkit cite`（Python・Julia とも同じ出力）→ Julia run_example → `flow start improve-standards`（triage で link/release を拒否、devlog 条件、承認待ち Q001）→ hooks を Claude Code と同じ入力で実行（ゲート・flow 禁止・レビュー記録の agent_type 判定・状態ファイルの保護・compact 文脈・Stop）すべて期待通り |
+| plugin eval（`make eval`） | **未実行**（API 費用。Q-004 で承認待ち。実行方法と費用の見積もりは `claude-plugin/evals/README.md`） |
+| サンドボックス有効で `make check && make example` | **未確認**（Windows ネイティブは非対応。Q-007） |
+
+### ドキュメントと食い違って設計を変えた点
+`docs/notes/claude-code-spec.md` 末尾の表。要点: (1) bypassPermissions/dontAsk/auto では hook の `ask` が人間に届く保証が無いので here でも拒否+キュー、
+(2) plugin の agent は `hooks`/`permissionMode` が無視されるので plugin 共通 hook が `agent_type` で分岐、(3) `Write(path)` の deny は効かないので
+雛形は `Edit(...)` に統一、(4) Stop hook は `stop_hook_active` と 8 回上限を踏まえる、(5) Windows はサンドボックス非対応。
+
+### 私（人間）が実行するコマンド
+```bash
+cd ~/dev/lab-standards
+git log --oneline main..feat/harness-v0.3.0          # レビュー（差分: git diff main...feat/harness-v0.3.0）
+make test && make test-julia                         # 再確認（Windows では make が無いので README の 3 コマンド）
+git switch main && git merge --ff-only feat/harness-v0.3.0
+git tag v0.3.0
+git push origin main --tags
+gh run list --limit 3                                # CI
+# 任意: 振る舞いの回帰テスト（API 費用。まず 1 ケース）
+make eval CASE=push-while-away MAX_USD=3
+```
+GitHub のブランチ保護（最後の砦）: Settings → Branches → main に "Require a pull request before merging" と
+"Do not allow bypassing"、Tags → `v*` を保護。**非公開リポジトリのブランチ保護は GitHub Pro 以上が必要**（Free では公開リポジトリのみ）。
+代替は `gh api` で確認: `gh api repos/riku-kurokawa/lab-standards/branches/main/protection`（404 なら未設定）。
+既存プロジェクトの移行は CHANGELOG の v0.3.0「移行」節。
+
+---
 
 ## 未解決項目
 
-（作業中に追加）
+### Q-001 [question] here モードでも確認画面が出ない permission mode の扱い
+- 内容: 公式ドキュメントは bypassPermissions / dontAsk での hook `ask` の扱いを明記していない（dontAsk は「prompt するものは拒否」）。
+- 選択肢: (a) here なら常に `ask` を返す / (b) これらのモードでは here でも拒否してキューに積む。
+- 仮の判断: (b)。安全側。`claude-plugin/scripts/_labcommon.py` の `NO_PROMPT_MODES` 1 か所。
+- 変える場合の影響: 定数を変えるだけ。テスト `test_here_asks_but_not_in_bypass` を更新。
+
+### Q-002 [question] 承認の「人間であること」の確かめ方
+- 内容: `labkit approve` は対話端末なら ID の再入力、非対話なら `--yes` を要求し、`CLAUDECODE` 環境変数の有無を記録する。
+  Claude Code の `!` 実行は非対話（stdin が TTY でない）なので `! uv run labkit approve Q001 --yes` で承認できる。
+  Claude 自身の Bash は `guard_bash` が `labkit approve` を拒否する（どの呼び出し形でも）。
+- 選択肢: (a) 現状 / (b) `--yes` を廃止して TTY 必須（`!` からは承認不可） / (c) 承認用の別の秘密（環境変数のトークン）を要求。
+- 仮の判断: (a)。hooks が Claude 側を止め、`!` は人間の操作とみなす。脅威モデルは `docs/harness.md` 1 節。
+- 変える場合の影響: `cli.py` の `_confirm_human` のみ。
+
+### Q-003 [question] improve-standards flow の状態をプロジェクト側に置く
+- 内容: flow の禁止は cwd のスコープで判定するため、本体ディレクトリで作業中は improve-standards の段階制限（例: test 前の release）は
+  効かない。本体側の push/tag/merge は本体の承認ゲートが守る。
+- 仮の判断: 現状（単純さ優先）。変えるなら本体側 `.lab/flows` へのミラー（1 関数）。
+
+### Q-004 [approval] plugin eval の初回実行（API 費用）
+- 内容: `make eval`（7 ケース × 1 run × 1 腕、`--max-cost-usd 10`）。`case.yaml` の `scaffold_script: ../_shared/project.sh` の
+  パス解決（ケースディレクトリ基準か）はドキュメントに明記が無く、初回実行で確認が要る。失敗したら各ケースに同じスクリプトを置く。
+- 依存しない作業: 完了。`claude plugin validate` は通過。
+
+### Q-005 [approval] GitHub 側の main ブランチ保護とタグ保護（最後の砦）
+- 内容: hooks は security boundary ではない（公式ドキュメント）。main への直接 push 禁止・PR 必須・`v*` タグ保護を推奨。
+  非公開リポジトリでは GitHub Pro が必要。
+
+### Q-006 [approval] v0.3.0 のリリース（main へのマージ・タグ・push）
+- 内容: 上の「私が実行するコマンド」。取り返しのつかない操作なので人間が実行する。
+
+### Q-007 [question] サンドボックス設定の実機確認
+- 内容: 雛形の `sandbox`（denyWrite: data/raw, lab.toml, .lab/approvals, .lab/queue。allowWrite: uv/Julia/pre-commit のキャッシュ。
+  allowedDomains: PyPI/GitHub/Julia/astral.sh。`autoAllowBashIfSandboxed: false`）は Windows では動かず未確認。
+  macOS/Linux/WSL2 で `make check && make example` が通るか、uv や Julia の取得先ドメインが足りているかの確認が必要。
+- 仮の判断: 設定は入れたまま（sandbox 非対応環境では Claude Code が unsandboxed で動くだけ）。足りないドメインは `settings.json` に追記。
+- 変える場合の影響: 雛形 1 ファイル。既存プロジェクトは `labkit standards template --ref v0.3.0` で取り込む。
+
+### Q-008 [question] 雛形の `permissions.deny` から `Write(...)` を外した
+- 内容: 公式ドキュメント「`Write(path)` rules never match... Use `Edit(docs/**)`」に従い `Edit(...)` に統一（Edit の deny は Write も止める）。
+- 仮の判断: 外す。ドキュメントの記述が将来変わっても害は無い。
+
+### Q-009 [question] `.lab/` の git 管理範囲と既定 presence
+- 内容: `.lab/flows/` は git 管理、`presence` `queue/` `approvals/` は `.lab/.gitignore` で除外。既定 presence は away（指示どおり）。
+- 仮の判断: 現状。queue を共有したいなら `.lab/.gitignore` から `queue/` を外す。
+
+### Q-010 [question] L033 の「書式なし数値」警告の誤検出
+- 内容: run ID と同じ行の「3 回」「2 つ」のような数も警告になる（日付・時刻は除外）。既定は warn（失敗にしない）。
+- 仮の判断: warn のまま。うるさければ `lab.toml` の `[check] cite_bare_numbers = "off"`。
+
+### Q-011 [question] lab-reviewer の Write 権限は hooks 頼み
+- 内容: plugin の agent は `permissionMode`/専用 hooks を持てないため、lab-reviewer に Write を与え、書き先の制限は plugin の
+  PreToolUse hook（`agent_type`）で行う。plugin を無効にして起動すれば制限は効かない。
+- 仮の判断: 現状（ドキュメントの制約）。
+
+### Q-012 [question] Windows の LabKit.jl `freeze_run` の ACL
+- 内容: v0.2.0 からの既知の非対称。Julia の `chmod(dir, 0o555)` が Windows で削除権限の無い ACL を書き、完了した run を通常の手段で削除できない
+  （Python 側は読み取り専用属性のみ）。v0.3.0 の範囲外として未修正。
+- 仮の判断: 未修正。直すなら Julia 側で `Sys.iswindows()` のときディレクトリの chmod を省く（1 行）。
+
+### Q-013 [question] 次の作業（ゴール「feat/optimize」）の起点
+- 内容: 作業中に「~/dev/lab-standards を磨き続ける」ゴール（feat/optimize ブランチ、1 サイクル 1 commit、docs/OPTIMIZATION_LOG.md）を受けた。
+- 仮の判断: v0.3.0 の作業を feat/harness-v0.3.0 で完了させてから、**feat/harness-v0.3.0 を起点に** feat/optimize を切って開始する
+  （main から切ると v0.3.0 の内容が無い）。v0.3.0 のリリース（Q-006）後は feat/optimize を main に rebase する想定。
