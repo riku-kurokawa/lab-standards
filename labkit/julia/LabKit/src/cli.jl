@@ -33,3 +33,16 @@ function fig(spec::AbstractString; run=nothing)
 end
 
 check(; full::Bool=false) = full ? labkit_cli("check", "--full") : labkit_cli("check")
+
+"""
+    cite(run_id, key; digits=nothing, unit="")
+
+run の指標を検証可能な書式で返す（`labkit cite` と同じ）: `12.3 dB [run:<run_id>:<key>]`
+"""
+function cite(run_id::AbstractString, key::AbstractString; digits=nothing, unit::AbstractString="")
+    args = String["cite", string(run_id), string(key)]
+    digits === nothing || push!(args, "--digits", string(digits))
+    isempty(unit) || push!(args, "--unit", unit)
+    cmd = _labkit_exe(find_root())
+    return strip(read(Cmd(`$cmd $args`; dir=find_root()), String))
+end

@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: improve-standards-flow
+tags: [harness]
+context:
+  scaffold_script: ../_shared/project.sh

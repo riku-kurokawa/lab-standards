@@ -1,5 +1,13 @@
 name: ci
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_evals:
+        description: "plugin eval を実行する（API 費用がかかる。ANTHROPIC_API_KEY が必要）"
+        type: boolean
+        default: false
 
 jobs:
   python:
@@ -19,6 +27,7 @@ jobs:
           git config --global user.email ci@example.com && git config --global user.name ci
           uvx copier copy --defaults --vcs-ref HEAD -d project_name="CI project" -d author=ci . /tmp/ciproj
           test -f /tmp/ciproj/lab.toml && test -f /tmp/ciproj/.copier-answers.yml
+          python3 -c "import json; json.load(open('/tmp/ciproj/.claude/settings.json'))"
 
   julia:
     runs-on: ubuntu-latest
@@ -29,3 +38,19 @@ jobs:
           version: "1.11"
       - name: LabKit.jl tests
         run: julia --project=labkit/julia/LabKit -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
+
+  # 振る舞いの回帰テスト。モデル呼び出しの費用がかかるので手動起動のみ
+  evals:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_evals
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g @anthropic-ai/claude-code
+      - run: claude plugin eval claude-plugin --trust-plugin --allow-tools Bash Write Edit --runs 1 --ablation none --no-publish --max-cost-usd 10 --json results.json
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: results.json

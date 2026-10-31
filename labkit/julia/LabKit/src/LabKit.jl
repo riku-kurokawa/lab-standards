@@ -24,9 +24,9 @@ using JSON3, HDF5, DataFrames, Parquet2
 export find_root, load_lab, load_config,
        Run, runpath, log_metric, log_message, add_input,
        save, load, load_meta, writer,
-       datapath, runs_root, fig, check, labkit_cli
+       datapath, runs_root, fig, check, cite, labkit_cli
 
-const LABKIT_VERSION = "0.2.0"
+const LABKIT_VERSION = "0.3.0"
 const SCHEMA_VERSION = "1"
 
 include("util.jl")

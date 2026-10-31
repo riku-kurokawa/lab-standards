@@ -9,6 +9,11 @@
 !/scratch/.gitkeep
 /.mlflow/
 
+# --- ハーネスの手元だけの状態（flows/ は git 管理） ---
+/.lab/presence
+/.lab/queue/
+/.lab/approvals/
+
 # --- 文献（PDF は著作物・大容量なので管理外） ---
 /literature/pdfs/*
 !/literature/pdfs/.gitkeep

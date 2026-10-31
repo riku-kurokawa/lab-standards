@@ -6,6 +6,7 @@
 
 - `make check`（= `labkit check` + テスト + lint）が通るまで作業は完了ではない。
 - コードを変えた日は `docs/devlog/YYYY-MM-DD.md` を更新する（`labkit devlog` で作成）。
+  run の数値は `labkit cite <run_id> <key> --unit <単位>` の出力（`12.3 dB [run:<run_id>:snr_db]`）を貼る。
 
 ## 置き場所の判定
 
@@ -19,16 +20,28 @@
 | 図 | `runs/<run_id>/figures/` | `figspecs/*.toml` + `labkit fig`。描画ライブラリを直接使わない |
 | 文献・サーベイ | `literature/` | `labkit lit add` / `labkit lit survey` |
 | 設計判断 | `docs/decisions/` | `labkit adr "タイトル"` |
+| レビュー記録 | `docs/reviews/` | lab-reviewer agent だけが書く（Agent ツールで起動） |
 | 試行錯誤 | `scratch/` | git 管理外。成果物にしない |
+
+## 人間が不在でも止まらない
+
+- **承認ゲート**: `git push` / `git tag` / main への merge / `gh pr merge` / `gh release` / `labkit raw freeze` / `copier` は
+  hooks が止める。`presence=away`（既定）では拒否され、承認待ち `.lab/queue/<ID>` に記録される。
+  拒否されたら、その操作に依存しない作業を続け、終了時に ID を報告する。承認後は**同じディレクトリ・同じ HEAD で同じコマンド全文**を実行する。
+- **質問**: 判断の分かれる問いは質問ツールで止まらず
+  `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>" --impact "<変更時の影響>"` で積み、仮の判断で進む。
+  `labkit approve / reject / answer` は人間専用（Claude は実行できない）。
+- **手順**: 移行は `labkit flow start migrate`、本体の改良は `labkit flow start improve-standards`。
+  `labkit flow status` で今の段階・禁止操作・残り条件を確認し、満たしたら `labkit flow advance`。
 
 ## 雛形・labkit・hooks 自体を直したくなったら
 
-このプロジェクト内のコピーは直さない。skill `improve-standards` に従い、lab-standards 本体を直してリリースしてから
-`labkit standards unlink --to vX.Y.Z` / `labkit standards template --ref vX.Y.Z` で取り込む。
+このプロジェクト内のコピーは直さない。`labkit flow start improve-standards`（skill `improve-standards`）に従い、
+lab-standards 本体を直してリリースしてから `labkit standards unlink --to vX.Y.Z` / `labkit standards template --ref vX.Y.Z` で取り込む。
 このプロジェクトだけの例外は `lab.toml` で行う（人間が編集）。
 
 ## 禁止事項
 
-- `data/raw/` と完了した `runs/` の変更、`lab.toml` の編集。
+- `data/raw/` と完了した `runs/` の変更、`lab.toml` の編集、`.lab/approvals` `.lab/queue` `.lab/flows` の直接編集。
 - pickle・JLD2 など言語依存形式での保存、コード中の絶対パス（`configs/paths/*.toml` を使う）。
 - 規約に合わない新しいトップレベルディレクトリの作成。

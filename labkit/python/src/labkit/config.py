@@ -10,7 +10,7 @@ from labkit._util import deep_merge
 
 # lab.toml に書かれていない項目の既定値。テンプレートの lab.toml は全項目を明示する。
 DEFAULTS: dict = {
-    "lab": {"standards_version": "0.2.0", "project": ""},
+    "lab": {"standards_version": "0.3.0", "project": ""},
     "layout": {
         "allowed": [
             "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile",

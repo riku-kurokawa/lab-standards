@@ -1,0 +1,2 @@
+# lab-standards 本体の目印。lab-rules plugin の hooks はこのファイル（または copier.yml + labkit/）を見て
+# 承認ゲート（push / tag / merge）だけを有効にする。配置規約や labkit check は適用しない。

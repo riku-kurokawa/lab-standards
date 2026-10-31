@@ -5,3 +5,9 @@ __pycache__/
 .ruff_cache/
 labkit/julia/LabKit/Manifest.toml
 dist/
+
+# ハーネスの手元だけの状態
+.lab/presence
+.lab/queue/
+.lab/approvals/
+claude-plugin/evals/results/

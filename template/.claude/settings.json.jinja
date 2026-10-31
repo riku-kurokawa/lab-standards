@@ -10,12 +10,28 @@
   "permissions": {
     "deny": [
       "Edit(data/raw/**)",
-      "Write(data/raw/**)",
       "Edit(runs/**)",
-      "Write(runs/**)",
       "Edit(lab.toml)",
-      "Write(lab.toml)"
+      "Edit(.lab/approvals/**)",
+      "Edit(.lab/queue/**)",
+      "Edit(.lab/flows/**)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": false,
+    "filesystem": {
+      "denyWrite": ["data/raw", "lab.toml", ".lab/approvals", ".lab/queue"],
+      "allowWrite": ["~/.cache/uv", "~/.local/share/uv", "~/.julia", "~/.cache/pre-commit"]
+    },
+    "network": {
+      "allowedDomains": [
+        "pypi.org", "files.pythonhosted.org",
+        "github.com", "*.github.com", "objects.githubusercontent.com", "codeload.github.com",
+        "pkg.julialang.org", "*.julialang.org", "julialang-s3.julialang.org",
+        "astral.sh"
+      ]
+    }
   },
   "env": {
     "MLFLOW_DISABLE_TELEMETRY": "true",

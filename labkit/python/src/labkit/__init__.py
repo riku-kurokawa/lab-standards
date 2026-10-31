@@ -20,6 +20,13 @@ def fig(spec: str, run: "Run | str | None" = None) -> list:
     return render(spec, run_id=run.run_id if isinstance(run, Run) else run)
 
 
+def cite(run_id: str, key: str, digits: int | None = None, unit: str = "") -> str:
+    """run の指標を検証可能な書式で返す（labkit cite と同じ。Julia の LabKit.cite と同名）."""
+    from labkit.check import cite as _cite
+
+    return _cite(run_id, key, digits=digits, unit=unit)
+
+
 def check(full: bool = False) -> int:
     from labkit.cli import main
 
@@ -28,6 +35,7 @@ def check(full: bool = False) -> int:
 
 __all__ = [
     "fig",
+    "cite",
     "check",
     "log_message",
     "add_input",

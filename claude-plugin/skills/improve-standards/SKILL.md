@@ -1,91 +1,47 @@
 ---
 name: improve-standards
-description: プロジェクトで作業中に、lab-standards 本体（雛形・labkit/LabKit.jl・図テンプレート・check のルール・hooks・skills）を改良したくなったときの手順。本体を同じセッションで直し、link で試し、リリースしてからプロジェクトに取り込む。
+description: プロジェクトで作業中に、lab-standards 本体（雛形・labkit/LabKit.jl・図テンプレート・check のルール・hooks・skills）を改良したくなったときの手順。`labkit flow start improve-standards` で状態機械を開始し、振り分け→承認→ブランチ→link→実装→テスト→レビュー→リリース（承認）→取り込み、と進める。
 ---
 
 # lab-standards 本体を改良してプロジェクトに反映する
 
 プロジェクトの中のコピーは直さない。本体（既定 `~/dev/lab-standards`、環境変数 `LAB_STANDARDS_DEV`）を直し、
-タグを打ってからプロジェクトに取り込む。各ステップで人間の確認が要る箇所は **【確認】** と書いた。
+タグを打ってからプロジェクトに取り込む。手順は `labkit flow`（状態は**プロジェクト側**の `.lab/flows/improve-standards.json`）。
 
-## ① 振り分け
+```bash
+uv run labkit flow start improve-standards
+uv run labkit flow status
+uv run labkit flow advance
+```
+
+## 段階
+
+| 段階 | やること | 完了条件 | 禁止 |
+|---|---|---|---|
+| triage | 振り分け（下表）。共通の改良なら、内容（何を・なぜ・どの部品か）を 3〜5 行で今日の開発ログに書く | 今日の開発ログがある **+ 人間の承認** | link, template, release, raw |
+| branch | 人間に `/add-dir ~/dev/lab-standards` を依頼（無くても本体のパスを直接指定して進める）。本体の `CLAUDE.md` を読む。本体で `git switch -c feat/<短い名前>`（`git -C` は使わず、本体に cd して実行） | 本体のブランチが `feat/*` | link, template, release, raw |
+| link | `uv run labkit standards link`（labkit / LabKit.jl / 図テンプレート / check を変えるとき。hooks・skills だけなら不要だが、条件のため link はする） | link 状態 | template, release, raw |
+| implement | 本体を直す（テスト・後方互換・CHANGELOG は本体の CLAUDE.md）。プロジェクトで実際に使って確かめ、本体に commit を積む。雛形を変えたら使い捨ての場所に `copier copy --vcs-ref HEAD` で生成して確認（プロジェクト内には生成しない） | 本体のブランチが main より進んでいる | template, release, raw |
+| test | 本体のテストを通す（labkit・hooks、Julia を変えたら Julia も）。**Agent ツールで lab-reviewer を起動**し、本体の差分のレビュー記録をプロジェクトの `docs/reviews/` に書かせる | 本体のテストが通る **+ 現在の HEAD に対する pass のレビュー記録** | template, release, raw |
+| release | 本体の CHANGELOG に `## vX.Y.Z` の節を書き、`python tools/release.py X.Y.Z`、commit。人間の承認後に `git switch main && git merge --ff-only feat/<名前>`、`git tag vX.Y.Z`、`git push origin main --tags`（merge・tag・push は承認ゲートの対象。away なら承認待ちに積まれるので、コマンドを提示して待つ） | 本体の版のタグが origin にある **+ 人間の承認** | template, raw |
+| adopt | `uv run labkit standards unlink --to vX.Y.Z` → `labkit check` で L050 が消えたことを確認 → commit。`uv run labkit standards template --ref vX.Y.Z`（承認ゲート対象）→ 衝突を解消して commit | link 解除、`labkit check` が通る | release, raw |
+| done | 開発ログに「lab-standards vX.Y.Z に更新（変更点・理由）」。他の PC では `/plugin marketplace update lab-standards` が必要と伝える | — | — |
+
+### triage の振り分け
 
 | ケース | 対応 |
 |---|---|
-| このプロジェクトだけの事情（特定ファイルだけ pickle を許す、一時的にチェックを外す） | 本体は直さない。`lab.toml` の `format_allowed` / `plot_import_allowed` / `skip` の変更案を人間に提示して終わり（lab.toml は人間が編集） |
-| 他のプロジェクトでも役立つ（新しい図テンプレート、check の改善、新しい skill、雛形の改善） | ②へ |
-| 判断がつかない | 人間に尋ねる |
+| このプロジェクトだけの事情（特定ファイルだけ pickle を許す、一時的にチェックを外す） | 本体は直さない。`lab.toml` の `format_allowed` / `plot_import_allowed` / `skip` の変更案を人間に提示し、flow は `labkit flow abort` |
+| 他のプロジェクトでも役立つ（新しい図テンプレート、check の改善、新しい skill、雛形の改善） | 進める |
+| 判断がつかない | `labkit queue ask` に積み、「共通の改良」と仮定して進める（本体の変更は branch 上なので取り消せる） |
 
-**【確認】** 改良の内容（何を・なぜ・どの部品か）を 3〜5 行で示し、進めてよいか確認する。
+## 止まらないための約束
 
-## ② 本体を作業対象に加え、ブランチを切る
-
-1. 人間に `/add-dir ~/dev/lab-standards`（実際のパス）の実行を依頼する。
-2. 本体の `CLAUDE.md`（メンテナンス規約）を読む。
-3. 本体で作業ブランチを作る:
-   ```bash
-   git -C ~/dev/lab-standards switch main && git -C ~/dev/lab-standards pull --ff-only
-   git -C ~/dev/lab-standards switch -c feat/<短い名前>
-   ```
-4. 開発ログに「lab-standards 改良開始: feat/<名前>（理由）」と書く。
-
-## ③ link（プロジェクトが手元の本体を参照するようにする）
-
-labkit / LabKit.jl / 図テンプレート / check を変えるときに行う。hooks・skills だけの変更なら不要
-（手元の本体を marketplace に登録していれば、Claude Code の再起動で反映される）。
-
-```bash
-uv run labkit standards link            # --path で場所を指定可
-uv run labkit standards status
-```
-link 中は `labkit check` が L050 を出し、commit できない（作業終了時のチェックでは止めない）。
-link 中の run の meta.json には `labkit_source.mode = "link"` が記録される。
-
-## ④ 本体を直し、プロジェクトで試す
-
-- 本体の `CLAUDE.md` の規約（テスト、後方互換、CHANGELOG）に従って本体を直す。
-- プロジェクトで実際に使って確かめる（例: 新しい図テンプレートで図を出し、png を確認する）。
-- 本体のテストを書き、通す:
-  ```bash
-  cd ~/dev/lab-standards
-  (cd labkit/python && uv run --extra dev pytest -q)
-  uv run --with pytest pytest -q claude-plugin/tests
-  ```
-- **雛形（template/）を変えた場合**: プロジェクトには ⑥ で正式に取り込む。ここでは本体のブランチを commit したうえで、
-  使い捨ての場所に生成して確かめる:
-  ```bash
-  TRY=$(mktemp -d)/try
-  uvx copier copy --defaults --vcs-ref HEAD -d project_name="try" -d author=me ~/dev/lab-standards "$TRY"
-  ```
-  生成物（`$TRY`）の該当ファイルを確認する（プロジェクト内には生成しない）。
-
-## ⑤ リリース 【確認】
-
-1. 人間に差分（`git -C ~/dev/lab-standards diff main --stat` と要点）を示し、リリースしてよいか、版をどう上げるか確認する。
-   - 後方互換の追加・修正 → マイナー/パッチ（v0.2.0 → v0.3.0 / v0.2.1）
-   - 互換性を壊す変更 → メジャー。本体の `docs/decisions/` に ADR を書く
-2. 本体で:
-   ```bash
-   python tools/release.py X.Y.Z          # 全ファイルの版を更新し、CHANGELOG と整合性を検査
-   git add -A && git commit -m "release vX.Y.Z: <要約>"
-   git switch main && git merge --ff-only feat/<名前>   # または PR を作ってマージ
-   git tag vX.Y.Z && git push origin main --tags
-   ```
-   push は人間の承認を得てから行う。
-
-## ⑥ プロジェクトをリリース版に戻し、取り込む
-
-```bash
-uv run labkit standards unlink --to vX.Y.Z      # labkit / LabKit.jl をタグ参照に戻して同期
-uv run labkit check                             # L050 が消えたことを確認
-git add -A && git commit -m "lab-standards vX.Y.Z に更新"
-uv run labkit standards template --ref vX.Y.Z   # 雛形の差分を取り込む（衝突は人間と解消）
-git add -A && git commit -m "雛形を lab-standards vX.Y.Z に追従"
-```
-hooks・skills を変えた場合、他の PC では `/plugin marketplace update lab-standards` が必要と人間に伝える。
-開発ログに「lab-standards vX.Y.Z に更新（変更点・理由）」と書き、本体の作業ブランチを削除する。
+- 承認待ち（triage・release の `advance`、本体の merge/tag/push）は終了時の報告に挙げ、依存しない作業（テスト、ドキュメント、CHANGELOG の下書き）を続ける。
+- レビューが changes-requested なら、指摘に対応して本体に commit → lab-reviewer を再起動 → advance。
+- 版の付け方: 互換を保つ追加はマイナー、修正のみはパッチ、互換を壊すならメジャー + 本体に ADR。
 
 ## 他のプロジェクト
 
-自動では更新しない。各プロジェクトの都合のよいときに ⑥ と同じ手順で取り込む
+自動では更新しない。各プロジェクトの都合のよいときに adopt と同じ手順で取り込む
 （`labkit standards unlink --to vX.Y.Z` は link していなくても「参照タグの更新」として使える）。

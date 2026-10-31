@@ -5,15 +5,15 @@
 # ============================================================
 
 [lab]
-standards_version = "0.2.0"
+standards_version = "0.3.0"
 project = "{{ project_slug }}"
 
 [layout]
 # トップレベルに置いてよいもの（これ以外は L001）
 allowed = [
-  "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile",
+  "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile", "AGENT_QUEUE.md",
   ".gitignore", ".gitattributes", ".pre-commit-config.yaml", ".copier-answers.yml", ".python-version",
-  ".claude", ".git", ".venv", ".mlflow", ".pytest_cache", ".ruff_cache",
+  ".claude", ".git", ".venv", ".mlflow", ".pytest_cache", ".ruff_cache", ".lab",
   "src", "scripts", "jl", "configs", "tests", "data", "runs", "notebooks",
   "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "legacy",
 ]
@@ -21,7 +21,7 @@ allowed = [
 writable = [
   "src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs",
   "literature", "prompts", "scratch", "notebooks",
-  "README.md", "CLAUDE.md", "pyproject.toml", "Makefile", ".gitignore",
+  "README.md", "CLAUDE.md", "pyproject.toml", "Makefile", ".gitignore", "AGENT_QUEUE.md",
 ]
 # 誰も書き換えない場所
 readonly = ["data/raw", "legacy"]
@@ -42,6 +42,8 @@ code_dirs = ["src", "scripts", "jl", "tests", "notebooks"]
 figure_ok_dirs = ["docs/assets", "literature/pdfs", "literature/inbox", "scratch"]
 data_ok_dirs = ["tests/fixtures", "scratch"]
 skip = []                  # 一時的に無効化するチェックコード（例: ["L012"]）
+# L033: run ID と同じ行にある書式なしの数値を警告する（"warn" | "off"）。数値は `labkit cite` の書式で書く
+cite_bare_numbers = "warn"
 
 [devlog]
 dir = "docs/devlog"
@@ -61,3 +63,10 @@ pdf_dir = "literature/pdfs"   # 複数プロジェクトで共有するなら "~
 [claude]
 require_devlog = true      # コードを変更したセッションは当日の開発ログが無いと終了できない
 max_stop_blocks = 3        # 終了時チェックで止める最大回数（無限ループ防止）
+
+[gate]
+# 承認ゲート: git push / git tag / 保護ブランチへの merge / gh pr merge / gh release / labkit raw freeze / copier
+# presence=away（既定）では拒否して .lab/queue に積む。人間が `labkit approve <ID>` すると 1 回だけ通る
+enabled = true
+protected_branches = ["main", "master"]
+approval_ttl_hours = 24

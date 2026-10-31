@@ -71,6 +71,25 @@ gh run list --limit 3          # CI（GitHub Actions）の結果。数分後に 
 
 非公開リポジトリでよい。各プロジェクトは `gh auth setup-git` 済みの git 認証で取得する。
 
+## 4b. 承認ゲートの使い方（v0.3.0）
+
+Claude が `git push` / `git tag` / main への merge / `labkit raw freeze` / `copier` を実行しようとすると hooks が止め、
+承認待ちとして `.lab/queue/` に記録する（既定 `presence=away`）。戻ったら:
+
+```bash
+uv run labkit queue list              # 承認待ち・質問の一覧（ID、コマンド全文、HEAD、理由）
+uv run labkit approve Q001            # 対話端末なら ID の再入力を求める。24 時間・1 回限り・同じ HEAD にのみ有効
+uv run labkit reject Q001 --note "理由"
+uv run labkit answer Q002 "lz4 で"     # 質問への回答（Claude は次の入力で受け取る）
+uv run labkit presence here           # 在席中は拒否ではなく通常の確認画面にする
+```
+
+Claude Code の `!` 実行（`! uv run labkit approve Q001 --yes`）でも承認できる。`!` は hooks を通らず人間の操作とみなす。
+**GitHub 側で main のブランチ保護（直接 push 禁止・PR 必須）を設定しておく**ことを強く勧める（hooks は security boundary ではない）。
+
+サンドボックス（雛形の `.claude/settings.json` の `sandbox`）は macOS / Linux / WSL2 で有効。Linux と WSL2 では
+`bubblewrap` と `socat` が必要。Windows ネイティブでは無効（hooks と chmod のみ）。詳細は `docs/harness.md`。
+
 ## 5. Claude Code に plugin を登録する
 
 自分の PC では**手元のパス**から登録する（本体の hooks・skills の編集が再起動後すぐ効く）。Claude Code の中で:
@@ -92,7 +111,8 @@ uv sync
 julia --project=jl -e 'using Pkg; Pkg.instantiate()'
 uv run pre-commit install
 make check && make example
-uv run labkit standards status          # Python・Julia とも release v0.2.0 になっていること
+uv run labkit standards status          # Python・Julia とも release v0.3.0 になっていること
+uv run labkit presence status           # away（既定）
 ```
 
 ---
