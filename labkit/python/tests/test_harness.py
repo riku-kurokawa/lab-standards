@@ -168,7 +168,10 @@ def test_clean_tree_outside_git(project):
     assert msg and "git リポジトリではありません" in msg
 
 
-def test_flow_migrate_transitions_and_approval(repo):
+def test_flow_migrate_transitions_and_approval(repo, capsys):
+    flow.start(repo, "migrate")
+    flow.abort(repo, "migrate")  # 中断して始め直せる
+    assert flow.active_flows(repo) == []
     st = flow.start(repo, "migrate")
     assert st["stage"] == "freeze" and (repo / ".lab" / "flows" / "migrate.json").is_file()
     with pytest.raises(SystemExit, match="pre-migration"):
@@ -191,8 +194,45 @@ def test_flow_migrate_transitions_and_approval(repo):
     assert "apply-template" in flow.describe(repo, st)
     with pytest.raises(SystemExit):
         flow.start(repo, "migrate")  # 二重開始不可
-    flow.abort(repo, "migrate")
-    assert flow.active_flows(repo) == []
+    # ---- 以降、done まで実物の条件で進める（サイクル 57）----
+    from labkit.cli import main
+    from labkit.rawdata import freeze
+
+    with pytest.raises(SystemExit, match="copier-answers"):
+        flow.advance(repo, "migrate")
+    (repo / ".copier-answers.yml").write_text("_commit: v0.3.0\n")
+    with pytest.raises(SystemExit, match="'warn'"):  # 人間が mode を warn にする
+        flow.advance(repo, "migrate")
+    (repo / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "warn"\n')
+    assert flow.advance(repo, "migrate")[0]["stage"] == "raw-data"
+    with pytest.raises(SystemExit, match="raw freeze"):
+        flow.advance(repo, "migrate")
+    (repo / "data" / "raw" / "in.bin").write_bytes(b"abc")
+    freeze()  # 人間が実行する想定（承認ゲートの対象）
+    assert flow.advance(repo, "migrate")[0]["stage"] == "code"
+    assert flow.advance(repo, "migrate")[0]["stage"] == "reproduce"  # check（L050/L021/L002/L003 は無視）
+    with pytest.raises(SystemExit, match="finished の run"):
+        flow.advance(repo, "migrate")
+    with Run("repro", {}) as run:
+        log_metric(run, "x", 1.0)
+    with pytest.raises(SystemExit, match="pass 記録"):
+        flow.advance(repo, "migrate")
+    capsys.readouterr()  # freeze() の進捗表示を捨てる
+    assert main(["review", "template", "migrate", "reproduce"]) == 0
+    tpl = capsys.readouterr().out
+    d = repo / "docs" / "reviews"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{dt.date.today().isoformat()}_migrate_reproduce.md").write_text(
+        tpl.replace("verdict: changes-requested", "verdict: pass").replace('  - "<path>:<line> 指摘（根拠）"\n', "")
+    )
+    assert flow.advance(repo, "migrate")[0]["stage"] == "strict"
+    with pytest.raises(SystemExit, match="'strict'"):
+        flow.advance(repo, "migrate")
+    (repo / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "strict"\n')
+    assert flow.advance(repo, "migrate")[0]["stage"] == "done"
+    assert flow.active_flows(repo) == []  # done に達した flow は進行中ではない
+    with pytest.raises(SystemExit, match="進行中ではありません"):
+        flow.advance(repo, "migrate")
 
 
 def test_flow_review_condition(repo):

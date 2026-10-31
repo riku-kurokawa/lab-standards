@@ -524,3 +524,13 @@
 - 監査: 採用（変更付き）: 例外を 2 か所で握るのではなく `status()` 側で扱う。adopt で link したままだと止まる否定の場合をテストに追加。
 - 結論: 採用。
 - 規模: テスト +60 行、standards.py +2 行、flow.py −6 行。labkit 62 passed。
+
+### 57. 2026-11-01 — migrate も最後まで進めるテスト
+- 観点: サイクル 56 と同じ。migrate の遷移テストは apply-template で abort していた。
+- 提案: freeze → done を実物の条件で進める（.copier-answers.yml、lab.toml の warn→strict、`labkit raw freeze` による MANIFEST と L002/L003、
+  check、finished な run、プロジェクト HEAD に対するレビュー記録）。done に達した flow は finished になり進行中でないことも固定。abort は冒頭で検査。
+- 発見: 欠陥なし（migrate の配線は正しい）。テスト側では freeze() の進捗出力が capsys に残り、レビュー雛形の前に混ざる罠があった。
+- 監査: 採用（変更付き）: レビュー記録の write_text に encoding="utf-8"（PYTHONUTF8 無しの Windows で cp932 になる）。code 段階の無視リストはこの最小
+  プロジェクトでは効いていない旨をコメント。
+- 結論: 採用。
+- 規模: テスト +43 行。labkit 62 passed。
