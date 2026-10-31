@@ -211,3 +211,13 @@
 - 監査: 採用（規約 5 は「増やさない」であり既存の削除は「減らす」価値で判断、各規約ごとに失敗の有無で判断）。
 - 結論: 採用。
 - 規模: prompts/README 8 → 6 行、他 2 行の言い換え。概念 −1（プロンプトの frontmatter 仕様）。
+
+### 21. 2026-11-01 — どこにも書かれていない labkit サブコマンドを棚卸し
+- 観点: 無くせないか。skills・docs・雛形のどこからも参照されないサブコマンドを列挙（raw verify, lit key, lit check, runs show, paths,
+  queue show, flow list）。
+- 提案: 未リリースの v0.3.0 で足した `queue show`（`cat .lab/queue/<ID>.json` と同じ）と `flow list`（`flow start` の名前無しが同じ一覧を出す）を削除。
+  人間に有用な `runs show` と `paths` は README の表に載せる。`raw verify --full` は `labkit check --full` が同じ検査なので README はそちらに統一。
+  v0.1 からの `lit key` / `lit check` は互換のため残し、削除可否を質問（Q-019）。
+- 監査: 採用（上記のとおり）。
+- 結論: 採用。
+- 規模: cli.py −9 行、CLI の動作 2 つ削除、README +2 行。

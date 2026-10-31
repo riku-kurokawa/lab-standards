@@ -119,10 +119,6 @@ def cmd_queue(a) -> int:
             raise SystemExit("queue done <ID>")
         it = state.mark_done(root, a.text)
         print(f"{it['id']} を done にしました")
-    elif a.action == "show":
-        if not a.text:
-            raise SystemExit("queue show <ID>")
-        print(json.dumps(state.get_item(root, a.text), ensure_ascii=False, indent=2))
     return 0
 
 
@@ -221,10 +217,6 @@ def cmd_flow(a) -> int:
             raise SystemExit("flow abort <name>")
         flow.abort(root, names[0])
         print(f"flow {names[0]} を中止しました")
-    elif a.action == "list":
-        for name, d in sorted(flow.definitions().items()):
-            print(f"{name}: {d.get('description', '')}")
-            print("  " + " → ".join(s["name"] + ("【承認】" if s.get("approval") else "") for s in d["stage"]))
     return 0
 
 
@@ -468,9 +460,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("value", choices=["here", "away", "status"])
     s.set_defaults(func=cmd_presence)
 
-    s = sub.add_parser("queue", help="承認待ち・質問のキュー（list / ask / done / show）")
-    s.add_argument("action", choices=["list", "ask", "done", "show"])
-    s.add_argument("text", nargs="?", help="ask: 質問文 / done, show: ID")
+    s = sub.add_parser("queue", help="承認待ち・質問のキュー（list / ask / done）")
+    s.add_argument("action", choices=["list", "ask", "done"])
+    s.add_argument("text", nargs="?", help="ask: 質問文 / done: ID")
     s.add_argument("--options", nargs="*", help="ask: 選択肢")
     s.add_argument("--assumed", help="ask: 仮に採用した判断とその理由")
     s.add_argument("--impact", help="ask: 後で変える場合の影響範囲")
@@ -493,8 +485,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("text")
     s.set_defaults(func=cmd_answer)
 
-    s = sub.add_parser("flow", help="手順の状態機械（start / status / advance / abort / list）")
-    s.add_argument("action", choices=["start", "status", "advance", "abort", "list"])
+    s = sub.add_parser("flow", help="手順の状態機械（start / status / advance / abort）")
+    s.add_argument("action", choices=["start", "status", "advance", "abort"])
     s.add_argument("name", nargs="?", help="migrate | improve-standards")
     s.set_defaults(func=cmd_flow)
 

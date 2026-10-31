@@ -171,3 +171,9 @@ GitHub のブランチ保護（最後の砦）: Settings → Branches → main �
   `labkit queue approve <ID>` のようにまとめればトップレベルは 15 になり「Claude 向け」と「人間向け」の区別が名前に出る。
   ただし指示（2 章）は `labkit approve <ID>` / `labkit reject <ID>` を明記しており、guard_bash の拒否判定もその名前で行っている。
 - 仮の判断: 名前は変えない（指示どおり）。変える場合は cli.py の argparse、_labgate の `labkit_approve` 判定、docs/skills の 3 か所。
+
+### Q-019 [question] `lit key` / `lit check` を v0.4 で削除してよいか
+- 内容: どちらもどの skill・docs からも参照されず、`lit key` は `lit add` の内部処理、`lit check` は `labkit check` の部分集合。
+  v0.1 からあるコマンドなので既存プロジェクトでの利用の有無を確認したい。
+- 仮の判断: 残す（互換）。削除するなら cli.py の 2 分岐と choices。
+

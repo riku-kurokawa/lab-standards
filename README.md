@@ -82,10 +82,11 @@ claude
 
 | やること | コマンド |
 |---|---|
-| 規約チェック＋テスト | `make check` |
+| 規約チェック＋テスト | `make check`（生データの sha256 まで照合するなら `uv run labkit check --full`） |
 | 実験の実行 | `uv run python scripts/run_<name>.py configs/experiments/<name>.toml [key=value ...]` |
 | 図 | `uv run labkit fig figspecs/<name>.toml --run <run_id>`（`labkit fig list` で一覧） |
-| run 一覧 | `uv run labkit runs list` |
+| run 一覧 / 詳細 | `uv run labkit runs list` / `labkit runs show <run_id>` |
+| データ置き場の確認 | `uv run labkit paths`（LAB_ENV ごとの data_root / runs_root） |
 | 開発ログ / ADR | `uv run labkit devlog` / `uv run labkit adr "タイトル" --slug slug` |
 | 文献 | `uv run labkit lit add --file x.bib --tags ...` / `labkit lit survey --question ...` |
 | 生データ登録 | `uv run labkit raw freeze`（人間が実行。承認ゲートの対象） |
