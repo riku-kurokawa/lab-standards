@@ -366,3 +366,11 @@
 - 結論: 採用。
 - 規模: copier.yml +8 行。概念の追加なし（copier の標準機能）。
 - 確認: 同じ実験を再実行し、書き換えた README / data-dictionary にマーカーが入らず、lab.toml の [gate] と Makefile は更新された。
+
+### 38. 2026-11-01 — CI の GitHub Actions を現行メジャーに
+- 観点: モダンさ。ci.yml の 4 つの action が 2〜5 メジャー遅れ（checkout v4 → v7、setup-uv v5 → v10、setup-julia v2 → v3、upload-artifact v4 → v7）。
+- 根拠（一次情報）: 固定していた版はすべて Node 20 前提。GitHub の changelog（2026-09-23）で Node 20 はランナーから撤去され、
+  現状は暗黙の Node 24 強制で動いているだけ。各 action のリリースノートを監査が確認し、既定値だけ使う本リポジトリの用法に破壊的変更なし。
+- 注意: setup-uv は v8 以降メジャーだけのタグを出さないので `@v10.3.3` と完全な版で固定。
+- 結論: 採用。
+- 規模: ci.yml 7 行の置換。
