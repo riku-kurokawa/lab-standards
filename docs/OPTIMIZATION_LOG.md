@@ -437,4 +437,4 @@
 - 提案: `load` の先頭で存在を確かめ `<path> がありません`（Python は FileNotFoundError、Julia は error）。ディレクトリ（Parquet 分割）も exists/ispath が真。
 - 監査: 採用（Julia のテストに verify なしの場合を追加、CHANGELOG、正規表現の `.` をエスケープ）。
 - 結論: 採用。
-- 規模: 各言語 +3 行、テスト +8 行。labkit 60 passed、LabKit.jl 14/14。
+- 規模: 各言語 +3 行、テスト +8 行。labkit 60 passed、LabKit.jl 15/15。
