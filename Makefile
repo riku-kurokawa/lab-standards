@@ -1,10 +1,18 @@
 # lab-standards 本体の操作の入口
-.PHONY: test test-python test-hooks test-julia check eval validate
+.PHONY: test test-python test-hooks test-julia check lint eval validate
 
-test: check test-python test-hooks
+LINT_DIRS = labkit/python/src labkit/python/tests claude-plugin/scripts claude-plugin/tests tools
+RUFF = uv run --project labkit/python --extra dev ruff   # 雛形と同じく uv.lock の ruff を使う
+
+test: check lint test-python test-hooks
 
 check:
 	python3 tools/release.py --check
+
+# 雛形が各プロジェクトに課すのと同じ基準（ruff check + format）を本体にも課す
+lint:
+	$(RUFF) check $(LINT_DIRS)
+	$(RUFF) format --check $(LINT_DIRS)
 
 test-python:
 	cd labkit/python && uv run --extra dev pytest -q

@@ -17,6 +17,8 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: version consistency
         run: python3 tools/release.py --check
+      - name: lint (ruff check + format)
+        run: make lint
       - name: labkit tests
         working-directory: labkit/python
         run: uv run --extra dev --extra polars pytest -q

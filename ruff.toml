@@ -1,0 +1,7 @@
+# 本体の hooks（claude-plugin/）と tools/ に適用する ruff 設定。labkit/python/ は自分の pyproject.toml（同じ値）を使う
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]

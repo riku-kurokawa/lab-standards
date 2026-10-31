@@ -16,8 +16,6 @@
 
 ## 観察したが未着手の候補
 
-- 本体の labkit/claude-plugin/tools は `ruff format --check` を通らない（19 + 12 ファイル）。雛形は各プロジェクトに format を要求するのに、
-  本体の CI と Makefile は `ruff check` しか回していない（2026-11-01 観察。サイクル 14 の候補）。
 
 ## サイクル
 
@@ -142,3 +140,14 @@
   pre-commit 自体が dev 依存なので venv への依存は増えない。鏡写しの `--force-exclude`、`require_serial`、`types_or: jupyter` を踏襲。
 - 結論: 採用。
 - 規模: 版の固定 3 → 1（pre-commit-hooks のみ）。YAML は +9 行だが同期すべき場所が減った。
+
+### 14. 2026-11-01 — 本体に雛形と同じ lint 基準（ruff check + format）を課す
+- 観点: 統一。雛形は各プロジェクトに `ruff check` と `ruff format --check` を要求するが、本体の CI と Makefile は ruff を一切回しておらず、
+  31 ファイル・1667 行が format 違反。claude-plugin/ と tools/ には ruff 設定が無く、既定（88 桁・E4/E7/E9/F）で解釈されていた
+  （同じリポジトリで「format」の意味が場所により違う、が具体的な失敗）。
+- 提案: ルートに ruff.toml（labkit と同じ値。ruff は最も近い設定を使うので labkit/python の pyproject と干渉しない）、
+  一度だけ機械的に `ruff format`、Makefile に `lint` を足して `make test` と CI で回す。
+- 監査: 採用。git blame のコスト（2 週間・1 人の履歴）は無視できる。`.git-blame-ignore-revs` は追加の仕組みなので入れない。
+  uvx ではなく labkit の venv の ruff を使う（サイクル 13 と同じ「1 つの ruff」）。
+- 結論: 採用。機械的な整形は別 commit にして差分を読めるようにした（1 サイクル 2 commit）。
+- 規模: ruff.toml +6 行、Makefile +6 行、CI +2 行。コード自体は整形のみ（意味の変更なし）。
