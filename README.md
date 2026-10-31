@@ -169,5 +169,6 @@ triage【承認】 → branch → implement（必要なら link） → test【�
 ```bash
 make test                      # 版の整合性 + lint（ruff check/format）+ labkit + hooks
 make test-julia
+make test-cross                # Julia が書いたファイルを Python が読む（対称性）
 make eval                      # 振る舞いの回帰テスト（API 費用。claude-plugin/evals/README.md）
 ```

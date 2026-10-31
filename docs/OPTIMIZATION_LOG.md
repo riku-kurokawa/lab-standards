@@ -221,3 +221,12 @@
 - 監査: 採用（上記のとおり）。
 - 結論: 採用。
 - 規模: cli.py −9 行、CLI の動作 2 つ削除、README +2 行。
+
+### 22. 2026-11-01 — Python と Julia の対称性を実ファイルで検査する
+- 観点: 規約 2「Python と Julia を揃える」は文章だけで、両実装を同じファイルで突き合わせるテストが無かった（Julia は Julia で読み戻すだけ）。
+- 提案: pytest を 1 つ追加（julia が無ければ skip）。Julia が run・HDF5・Parquet を書き、Python が shape (2,3)・値・サイドカー検証・
+  `labkit check`（L020/L022）・language=julia を確かめる。CI の julia ジョブで実行、Makefile に test-cross。
+- 監査: 採用。既存の工程に同等物なし。`cite`/`list_runs` の追加検証は冗長なので削る。slow マーカーは新しい規約になるので付けない。
+  手で往復させた結果は一致（row0 = [1,3,5]、check 違反なし）。
+- 結論: 採用。
+- 規模: テスト +35 行、CI +4 行、Makefile +3 行。文章だけだった規約 1 つが機械的検証に。

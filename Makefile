@@ -1,5 +1,5 @@
 # lab-standards 本体の操作の入口
-.PHONY: test test-python test-hooks test-julia check lint eval validate
+.PHONY: test test-python test-hooks test-julia test-cross check lint eval validate
 
 LINT_DIRS = labkit/python/src labkit/python/tests claude-plugin/scripts claude-plugin/tests tools
 RUFF = uv run --project labkit/python --extra dev ruff   # 雛形と同じく uv.lock の ruff を使う
@@ -22,6 +22,10 @@ test-hooks:
 
 test-julia:
 	julia --project=labkit/julia/LabKit -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
+
+# Python と Julia の対称性（Julia が書いた run / HDF5 / Parquet を Python が読む）
+test-cross:
+	cd labkit/python && uv run --extra dev pytest -q tests/test_cross_language.py
 
 validate:
 	claude plugin validate claude-plugin

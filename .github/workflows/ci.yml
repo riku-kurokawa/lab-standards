@@ -42,6 +42,10 @@ jobs:
           version: "1.11"
       - name: LabKit.jl tests
         run: julia --project=labkit/julia/LabKit -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
+      - uses: astral-sh/setup-uv@v5
+      - name: cross-language (Julia writes, Python reads)
+        working-directory: labkit/python
+        run: uv run --extra dev pytest -q tests/test_cross_language.py
 
   # 振る舞いの回帰テスト。モデル呼び出しの費用がかかるので手動起動のみ
   evals:
