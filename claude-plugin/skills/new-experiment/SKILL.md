@@ -25,7 +25,7 @@ description: lab.toml のあるプロジェクトで新しい実験・解析・�
    ```
 6. **パラメータを振るとき**: 設定ファイルをコピーせず、上書き引数で振る（`filter.cutoff_hz=80`）。多数なら HPC の配列ジョブ（skill: hpc-job）。
 7. **図を作る**: skill: make-figure。
-8. **記録する**: 開発ログの「実行した run」に run_id と目的・結果を書く（skill: write-devlog）。手法の選択など重要な判断は ADR に。
+8. **記録する**: 開発ログの「実行した run」に run_id と目的・結果を書く（skill: write-devlog。数値は `labkit cite` の書式）。手法の選択など重要な判断は ADR に。
 
 ## 結果が期待と違うとき
 
