@@ -17,7 +17,7 @@ from _labstate import find_scope, get_presence
 GATE_LINES = [
     "- 承認ゲート: git push / git tag / 保護ブランチへの merge / gh pr merge / gh release / labkit raw freeze / copier は"
     " hooks が止める。presence=away（既定）では拒否して承認待ちキュー（.lab/queue）に記録される。"
-    "拒否されたら、その操作に依存しない作業を続け、終了時の報告に承認待ち ID を挙げる。承認後は同じ cwd・同じ HEAD で同じコマンド全文を実行する。",
+    "拒否されたら、その操作に依存しない作業を続け、終了時の報告に承認待ち ID を挙げる。承認後は同じリポジトリ・同じ HEAD で同じコマンド全文を実行する。",
     '- 判断が分かれる問いは質問ツールで止まらず `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>" --impact "<変更時の影響>"` で積み、'
     "仮の判断で進む。`labkit approve/reject/answer` は人間専用で Claude は実行できない。",
 ]

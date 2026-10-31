@@ -7,7 +7,7 @@
 #   forbid      この段階で禁止する操作のカテゴリ。hooks が拒否する:
 #               code（src/scripts/jl/configs/tests/figspecs の編集）, experiments（scripts の実行）,
 #               raw（labkit raw freeze）, template（copier / labkit standards template）,
-#               link（labkit standards link/unlink）, release（git push/tag, gh release/merge）, commit（git commit）
+#               link（labkit standards link/unlink）, release（git push/tag, gh release/merge）
 #   [[stage.done]] 完了条件（すべて満たすと advance できる）。type は flow.py の CONDITIONS を参照。
 
 name = "migrate"

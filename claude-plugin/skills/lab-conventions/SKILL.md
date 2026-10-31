@@ -53,7 +53,7 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 
 - `git push` / `git tag` / 保護ブランチへの merge / `gh pr merge` / `gh release` / `labkit raw freeze` / `copier` は hooks が止める。
   `presence=away`（既定、`labkit presence status`）では拒否され、承認待ち `.lab/queue/<ID>` に記録される。
-  その操作に依存しない作業を続け、終了時に ID を報告する。承認後は同じ cwd・同じ HEAD で同じコマンド全文を実行する（1 回限り）。
+  その操作に依存しない作業を続け、終了時に ID を報告する。承認後は同じリポジトリ・同じ HEAD で同じコマンド全文を実行する（1 回限り）。
 - 判断が分かれる問いは `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>" --impact "<変更時の影響>"` に積み、仮の判断で進む。
 - `labkit approve / reject / answer` は人間専用。レビュー記録 `docs/reviews/` は lab-reviewer agent だけが書く。
 - 手順のある作業（移行、本体の改良）は `labkit flow start <migrate|improve-standards>` → `status` → `advance`。

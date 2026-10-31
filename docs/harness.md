@@ -17,18 +17,19 @@ docs/reviews/*.md    ←── lab-reviewer agent だけが書く（agent_type �
 
 対象: `git push`、`git tag`（作成・削除）、保護ブランチ（`[gate] protected_branches`、既定 main/master）への `git merge`、
 `gh pr merge`、`gh release`（create/edit/delete/upload）、`labkit raw freeze`、
-`copier copy|update|recopy`、`labkit standards template`（古い雛形の `make raw-freeze` / `make std-*` も検出）。
+`copier copy|update|recopy`、`labkit standards template`（古い雛形の `make raw-freeze` / `make std-template` も検出。`make std-link|std-unlink` は flow の link カテゴリとしてのみ扱う）。
 `command git push`、`git -c x=y -C dir push`、`sudo`/`env`/`VAR=x` 接頭辞、`&&`/`;`/`|`/改行で連結したもの、
 `uv run labkit ...`、`python -m labkit.cli ...` も検出する（`claude-plugin/scripts/_labgate.py`、shlex でトークン化）。
 
 | presence | 挙動 |
 |---|---|
 | `away`（既定） | 拒否。`.lab/queue/<ID>.json` に要求（コマンド全文、cwd、ブランチ、HEAD、差分の要約、理由、時刻、session_id）を記録。Claude には「承認待ち #ID として記録した。依存しない作業を続け、終了時の報告に挙げよ」 |
-| `here` | `permissionDecision: "ask"` で通常の確認画面。ただし `permission_mode` が bypassPermissions / dontAsk / auto のときは確認画面が出る保証が無いので away と同じ扱い |
+| `here` | `permissionDecision: "ask"` で通常の確認画面。ただし `permission_mode` が bypassPermissions / dontAsk のときは確認画面が出ないので away と同じ扱い（auto では ask が確認画面に届く） |
 
 承認は人間だけが行う: `labkit queue list` → `labkit approve <ID>`（引数なし。実行者と `claude_shell` を記録）。
 承認は **コマンド全文 + そのときの HEAD** に結び付き、**24 時間**（`[gate] approval_ttl_hours`）で期限切れ、**1 回限り**。
-git リポジトリ外では HEAD は「なし」として記録され、コマンド全文・cwd・期限・1 回限りだけで照合する。
+照合はこの 4 点（コマンド全文・HEAD・期限・未使用）。cwd は記録されるが照合しない（`git -C <dir>` のときはそのリポジトリの HEAD を使う）。
+git リポジトリ外では HEAD は「なし」として記録され、コマンド全文・期限・1 回限りだけで照合する。
 hook は一致する承認があるときだけ通し、通したら `used_at` を記録する。`labkit reject <ID>` で却下。
 
 Claude が承認を作れないようにする層:
@@ -36,7 +37,7 @@ Claude が承認を作れないようにする層:
    リダイレクト・sed・python -c などを拒否する。
 2. `guard_write` が `.lab/approvals`, `.lab/queue`, `.lab/flows` への Write/Edit を拒否する（`.lab/presence` は可）。
 3. 雛形の `.claude/settings.json` の `permissions.deny`（`Edit(.lab/approvals/**)` など）と
-   サンドボックスの `filesystem.denyWrite`（`.lab/approvals`, `.lab/queue`）が OS レベルで書き込みを止める（対応 OS のみ）。
+   サンドボックスの `filesystem.denyWrite`（`.lab/approvals`, `.lab/queue`, `.lab/flows`）が OS レベルで書き込みを止める（対応 OS のみ）。
 4. `labkit approve` 自身は、実行環境が Claude Code のシェル（`CLAUDECODE=1`）かを記録する（`claude_shell`）。
    人間が Claude Code の `!` 実行で承認した場合もこのフラグが付く。`!` 実行が PreToolUse hook を通らないことは公式ドキュメントに明記が
    無く、本セッションでの観察（`!` の出力に hook のメッセージが出ない）に基づく（AGENT_QUEUE Q-002）。
@@ -48,7 +49,7 @@ Claude が承認を作れないようにする層:
 | Claude が通常の形で push / tag / merge / freeze / copier を実行すること | `sh -c "git push"`、スクリプトや Makefile のターゲット経由、エイリアス、`.git/` を直接触る操作（テキスト照合の限界。Claude Code の公式ドキュメントも Bash ルールを「security boundary ではない」としている） |
 | Claude が `labkit approve` を実行すること、承認ファイルを Write/Edit/リダイレクトで作ること | 書き込み可能な場所（scratch/）に置いたスクリプトが承認ファイルを書くこと（承認記録に秘密は無い）。サンドボックスの `denyWrite` だけが止める（Windows ネイティブでは止まらない） |
 | 承認の使い回し（別コマンド、別 HEAD、期限切れ、2 回目） | 承認済みコマンドの中身そのものの危険性（人間が内容を読んで承認する前提） |
-| 承認待ちで Claude が止まること（Stop hook が承認待ちを理由に止め直さない） | — |
+| 承認待ちで Claude が止まること（Stop hook は**このセッションが積んだ**承認待ちがあるときだけ終了を許す） | — |
 
 **最後の砦は GitHub 側の main ブランチ保護**（直接 push の禁止、PR 必須、タグ保護）。これは本リポジトリでは
 設定できないので、人間が設定する（AGENT_QUEUE.md の approval 項目）。
@@ -97,7 +98,7 @@ frontmatter（reviewer, flow, stage, commit, verdict, findings）付きで保存
 ## 5. サンドボックス
 
 雛形の `.claude/settings.json` に `sandbox` を設定した（キーは docs/notes/claude-code-spec.md で確認）:
-`filesystem.denyWrite` = data/raw, lab.toml, .lab/approvals, .lab/queue。`allowWrite` に uv / Julia / pre-commit のキャッシュ。
+`filesystem.denyWrite` = data/raw, lab.toml, .lab/approvals, .lab/queue, .lab/flows。`allowWrite` に uv / Julia / pre-commit のキャッシュ。
 `network.allowedDomains` に PyPI・GitHub・Julia パッケージサーバ・astral.sh。`autoAllowBashIfSandboxed: false`
 （サンドボックス内でも hooks と確認画面を通す）。runs/・data/interim・data/processed はプロジェクト内なので既定で書ける。
 

@@ -12,7 +12,7 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
 - `labkit presence here|away|status`、`labkit queue list|ask|done`、`labkit approve|reject <ID>`（人間のみ。hooks が Claude の実行を拒否する）、
   `labkit answer <ID> "..."`。承認はコマンド全文 + HEAD に結び付き、24 時間で期限切れ、1 回限り。
   Claude は `labkit approve/reject/answer` を実行できず、`.lab/approvals|queue|flows` を Write/Edit/リダイレクトで書けない。
-- **手順の状態機械** `labkit flow start|status|advance|abort`（migrate、improve-standards）。定義は `labkit/flows/*.toml`、
+- **手順の状態機械** `labkit flow start|status|advance|abort`（migrate、improve-standards）。定義は `labkit/python/src/labkit/flows/*.toml`（パッケージ同梱）、
   状態は `.lab/flows/<name>.json`（git 管理）。advance が完了条件を検査し、承認が要る段階はキューに積む。hooks が段階外の操作を拒否。
 - **独立レビュー**: `docs/reviews/YYYY-MM-DD_<flow>_<段階>.md`（frontmatter: reviewer, flow, stage, commit, verdict, findings）。
   書き込みは hook 入力の `agent_type` が lab-reviewer のときだけ。lab-reviewer は他のファイルを書けず、Bash は許可リストの読み取りコマンドだけ（拒否時に許可一覧を表示）。
@@ -20,14 +20,14 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
 - **labkit check** L032（文書が引用する run の存在。failed / link 中の run は警告）、L033（`12.3 dB [run:<id>:<key>]` 書式と
   metrics.json の照合。書式なし数値は警告、`[check] cite_bare_numbers = "off"` で無効化）、L035（レビュー記録の書式）。
   Issue に severity（error / warn）を追加。警告は strict でも終了コード 0。
-- `labkit cite <run_id> <key> [--digits N] [--unit dB]`（Python `labkit.cite`、Julia `LabKit.cite`）。
+- `labkit cite <run_id> <key> [--digits N] [--unit dB]`（Python は関数 `labkit.cite()`（実装は `labkit.check`）、Julia `LabKit.cite`）。`--digits N` は小数点以下の桁数（既定の有効数字 4 桁とは別の規則）。
 - SessionStart（compact 含む）の hook が承認待ち・質問・進行中の flow の段階を文脈に入れ、UserPromptSubmit の hook は人間の操作による差分
   （承認済み・未実行、回答あり、却下）だけを添える。
-  Stop hook は承認待ちが理由のときは止め直さない。
+  Stop hook はこのセッションが積んだ承認待ちがあるときは止め直さない。
 - lab-standards 本体（`copier.yml` と `labkit/` を持つリポジトリ）でも承認ゲートだけを有効にする。
 - plugin eval 7 ケース（`claude-plugin/evals/`、`make eval`。CI では手動起動のみ）。
 - 雛形: `.claude/settings.json` に sandbox（data/raw・lab.toml・.lab/approvals・.lab/queue・.lab/flows を denyWrite、PyPI/GitHub/Julia を許可）、
-  `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
+  `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md を改訂。plugin の skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
 - `load()`（Python / Julia）: 無いファイルは `<path> がありません` と言う（従来 verify=True ではサイドカーの不在を先に報告し、原因を取り違えさせた）。

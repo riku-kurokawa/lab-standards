@@ -488,3 +488,14 @@
 - 監査: 提案は独立エージェント。各箇所を読んで確認。labkit 60 / hooks 91 / LabKit.jl 15 passed。
 - 結論: 採用。
 - 規模: 10 ファイル、−34 行 +13 行。サイクル 51–53 の合計で約 −70 行、挙動の差なし。
+
+### 54. 2026-11-01 — CHANGELOG v0.3.0 と docs/harness.md を現在のコードと突き合わせ
+- 観点: リリース時に人間が読む 2 文書を、独立エージェント 2 体がコード（argparse、_labstate、hooks、雛形）と照合。約 50 項目中、食い違い 10。
+- 発見（文書側を直した。コードはいずれも過去のサイクルの意図どおり）: 承認の照合に cwd は含まれない（コマンド全文・HEAD・期限・未使用の 4 点。
+  `-C` のリポジトリの HEAD を使う）— harness.md・skill lab-conventions・SessionStart の文も「同じリポジトリ・同じ HEAD」に。
+  `auto` は確認画面が出る（NO_PROMPT_MODES は bypassPermissions / dontAsk）。denyWrite に `.lab/flows` が抜けていた。`make std-link|unlink` は
+  ゲートではなく flow の link カテゴリ。Stop hook が許すのは「このセッションが積んだ」承認待ちのみ。CHANGELOG: flow 定義のパス、`labkit.cite` が
+  関数であること、`--digits` が小数点以下の桁数であること、skills は雛形でなく plugin。migrate.toml のコメントに実装の無い `commit` カテゴリ。
+- 監査: 照合自体が独立エージェント。各箇所を私が確認。
+- 結論: 採用（文書のみ）。
+- 規模: 5 ファイル、±14 行。
