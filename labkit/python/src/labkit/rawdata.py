@@ -30,7 +30,7 @@ def read_manifest(raw: Path) -> dict[str, tuple[str, int]]:
         if not line.strip() or line.startswith("#"):
             continue
         digest, size, rel = line.split(None, 2)
-        out[rel] = (digest, int(size))
+        out[rel.replace("\\", "/")] = (digest, int(size))  # 旧版（Windows）の \\ 区切りも受け付ける
     return out
 
 
@@ -42,7 +42,7 @@ def freeze(root: Path | None = None, chmod: bool = True, progress=print) -> Path
     lines = [f"{d}  {s}  {r}" for r, (d, s) in known.items()]
     added = 0
     for p in _files(raw):
-        rel = str(p.relative_to(raw))
+        rel = p.relative_to(raw).as_posix()
         if rel in known:
             continue
         progress(f"hash: {rel}")
@@ -68,7 +68,7 @@ def verify(root: Path | None = None, full: bool = False) -> list[tuple[str, str,
     issues: list[tuple[str, str, str]] = []
     if not raw.is_dir():
         return issues
-    files = {str(p.relative_to(raw)): p for p in _files(raw)}
+    files = {p.relative_to(raw).as_posix(): p for p in _files(raw)}
     if files and not (raw / MANIFEST).is_file():
         return [("L002", "data/raw", f"{MANIFEST} がありません。`labkit raw freeze` を実行してください")]
     known = read_manifest(raw)

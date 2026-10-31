@@ -108,3 +108,17 @@ def test_check_paths_are_posix_and_ok_dirs_apply(project):
     assert all("\\" not in i.where for i in issues), [i.where for i in issues]
     l014 = [i.where for i in issues if i.code == "L014"]
     assert l014 == ["scripts/stray.png"]
+
+
+def test_legacy_windows_manifest_lines_verify(project):
+    """旧版が Windows で書いた `sub\\r.bin` 形式の MANIFEST 行も検証できる."""
+    import hashlib
+
+    from labkit.rawdata import verify
+
+    raw = project / "data" / "raw"
+    (raw / "sub").mkdir()
+    (raw / "sub" / "r.bin").write_bytes(b"x")
+    digest = hashlib.sha256(b"x").hexdigest()
+    (raw / "MANIFEST.sha256").write_text(f"# legacy\n{digest}  1  sub\\r.bin\n", encoding="utf-8")
+    assert [i for i in verify(full=True) if i[0] == "L002"] == []

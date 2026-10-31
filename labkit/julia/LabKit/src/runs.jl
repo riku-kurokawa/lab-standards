@@ -31,7 +31,7 @@ function _manifest_lookup(root::AbstractString)
     for line in eachline(mf)
         startswith(line, "#") && continue
         parts = split(line, limit=3)
-        length(parts) == 3 && (out[abspath(joinpath(raw, parts[3]))] = parts[1])
+        length(parts) == 3 && (out[abspath(joinpath(raw, replace(parts[3], '\\' => '/')))] = parts[1])
     end
     return out
 end
@@ -124,7 +124,7 @@ function finish_run!(run::Run, status::AbstractString, err)
     write_json_atomic(joinpath(run.dir, "metrics.json"), run.last)
     outputs = Any[]
     for (d, _, fs) in walkdir(run.dir), f in fs
-        rel = relpath(joinpath(d, f), run.dir)
+        rel = posixrel(joinpath(d, f), run.dir)
         (rel == "meta.json" || startswith(rel, "figures")) && continue
         push!(outputs, Dict("path" => rel, "size" => filesize(joinpath(d, f))))
     end
@@ -136,7 +136,7 @@ end
 
 function freeze_run(dir::AbstractString)
     for (d, subdirs, fs) in walkdir(dir; topdown=false)
-        rel = relpath(d, dir)
+        rel = posixrel(d, dir)
         (rel == "figures" || startswith(rel, "figures/")) && continue
         for f in fs
             chmod(joinpath(d, f), 0o444)

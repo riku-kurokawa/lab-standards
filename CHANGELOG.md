@@ -30,6 +30,10 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- 記録に書く相対パス（meta.json の inputs/outputs、サイドカー、`data/raw/MANIFEST.sha256`）とディレクトリ入力の sha256 を
+  OS に依らず `/` 区切りにした（Python・Julia とも）。Windows で凍結した MANIFEST を HPC（Linux）で検証できなかった。
+  旧版の `\\` 区切りの MANIFEST 行は読む側で受け付ける。Windows で記録したディレクトリ入力のハッシュだけは値が変わる（元々移植不能だった）。
+  Julia 版は Windows で `rel_or_abs` が常に絶対パスを返していたのも修正。
 - `labkit check`: Windows で `figure_ok_dirs` / `data_ok_dirs` の除外が効かず（`\\` 区切りの比較）、docs/assets の図が L014 になっていた。
   違反の位置も OS に依らず `/` 区切りで出す（`file:line` のリンクになる）。
 - LabKit.jl の JSON 書き出し（meta.json / metrics.json / サイドカー）で `2.0` が `2` になっていた（JSON3.pretty が数値を

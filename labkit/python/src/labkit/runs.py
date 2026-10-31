@@ -72,7 +72,7 @@ def _manifest_lookup(root: Path) -> dict[str, str]:
         for line in mf.read_text(encoding="utf-8").splitlines():
             parts = line.split(None, 2)
             if len(parts) == 3 and not line.startswith("#"):
-                out[str((raw / parts[2]).resolve())] = parts[0]
+                out[str((raw / parts[2].replace("\\", "/")).resolve())] = parts[0]
     return out
 
 
@@ -206,7 +206,7 @@ class Run:
         skip = {"meta.json"}
         self.meta["outputs"] = sorted(
             (
-                {"path": str(p.relative_to(self.dir)), "size": p.stat().st_size}
+                {"path": p.relative_to(self.dir).as_posix(), "size": p.stat().st_size}
                 for p in self.dir.rglob("*")
                 if p.is_file() and p.name not in skip and "figures" not in p.relative_to(self.dir).parts
             ),

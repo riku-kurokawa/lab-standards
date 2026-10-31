@@ -2,15 +2,18 @@
 
 sha256_file(path::AbstractString) = open(io -> bytes2hex(sha256(io)), path, "r")
 
+"""相対パスを / 区切りで返す（記録に書くパスは OS に依らず同じ形にする。Python の as_posix と同じ）。"""
+posixrel(path::AbstractString, base::AbstractString) = replace(relpath(path, base), '\\' => '/')
+
 function sha256_tree(path::AbstractString)
-    files = String[]
+    rels = String[]
     for (d, _, fs) in walkdir(path), f in fs
-        push!(files, joinpath(d, f))
+        push!(rels, posixrel(joinpath(d, f), path))
     end
     ctx = SHA.SHA256_CTX()
-    for f in sort(files)
-        SHA.update!(ctx, Vector{UInt8}(relpath(f, path)))
-        SHA.update!(ctx, hex2bytes(sha256_file(f)))
+    for rel in sort(rels)   # Python 版と同じ: / 区切りの相対パス文字列の順
+        SHA.update!(ctx, Vector{UInt8}(rel))
+        SHA.update!(ctx, hex2bytes(sha256_file(joinpath(path, rel))))
     end
     return bytes2hex(SHA.digest!(ctx))
 end
@@ -139,8 +142,8 @@ function deep_merge(a::AbstractDict, b::AbstractDict)
 end
 
 function rel_or_abs(path::AbstractString, root::AbstractString)
-    p, r = abspath(path), abspath(root)
-    return startswith(p, rstrip(r, '/') * "/") ? relpath(p, r) : p
+    p, r = replace(abspath(path), '\\' => '/'), replace(abspath(root), '\\' => '/')
+    return startswith(p, rstrip(r, '/') * "/") ? posixrel(path, root) : p
 end
 
 function _expandvars(s::AbstractString)

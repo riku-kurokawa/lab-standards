@@ -27,8 +27,10 @@ def sha256_tree(path: str | os.PathLike) -> str:
     """ディレクトリ（Zarr など）を相対パス順に連結してハッシュする."""
     root = Path(path)
     h = hashlib.sha256()
-    for p in sorted(q for q in root.rglob("*") if q.is_file()):
-        h.update(str(p.relative_to(root)).encode())
+    # 相対パスは / 区切りの文字列で並べ、ハッシュに入れる（OS と Julia 実装で同じ値になる）
+    files = sorted(((q.relative_to(root).as_posix(), q) for q in root.rglob("*") if q.is_file()), key=lambda t: t[0])
+    for rel, p in files:
+        h.update(rel.encode())
         h.update(bytes.fromhex(sha256_file(p)))
     return h.hexdigest()
 
@@ -128,6 +130,6 @@ from labkit._labstate import deep_merge  # noqa: E402,F401  （定義は hooks �
 
 def rel_or_abs(path: Path, root: Path) -> str:
     try:
-        return str(path.resolve().relative_to(root.resolve()))
+        return path.resolve().relative_to(root.resolve()).as_posix()  # 記録は / 区切り
     except ValueError:
         return str(path.resolve())

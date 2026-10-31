@@ -41,3 +41,32 @@ def test_julia_writes_python_reads(project):
     metrics = json.loads((run / "metrics.json").read_text())
     assert isinstance(metrics["n"], float) and isinstance(metrics["m"], float)  # Julia の 2.0 は 2 ではなく 2.0
     assert isinstance(json.loads((run / "meta.json").read_text())["duration_s"], float)
+
+
+def test_directory_hash_matches_julia(tmp_path):
+    """ディレクトリ入力の sha256（相対パス順に連結）は OS と実装に依らず同じ。並び順の罠（a-b/ と a/、大文字）も含める."""
+    from labkit._util import sha256_tree
+
+    d = tmp_path / "tree"
+    for rel, content in [("sub/b.bin", b"b"), ("a-b/x.bin", b"x"), ("a/y.bin", b"y"), ("B.bin", b"B")]:
+        (d / rel).parent.mkdir(parents=True, exist_ok=True)
+        (d / rel).write_bytes(content)
+    jl = subprocess.run(
+        ["julia", f"--project={JL}", "-e", "using LabKit; print(LabKit.sha256_tree(ARGS[1]))", str(d)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    ).stdout.strip()
+    assert sha256_tree(d) == jl
+
+
+def test_manifest_has_no_backslash(project):
+    from labkit.rawdata import freeze, verify
+
+    (project / "data" / "raw" / "sub").mkdir()
+    (project / "data" / "raw" / "sub" / "r.bin").write_bytes(b"x")
+    freeze(progress=lambda *_: None)
+    text = (project / "data" / "raw" / "MANIFEST.sha256").read_text(encoding="utf-8")
+    assert "sub/r.bin" in text and "\\" not in text
+    assert verify(full=True) == []
