@@ -7,6 +7,14 @@ _answers_file: .copier-answers.yml
 _min_copier_version: "9.0.0"
 _exclude:
   - "{% if not use_julia %}jl{% endif %}"
+# 生成後はプロジェクトのもの（種として置くだけ）: copier update で触らない。管理対象（lab.toml, Makefile, 例のコードなど）は更新を受ける
+_skip_if_exists:
+  - README.md
+  - docs/data-dictionary.md
+  - docs/decisions/0001-adopt-lab-standards.md
+  - literature/references.bib
+  - literature/tags.toml
+  - data/raw/MANIFEST.sha256
 
 project_name:
   type: str

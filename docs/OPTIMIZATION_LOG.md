@@ -352,3 +352,13 @@
   1 万以上の整数が指数表示になる点は CHANGELOG に明記。
 - 結論: 採用。
 - 規模: check.py −7 行、テスト +12 行（9 値を固定）。
+
+### 36. 2026-11-01 — 種ファイルを copier update の対象から外す
+- 観点: 実プロジェクトが `labkit standards template --ref` で更新するとき。v0.2.0 から生成して README を研究者として書き換え、HEAD へ update すると
+  README に `<<<<<<< before updating` の衝突マーカーが入った（この枝で README.md.jinja を変えたため）。copier の更新は git apply ベースで、
+  種ファイルへの雛形側の変更は常に雑音になる。
+- 提案: `_skip_if_exists` に README.md / data-dictionary.md / 初期 ADR / references.bib / tags.toml を列挙。例のコード・設定は管理対象のまま。
+- 監査: 採用。copier ソースで「存在する skip ファイルは update でも patch から除外される」ことを確認。`data/raw/MANIFEST.sha256`（labkit が書く）も追加。
+  新しい雛形の設定が使われるので、次の update から効く。
+- 結論: 採用。
+- 規模: copier.yml +8 行。概念の追加なし（copier の標準機能）。

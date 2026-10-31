@@ -47,6 +47,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `icacls <run> /grant "%USERNAME%:(OI)(CI)F" /t` か Julia の `chmod(dir, 0o755; recursive=true)` で戻せる。
 
 ### 変更
+- copier の `_skip_if_exists`: README.md、docs/data-dictionary.md、初期 ADR、references.bib、tags.toml、MANIFEST.sha256 は生成後に
+  `copier update` で触らない（書き換えたプロジェクトの README に衝突マーカーが入っていた）。例のコードと設定は引き続き更新を受ける。
 - hooks: 編集ごとの ruff（PostToolUse の自動整形と lint）を廃止し、終了時（Stop）に `ruff check` を 1 回だけ行う。
   整形は commit 時の pre-commit と `make fmt` に任せる（編集直後の自動整形は次の Edit の old_string を外す原因だった）。
 - 雛形の pre-commit: ruff と nbstripout を `repo: local`（`uv run ...`）で動かし、uv.lock の版を使う（`make lint` と同じ ruff。
