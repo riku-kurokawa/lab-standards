@@ -47,3 +47,12 @@
   v0.2.0 判定で GATE_LINES を出し分ける案は却下（load_lab のマージ後は区別できず、本体 CLAUDE.md にも gate の記述が無い）。
 - 結論: 採用（accept-with-changes）。GATE_LINES 2 行は常に出す。
 - 規模: session_context.py −12 行、hook 出力 −10 行。概念 −1（「hook が規約を再注入する」をやめた）。
+
+### 5. 2026-11-01 — lab.toml の既定値を 1 か所に
+- 観点: データの二重定義。hooks の FALLBACK と labkit の DEFAULTS がずれていた（禁止 plot ライブラリの一覧に UnicodePlots/PlotlyJS が無い等）。
+  さらに `_labstate.load_gate_conf` にも gate の既定値が 3 つ目として直書きされていた。
+- 提案: DEFAULTS と deep_merge を正本 `_labstate.py` に置き、config.py / _labcommon.py / load_gate_conf から重複を消す。
+- 監査: 新しい第 3 のベンダーファイルは不要（既存の 1 ファイルに同居）。浅いマージと deep_merge は現在の lab.toml では同値。
+  `tomllib` が無いときの `{}` 早期 return と `.lab/presence` の追加行は残す。
+- 結論: 採用（accept-with-changes）。両者の load_lab が一致するテストを追加。
+- 規模: 手書きの既定値 3 → 1。_labcommon.py −25 行、config.py −45 行、_labstate.py +70 行（正本）。

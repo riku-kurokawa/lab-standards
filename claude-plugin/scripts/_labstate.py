@@ -22,6 +22,79 @@ GITIGNORE = (
 )
 
 
+# ---- lab.toml の既定値（唯一の定義。labkit の config.load_lab と hooks の load_lab が共有する） ----
+DEFAULTS: dict = {
+    "lab": {"standards_version": "0.3.0", "project": ""},
+    "layout": {
+        "allowed": [
+            "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile",
+            ".gitignore", ".gitattributes", ".pre-commit-config.yaml", ".copier-answers.yml",
+            ".python-version", ".claude", ".git", ".venv", ".mlflow", ".pytest_cache",
+            ".ruff_cache", "src", "scripts", "jl", "configs", "tests", "data", "runs",
+            "notebooks", "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "legacy", ".lab",
+            "AGENT_QUEUE.md",
+        ],
+        "writable": [
+            "src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs",
+            "literature", "prompts", "scratch", "notebooks", "README.md", "CLAUDE.md",
+            "pyproject.toml", "Makefile", ".gitignore", "AGENT_QUEUE.md",
+        ],
+        "readonly": ["data/raw", "legacy"],
+    },
+    "check": {
+        "mode": "strict",
+        "banned_plot_imports": [
+            "matplotlib", "seaborn", "plotly", "bokeh", "altair", "pylab",
+            "Plots", "Makie", "CairoMakie", "GLMakie", "WGLMakie", "PyPlot", "Gadfly",
+            "UnicodePlots", "PlotlyJS",
+        ],
+        "plot_import_allowed": [],
+        "banned_formats": ["pickle", "cPickle", "dill", "joblib", "cloudpickle", "JLD2", "BSON"],
+        "format_allowed": [],
+        "abs_path_patterns": [
+            r"/home/\w", r"/Users/\w", r"[A-Za-z]:\\\\", r"/lustre", r"/gpfs", r"/scratch/",
+            r"/work/", r"/groups/",
+        ],
+        "code_dirs": ["src", "scripts", "jl", "tests", "notebooks"],
+        "figure_ok_dirs": ["docs/assets", "literature/pdfs", "literature/inbox", "scratch"],
+        "data_ok_dirs": ["tests/fixtures", "scratch"],
+        "skip": [],
+        # L033: run ID と同じ行にある書式なしの数値を警告する（"warn" | "off"）
+        "cite_bare_numbers": "warn",
+    },
+    "devlog": {
+        "dir": "docs/devlog",
+        "required_headings": [
+            "目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由",
+            "未解決・次の作業",
+        ],
+    },
+    "adr": {
+        "dir": "docs/decisions",
+        "required_headings": ["背景", "決定", "理由と検討した代替案", "影響"],
+    },
+    "runs": {"hash_inputs_max_gb": 2.0},
+    "literature": {"dir": "literature", "pdf_dir": "literature/pdfs"},
+    "claude": {"require_devlog": True, "max_stop_blocks": 3},
+    # 承認ゲート（claude-plugin の hooks と labkit flow / approve が読む）
+    "gate": {
+        "enabled": True,
+        "protected_branches": ["main", "master"],
+        "approval_ttl_hours": 24,
+    },
+}
+
+
+def deep_merge(base: dict, override: dict) -> dict:
+    out = dict(base)
+    for k, v in override.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
 def find_scope(start: str | os.PathLike | None) -> tuple[Path, str] | None:
     """(root, "project" | "standards") を返す。どちらでもなければ None."""
     if start is None:
@@ -201,7 +274,7 @@ def pending_summary(root: Path) -> dict[str, list[dict]]:
 
 
 def load_gate_conf(root: Path, kind: str) -> dict:
-    conf = {"enabled": True, "protected_branches": ["main", "master"], "approval_ttl_hours": 24}
+    conf = dict(DEFAULTS["gate"])
     if kind == "project":
         try:
             import tomllib
@@ -209,7 +282,7 @@ def load_gate_conf(root: Path, kind: str) -> dict:
             with open(root / "lab.toml", "rb") as f:
                 user = tomllib.load(f).get("gate", {})
             if isinstance(user, dict):
-                conf.update(user)
+                conf = deep_merge(conf, user)
         except (OSError, ValueError, ImportError):
             pass
     return conf

@@ -93,6 +93,20 @@ def test_vendored_labstate_is_identical():
     assert Path(vendored.__file__).read_bytes() == src, "cp claude-plugin/scripts/_labstate.py labkit/python/src/labkit/_labstate.py"
 
 
+def test_hook_and_labkit_load_lab_agree(project):
+    """hooks の load_lab（_labcommon）と labkit の load_lab は同じ既定値を使う（writable の v0.3.0 追加分を除き同一）."""
+    sys.path.insert(0, str(PLUGIN_SCRIPTS))
+    import _labcommon
+
+    from labkit.config import load_lab
+
+    (project / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nbanned_formats = ["pickle"]\n[gate]\napproval_ttl_hours = 1\n',
+                                      encoding="utf-8")
+    a, b = _labcommon.load_lab(project), load_lab(project)
+    a["layout"]["writable"] = [w for w in a["layout"]["writable"] if w != ".lab/presence"]
+    assert a == b and b["check"]["banned_formats"] == ["pickle"] and b["gate"]["approval_ttl_hours"] == 1
+
+
 def test_hook_and_labkit_share_formats(repo):
     """hook（_labstate, 標準ライブラリ）が積んだ要求を labkit が承認し、hook が受理する往復."""
     sys.path.insert(0, str(PLUGIN_SCRIPTS))

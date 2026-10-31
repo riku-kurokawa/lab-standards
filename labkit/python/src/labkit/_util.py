@@ -125,14 +125,7 @@ def flatten(d: dict, prefix: str = "") -> dict[str, Any]:
     return out
 
 
-def deep_merge(base: dict, override: dict) -> dict:
-    out = dict(base)
-    for k, v in override.items():
-        if isinstance(v, dict) and isinstance(out.get(k), dict):
-            out[k] = deep_merge(out[k], v)
-        else:
-            out[k] = v
-    return out
+from labkit._labstate import deep_merge  # noqa: E402,F401  （定義は hooks と共有する _labstate.py）
 
 
 def rel_or_abs(path: Path, root: Path) -> str:

@@ -22,24 +22,6 @@ for _stream in (sys.stdin, sys.stdout, sys.stderr):
         except (ValueError, OSError):
             pass
 
-FALLBACK = {
-    "layout": {
-        "writable": ["src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs", "literature",
-                     "prompts", "scratch", "notebooks", "README.md", "CLAUDE.md", "pyproject.toml",
-                     "Makefile", ".gitignore", "AGENT_QUEUE.md"],
-        "readonly": ["data/raw", "legacy"],
-    },
-    "check": {
-        "banned_plot_imports": ["matplotlib", "seaborn", "plotly", "bokeh", "altair", "pylab", "Plots",
-                                "Makie", "CairoMakie", "GLMakie", "WGLMakie", "PyPlot", "Gadfly"],
-        "plot_import_allowed": [],
-        "banned_formats": ["pickle", "cPickle", "dill", "joblib", "cloudpickle", "JLD2", "BSON"],
-        "format_allowed": [],
-    },
-    "devlog": {"dir": "docs/devlog"},
-    "claude": {"require_devlog": True, "max_stop_blocks": 3},
-    "gate": {"enabled": True, "protected_branches": ["main", "master"], "approval_ttl_hours": 24},
-}
 PROTECTED_FILES = {"lab.toml", ".copier-answers.yml", ".claude/settings.json"}
 # Claude が Write/Edit で触れないハーネスの状態（labkit のコマンド経由でのみ変わる）
 HARNESS_STATE_DIRS = (".lab/approvals", ".lab/queue", ".lab/flows")
@@ -66,16 +48,13 @@ def find_root(start: str | os.PathLike | None) -> Path | None:
 
 
 def load_lab(root: Path) -> dict:
+    """lab.toml を既定値（_labstate.DEFAULTS、labkit と同一）に重ねる。tomllib が無ければ {}（hooks は何もしない）."""
     if tomllib is None:
         return {}
+    from _labstate import DEFAULTS, deep_merge
+
     with open(root / "lab.toml", "rb") as f:
-        user = tomllib.load(f)
-    out = {k: dict(v) for k, v in FALLBACK.items()}
-    for k, v in user.items():
-        if isinstance(v, dict):
-            out.setdefault(k, {}).update(v)
-        else:
-            out[k] = v
+        out = deep_merge(DEFAULTS, tomllib.load(f))
     # v0.3.0 で増えた書き込み先は、古い lab.toml が writable を列挙していても許す
     out["layout"]["writable"] = list(dict.fromkeys([*out["layout"]["writable"], "AGENT_QUEUE.md", ".lab/presence"]))
     return out
