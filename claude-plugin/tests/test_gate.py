@@ -253,7 +253,8 @@ def test_reviewer_bash_is_read_only(proj):
 
 
 # ---- Stop hook は承認待ちでは止め直さない ----
-def test_stop_not_blocking_when_waiting_for_approval(proj):
+def test_stop_not_blocking_when_waiting_for_approval(proj, monkeypatch, tmp_path_factory):
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path_factory.mktemp("plugin-data")))  # 止めた回数の保存先を隔離
     (proj / "src" / "a.py").write_text("x = 1\n")  # コード変更あり・開発ログ無し → 本来は止める
     res = run("stop_check.py", {"cwd": str(proj), "session_id": "s1"})
     assert res.returncode == 2
