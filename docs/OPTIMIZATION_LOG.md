@@ -298,3 +298,12 @@
 - 監査: 採用。生成プロジェクトは copier.yml も labkit/ も持たないので誤判定しない。既存クローンは既に OR 側で動いていたため互換の問題なし。
 - 結論: 採用。
 - 規模: 追跡ファイル −1、_labstate.py −1 行、guard_write/state/test 各 −1 箇所、docs 4 か所の言い換え。
+
+### 31. 2026-11-01 — 雛形の Julia 例を、雛形自身の規約に従わせる
+- 観点: 雛形の例は規約の手本。Julia の例は窓幅 `[3, 9, 27, 81]` と `27` をスクリプトに直書きし、SNR を inline で計算していた
+  （Python 例は configs の `cutoffs_hz` を読み、src の `snr_db` を呼ぶ）。CLAUDE.md 雛形の「パラメータは configs」「スクリプトは薄く」に反する。
+- 提案: base.toml `[filter]` に `windows`、Julia モジュールに `snr_db`（Python と同じ定義）とテスト、スクリプトは設定を読んで src を呼ぶだけに。
+- 監査: 採用。configs は言語中立なので `[filter]` に置く（`[filter.julia]` のような分割は設計に反する）。既存プロジェクトでは
+  copier update が base.toml に 1 行足すだけ。
+- 結論: 採用。
+- 規模: base.toml +1 行、Julia モジュール +7 行、テスト +2 行、スクリプト ±0。直書きの数値 5 個が 0 に。

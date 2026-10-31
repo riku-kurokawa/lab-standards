@@ -4,4 +4,6 @@ using Test, {{ julia_module }}
     @test moving_average([1.0, 2.0, 3.0], 1) == [1.0, 2.0, 3.0]
     @test moving_average(ones(10), 5) ≈ ones(10)
     @test_throws ArgumentError moving_average([1.0], 0)
+    @test snr_db(ones(4), ones(4) .+ 0.1) ≈ 20.0
+    @test snr_db([1.0, 2.0], [1.0, 2.0]) == Inf
 end

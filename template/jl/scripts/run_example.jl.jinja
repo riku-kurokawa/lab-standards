@@ -11,13 +11,14 @@ function main(config_path, overrides)
         t = collect(0:1/s["fs"]:s["duration_s"]-1/s["fs"])
         clean = sin.(2π * s["freq_hz"] .* t)
         noisy = clean .+ s["noise_std"] .* randn(rng, length(t))
-        for (step, w) in enumerate([3, 9, 27, 81])
+        windows = cfg["filter"]["windows"]
+        for (step, w) in enumerate(windows)
             est = moving_average(noisy, w)
-            snr = 10 * log10(sum(abs2, clean) / sum(abs2, est .- clean))
-            log_metric(run, "snr_db", snr; step=step - 1)
+            log_metric(run, "snr_db", snr_db(clean, est); step=step - 1)
         end
+        best = moving_average(noisy, last(windows))
         save(runpath(run, "signal.h5"),
-             Dict("t" => t, "clean" => clean, "noisy" => noisy, "filtered" => moving_average(noisy, 27));
+             Dict("t" => t, "clean" => clean, "noisy" => noisy, "filtered" => best);
              attrs=Dict("fs" => s["fs"], "unit" => "a.u."), description="合成信号と移動平均")
     end
     println(run.run_id)

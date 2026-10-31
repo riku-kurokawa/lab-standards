@@ -5,7 +5,7 @@
 """
 module {{ julia_module }}
 
-export moving_average
+export moving_average, snr_db
 
 """
     moving_average(x, w)
@@ -19,5 +19,13 @@ function moving_average(x::AbstractVector{<:Real}, w::Integer)
     h = w ÷ 2
     return [(c[min(n, i + h) + 1] - c[max(1, i - h)]) / (min(n, i + h) - max(1, i - h) + 1) for i in 1:n]
 end
+
+"""
+    snr_db(clean, estimate)
+
+推定誤差 `estimate - clean` に対する SNR [dB]。Python の `snr_db` と同じ定義。
+"""
+snr_db(clean::AbstractVector{<:Real}, estimate::AbstractVector{<:Real}) =
+    10 * log10(sum(abs2, clean) / sum(abs2, estimate .- clean))
 
 end # module
