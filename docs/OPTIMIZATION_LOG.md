@@ -26,6 +26,7 @@
 | 雛形コードが推移的依存（labkit 経由の numpy/scipy）に頼っていないか | pyproject.toml.jinja は numpy と scipy を明示。問題なし | 2026-11-01 |
 | skills の説明文（Claude の選択基準）の重複・曖昧さを直す | 11 件を読み合わせ、対象と場面が互いに重ならない。変更なし | 2026-11-01 |
 | CLI の help 文言をサブコマンド削除後に見直す | queue / flow / approve / review / cite / presence の help は現状と一致。変更なし | 2026-11-01 |
+| 大配列（4×10^6 Float64）の save を Python と Julia で揃える | 実測: 両者 gzip レベル 4、サイズ 30.8 MB で同一、相互に読める。違うのはチャンク形状だけ（Python 自動 (1,7813)、Julia (4,4096)）で形式の差ではない。Julia の 3.0 s は JIT 込み | 2026-11-01 |
 | labkit の実行時依存（numpy, scipy, pandas, h5py, pyarrow, matplotlib, jsonschema, pyyaml）を減らす | 全て実際に import されている（yaml は literature/reviews/standards、jsonschema は check のスキーマ検証）。削れるものは無い | 2026-11-01 |
 | Julia の DEFAULT_LAB（readonly と hash_inputs_max_gb だけ）を Python の DEFAULTS と同じ内容に揃える | Julia が読むのはその 2 キーだけで、読まないキーの既定値を持つ方がずれの元。現状が最小で正しい | 2026-11-01 |
 | guard_bash が毎回呼ぶ `git rev-parse`（ブランチ取得）を merge のときだけに遅延 | 実測: hook 全体 83 ms のうち git は 14 ms。効果が小さく分岐が増える | 2026-11-01 |
