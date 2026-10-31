@@ -526,3 +526,15 @@ def test_flow_improve_standards_walkthrough(repo, tmp_path_factory, monkeypatch,
         '[tool.uv.sources]\nlabkit = { git = "https://github.com/x/lab-standards", subdirectory = "labkit/python", tag = "v0.3.0" }\n'
     )
     assert flow.advance(repo, name)[0]["stage"] == "done"
+
+
+def test_cli_output_is_utf8_even_on_cp932_console(repo):
+    """CLI の出力は端末のコードページに依らず UTF-8（Windows 既定の cp932 では Claude の Bash や Stop hook で文字化けしていた）."""
+    import os
+
+    env = {**os.environ, "PYTHONUTF8": "0", "PYTHONIOENCODING": "cp932"}
+    r = subprocess.run(
+        [sys.executable, "-m", "labkit.cli", "flow", "start", "nosuchflow"], capture_output=True, env=env
+    )
+    assert r.returncode == 1
+    assert "ありません" in r.stderr.decode("utf-8")  # cp932 なら UnicodeDecodeError か別の文字

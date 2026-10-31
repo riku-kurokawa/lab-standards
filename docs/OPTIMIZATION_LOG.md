@@ -546,3 +546,14 @@
 - 監査: 採用（変更付き）: 最初の正規表現版は複数行の呼び出しを見逃し、文字列中の open( を誤検出していた → AST 版に。製品側の subprocess も対象に。
 - 結論: 採用。`PYTHONUTF8=0` で labkit 63 / hooks 91 passed（既定でも同じ）。CI に Windows ランナーは無いので、この再現はテストで担保する。
 - 規模: 19 ファイル、+175 −97 行（うちテスト追加 55 行）。
+
+### 59. 2026-11-01 — `labkit` CLI の出力を UTF-8 に固定
+- 観点: サイクル 58 の続き。hooks は stdio を UTF-8 に固定していたが CLI はしていない。`PYTHONUTF8=0` でパイプに流すと日本語が cp932 の
+  バイト列で出る（実測）。読む側は Claude Code の Bash、Stop hook（`labkit check` を utf-8 で復号）、Julia の `cite`（UTF-8 の String）で、
+  いずれも UTF-8 を期待する。
+- 提案: `cli.main` の先頭で stdout/stderr を `reconfigure(encoding="utf-8")`（hooks と同じ形）。TTY だけ除外する案は、`labkit check` と
+  `labkit check | cat` で挙動が変わり、ConPTY 上の TTY 判定も不安定なので採らない。テストは `PYTHONIOENCODING=cp932` を強制して子プロセスで
+  実行し、Linux の CI でも意味を持つ（修正を外すと失敗することを確認）。
+- 監査: 採用。capsys との相互作用なし（CaptureIO も TextIOWrapper）。Julia / release.py に変更不要。
+- 結論: 採用。
+- 規模: cli.py +8 行、テスト +12 行。labkit 64 passed。

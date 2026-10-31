@@ -501,6 +501,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # 出力は UTF-8 に固定（hooks と同じ）。Windows の既定はコンソールのコードページ（cp932 など）で、パイプ越し（Claude Code の
+    # Bash、Stop hook、Julia の cite）に渡る日本語のメッセージが文字化けする
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
     args = build_parser().parse_args(argv)
     if args.cmd == "lit" and args.action == "survey" and not args.question:
         raise SystemExit("--question が必要です")
