@@ -8,10 +8,14 @@ description: 既存の研究プロジェクトを lab-standards の構造に移�
 手順は状態機械 `labkit flow` が管理する。各段階の完了条件は機械的に検査され、禁止操作は hooks が止める。
 人間が不在でも止まらない: 承認が要る段階では `advance` が承認待ちをキューに積むので、依存しない作業を続ける。
 
+雛形を適用する前（freeze・inventory）はプロジェクトに labkit が無いので、本体のチェックアウト（`~/dev/lab-standards`）の labkit を使う。
+apply-template で `uv sync` した後は `uv run labkit ...` でよい。
+
 ```bash
-uv run labkit flow start migrate     # 開始（.lab/flows/migrate.json に状態。git 管理）
-uv run labkit flow status            # 今の段階・禁止操作・未達の条件
-uv run labkit flow advance           # 条件を満たしたら次へ（承認が要る段階はキューへ）
+LABKIT="uv run --project ~/dev/lab-standards/labkit/python labkit"   # 雛形適用前
+$LABKIT flow start migrate           # 開始（.lab/flows/migrate.json に状態。git 管理。lab.toml が無くても git の最上位で動く）
+$LABKIT flow status                  # 今の段階・禁止操作・未達の条件
+$LABKIT flow advance                 # 条件を満たしたら次へ（承認が要る段階はキューへ）
 ```
 
 ## 段階と、その段階でやること

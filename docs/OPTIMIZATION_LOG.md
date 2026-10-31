@@ -94,3 +94,14 @@
   進行中の flow は開始時に段階を写しているので影響なし。実装中に pyproject.toml の無いプロジェクトで status() が例外になる抜けも直した。
 - 結論: 採用（accept-with-changes）。
 - 規模: 段階 8 → 7。TOML −7 行、flow.py +16 行（条件 1 つ）、テスト +22 行。文章の規約 1 つが機械的検証に変わった。
+
+### 10. 2026-11-01 — migrate flow を雛形適用前に始められるようにする
+- 観点: 状態機械を実際に最初から最後まで動かす（legacy プロジェクトで freeze → … → reproduce）。
+- 発見: migrate の freeze / inventory は雛形適用前の段階なのに、`labkit flow start migrate` が lab.toml 無しで traceback。
+  この flow は自分の対象プロジェクトで開始できなかった。
+- 提案: `cmd_flow` だけ、lab.toml が無ければ git の最上位（なければ cwd）を root にする。
+- 監査: 段階の並べ替え（apply-template を先に）は pre-migration タグの意味と承認ゲートの順序を壊すので却下。hooks に `.lab/flows` を
+  スコープとして見せる案は、両コピーの load_lab が lab.toml を開いて落ちるため保留。skill の実行形は SETUP と同じ
+  `uv run --project ~/dev/lab-standards/labkit/python labkit` に統一。
+- 結論: 採用。他コマンドの find_root は厳格なまま。
+- 規模: cli.py +7 行、テスト +13 行、skill に 3 行。

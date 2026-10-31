@@ -205,6 +205,20 @@ def test_linked_if_touched(repo, monkeypatch, tmp_path):
     assert "link" in flow.c_linked_if_touched(repo, st, c)           # labkit/ を変えたら必要
 
 
+def test_flow_cli_works_before_lab_toml(tmp_path, monkeypatch, capsys):
+    """migrate は雛形適用前（lab.toml 無し）から始まる: flow の CLI は git の最上位を root にする."""
+    from labkit.cli import main
+
+    git(tmp_path, "init", "-q", "-b", "main")
+    git(tmp_path, "commit", "-q", "--allow-empty", "-m", "legacy")
+    (tmp_path / "sub").mkdir()
+    monkeypatch.chdir(tmp_path / "sub")
+    monkeypatch.delenv("LAB_PROJECT_ROOT", raising=False)
+    assert main(["flow", "start", "migrate"]) == 0
+    assert (tmp_path / ".lab" / "flows" / "migrate.json").is_file()
+    assert "freeze" in capsys.readouterr().out
+
+
 # ---- reviews ----
 def test_review_parsing_and_l035(repo):
     head = state.git_head(repo)

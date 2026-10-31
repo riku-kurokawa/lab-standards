@@ -29,6 +29,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md と skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
 ### 修正
+- `labkit flow`: lab.toml が無いディレクトリでも git の最上位を root として動く（migrate の freeze / inventory は雛形適用前に行うため）。
+  他のコマンドは従来どおり lab.toml を要求する。
 - LabKit.jl `freeze_run`: Windows ではディレクトリの chmod を省く。Julia の chmod は削除権限の無い ACL を書き、完了した run を
   通常の手段で削除できなくしていた（Python 版はディレクトリに実質何もしない）。既に凍結済みの run は
   `icacls <run> /grant "%USERNAME%:(OI)(CI)F" /t` か Julia の `chmod(dir, 0o755; recursive=true)` で戻せる。

@@ -169,7 +169,14 @@ def cmd_flow(a) -> int:
     from labkit import flow
     from labkit.config import find_root
 
-    root = find_root()
+    try:
+        root = find_root()
+    except FileNotFoundError:
+        # migrate は lab.toml が無い段階（freeze / inventory）から始まる: git の最上位、なければ cwd を使う
+        import subprocess
+
+        r = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+        root = Path(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip() else Path.cwd()
     if a.action == "start":
         if not a.name:
             raise SystemExit(f"flow start <name>  （{', '.join(sorted(flow.definitions()))}）")
