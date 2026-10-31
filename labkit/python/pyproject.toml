@@ -17,7 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 polars = ["polars>=0.20"]
 mlflow = ["mlflow>=3.0"]
-dev = ["pytest>=8", "ruff>=0.5"]
+dev = ["pytest>=8", "ruff>=0.17"]
 
 [project.scripts]
 labkit = "labkit.cli:main"

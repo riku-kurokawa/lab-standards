@@ -1467,7 +1467,7 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=14" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pyyaml", specifier = ">=6" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.17" },
     { name = "scipy", specifier = ">=1.10" },
 ]
 provides-extras = ["polars", "mlflow", "dev"]

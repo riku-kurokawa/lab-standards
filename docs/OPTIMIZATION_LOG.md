@@ -140,6 +140,7 @@
   pre-commit 自体が dev 依存なので venv への依存は増えない。鏡写しの `--force-exclude`、`require_serial`、`types_or: jupyter` を踏襲。
 - 結論: 採用。
 - 規模: 版の固定 3 → 1（pre-commit-hooks のみ）。YAML は +9 行だが同期すべき場所が減った。
+- 追記（サイクル 22 の後）: 本体 labkit の dev 依存も `ruff>=0.5` のままだったので `>=0.17` に揃えた（uv.lock は 1 行の変更）。
 
 ### 14. 2026-11-01 — 本体に雛形と同じ lint 基準（ruff check + format）を課す
 - 観点: 統一。雛形は各プロジェクトに `ruff check` と `ruff format --check` を要求するが、本体の CI と Makefile は ruff を一切回しておらず、
