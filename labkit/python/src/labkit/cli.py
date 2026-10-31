@@ -79,6 +79,8 @@ def _print_item(it: dict) -> None:
         )
         if it.get("reason"):
             print(f"      理由: {it['reason']}")
+        if it.get("diff_summary"):  # 承認は記録時の HEAD に結び付くので、記録時点の要約が判断材料
+            print(f"      記録時点: {it['diff_summary']}")
     elif it.get("kind") == "question":
         print(f"{it['id']}  [{it.get('status')}]  質問: {it.get('question')}")
         if it.get("options"):
@@ -99,7 +101,8 @@ def cmd_queue(a) -> int:
     if a.action == "list":
         items = state.list_queue(root)
         if a.all is False:
-            items = [i for i in items if i.get("status") in ("pending", "approved", "open", "answered")]
+            # rejected は Claude が `queue done` で確認するまで未処理
+            items = [i for i in items if i.get("status") in ("pending", "approved", "open", "answered", "rejected")]
         if not items:
             print("キューは空です")
         for it in items:

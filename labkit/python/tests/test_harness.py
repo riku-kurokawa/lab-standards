@@ -134,6 +134,21 @@ def test_hook_and_labkit_share_formats(repo):
     assert hs.pending_summary(repo) == state.pending_summary(repo)
 
 
+def test_queue_list_shows_rejected_and_summary(repo, capsys, monkeypatch):
+    """人間向けの一覧: 却下は Claude が done にするまで表示、承認要求には記録時点の差分要約を出す."""
+    from labkit.cli import main
+
+    monkeypatch.chdir(repo)
+    state.request_approval(repo, "git push origin main", cwd=repo, reason="r")
+    state.reject(repo, "Q001", "まだ早い")
+    assert main(["queue", "list"]) == 0
+    out = capsys.readouterr().out
+    assert "[rejected]" in out and "記録時点:" in out and "直近の commit" in out
+    state.mark_done(repo, "Q001")
+    main(["queue", "list"])
+    assert "Q001" not in capsys.readouterr().out
+
+
 # ---- flow ----
 def test_flow_definitions_are_consistent():
     defs = flow.definitions()
