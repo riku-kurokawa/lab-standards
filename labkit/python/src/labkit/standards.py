@@ -39,6 +39,7 @@ class Status:
     julia_ref: str | None
     template_commit: str | None
     standards_repo: str | None
+    standards_ref: str | None = None
 
     @property
     def linked(self) -> bool:
@@ -83,7 +84,7 @@ def status(root: Path | None = None) -> Status:
     if jl.is_file():
         jm, jr = _source_of(JL_LINE.search(jl.read_text(encoding="utf-8")))
     a = _answers(root)
-    return Status(pm, pr, jm, jr, a.get("_commit"), a.get("standards_repo"))
+    return Status(pm, pr, jm, jr, a.get("_commit"), a.get("standards_repo"), a.get("standards_ref"))
 
 
 def _replace(path: Path, pattern: re.Pattern, new_line: str, what: str) -> None:
@@ -180,7 +181,7 @@ def describe(st: Status) -> str:
     lines = [
         f"Python labkit : {st.python_mode:8s} {st.python_ref}",
         f"Julia LabKit  : {st.julia_mode or '-':8s} {st.julia_ref or ''}",
-        f"雛形（copier）: {st.template_commit or '-'}",
+        f"雛形（copier）: {st.template_commit or '-'}（standards_ref {st.standards_ref or '-'}）",
         f"本体リポジトリ: {st.standards_repo or '-'}",
     ]
     try:

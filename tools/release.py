@@ -24,10 +24,6 @@ TARGETS = [
     ("labkit/julia/LabKit/src/LabKit.jl", r'^const LABKIT_VERSION = "([^"]+)"', 'const LABKIT_VERSION = "{v}"'),
     ("claude-plugin/.claude-plugin/plugin.json", r'^  "version": "([^"]+)"', '  "version": "{v}"'),
     ("copier.yml", r'^  default: "v([^"]+)"\s*$', '  default: "v{v}"'),
-    ("template/lab.toml.jinja", r'^standards_version = "([^"]+)"', 'standards_version = "{v}"'),
-    # 既定値の正本と、そのバイト同一コピー（両方を同じ版にする。test_vendored_labstate_is_identical が一致を検査）
-    ("claude-plugin/scripts/_labstate.py", r'"standards_version": "([^"]+)"', '"standards_version": "{v}"'),
-    ("labkit/python/src/labkit/_labstate.py", r'"standards_version": "([^"]+)"', '"standards_version": "{v}"'),
 ]
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 

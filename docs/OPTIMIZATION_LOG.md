@@ -107,3 +107,12 @@
   `uv run --project ~/dev/lab-standards/labkit/python labkit` に統一。
 - 結論: 採用。他コマンドの find_root は厳格なまま。
 - 規模: cli.py +7 行、テスト +13 行、skill に 3 行。
+
+### 11. 2026-11-01 — 読まれない `lab.standards_version` を削除
+- 観点: 書かれているが読まれない値。lab.toml の `standards_version` は Python・Julia・hooks のどこも読まず、release.py が 3 ファイルで
+  同期していた（サイクル 5 の追従漏れの原因でもあった）。版は `.copier-answers.yml`（standards_ref, _commit）と pyproject/Project.toml にある。
+- 提案: 既定値・雛形・release.py から削除。
+- 監査: 読み手なし（`[lab]` を読むのは mlflow_sync の project だけ）。未知キーは deep_merge が素通しするので既存プロジェクトは無害。
+  `labkit standards status` に standards_ref を表示して人間向けの情報を補う。
+- 結論: 採用（accept-with-changes）。
+- 規模: release.py の対象 10 → 7、_labstate.py −1 行、lab.toml.jinja −1 行、standards.py +2 行。

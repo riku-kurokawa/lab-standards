@@ -36,6 +36,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   `icacls <run> /grant "%USERNAME%:(OI)(CI)F" /t` か Julia の `chmod(dir, 0o755; recursive=true)` で戻せる。
 
 ### 変更
+- `lab.toml` の `[lab] standards_version` を書かなくした（どこからも読まれていなかった。残っていても無視される）。生成元の版は
+  `.copier-answers.yml` の `standards_ref` / `_commit`（`labkit standards status` が表示）。
 - `.lab/` の読み書きは `claude-plugin/scripts/_labstate.py` を正本とし、labkit はそのコピー（`labkit/_labstate.py`、テストで一致を検査）を使う。
   `labkit queue list` は壊れた JSON を表示しなくなり、承認待ち要求には差分の要約（`git diff --stat`、直近の commit）が常に付く。
 - 雛形の Makefile から単発コマンドの薄いラッパー（raw-freeze, raw-verify, devlog, runs, lit-index, std-*）を削除。`uv run labkit <cmd>` を使う。

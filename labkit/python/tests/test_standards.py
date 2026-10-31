@@ -39,7 +39,7 @@ def proj(project: Path) -> Path:
     (project / "pyproject.toml").write_text(PYPROJECT)
     (project / "jl").mkdir()
     (project / "jl" / "Project.toml").write_text(JL)
-    (project / ".copier-answers.yml").write_text("_commit: v0.1.0\nstandards_repo: me/lab-standards\n")
+    (project / ".copier-answers.yml").write_text("_commit: v0.1.0\nstandards_repo: me/lab-standards\nstandards_ref: v0.1.0\n")
     return project
 
 

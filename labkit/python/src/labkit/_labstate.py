@@ -24,7 +24,7 @@ GITIGNORE = (
 
 # ---- lab.toml の既定値（唯一の定義。labkit の config.load_lab と hooks の load_lab が共有する） ----
 DEFAULTS: dict = {
-    "lab": {"standards_version": "0.3.0", "project": ""},
+    "lab": {"project": ""},
     "layout": {
         "allowed": [
             "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile",
