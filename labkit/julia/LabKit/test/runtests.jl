@@ -30,7 +30,7 @@ using Test, LabKit, DataFrames, JSON3
             @test occursin(r"\"duration_s\": \d+\.\d+", read(joinpath(run.dir, "meta.json"), String))
             pj = LabKit.write_json_atomic(joinpath(dir, "j.json"), Dict("f" => 2.0, "i" => 2, "e" => Dict(), "s" => "a\"{b"))
             txt = read(pj, String)
-            @test occursin("\"f\": 2.0", txt) && occursin("\"i\": 2,", txt) && occursin("\"e\": {}", txt)
+            @test occursin("\"f\": 2.0", txt) && occursin(r"\"i\": 2[,\n]", txt) && occursin("\"e\": {}", txt)  # Dict の順は Julia の版で違う
             @test JSON3.read(txt, Dict{String,Any})["s"] == "a\"{b"
             d = load(joinpath(run.dir, "a.h5"); verify=true)
             @test d["x"] == x && length(d["v"]) == 2000

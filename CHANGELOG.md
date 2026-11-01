@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.1 — 2026-11-01
+
+### 修正
+- CI: python ジョブの runner にも julia があるため言語間テストが未 instantiate の環境で走って落ちていた → python ジョブでは除外（julia ジョブが実行）。
+- LabKit.jl のテスト: JSON の検査が Dict の順（Julia の版で異なる）に依存していた（1.11 で失敗、1.13 で通過）→ 順に依らない検査に。
+  labkit / LabKit.jl の動作に変更なし。
+
 ## v0.3.0 — 2026-11-01
 
 「Claude を規約と手順に忠実に従わせるハーネス」。人間が不在でも止まらず、取り返しのつかない操作はしない。全体像は `docs/harness.md`、
