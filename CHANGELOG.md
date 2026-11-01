@@ -29,6 +29,12 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
 - 雛形: `.claude/settings.json` に sandbox（data/raw・lab.toml・.lab/approvals・.lab/queue・.lab/flows を denyWrite、PyPI/GitHub/Julia を許可）、
   `lab.toml` に `[gate]`、`docs/reviews/`、CLAUDE.md を改訂。plugin の skills（migrate-project、improve-standards、write-devlog、lab-conventions）を flow と cite に合わせて改訂。
 
+### 変更
+- 例のコード・設定・figspec・ジョブ・手元パス（configs/base.toml、configs/experiments/example.toml、configs/paths/local.toml、
+  figspecs/example_*.toml、scripts/run_example.py、jobs/slurm_example.sh、src/<pkg>/__init__.py・filters.py、tests/test_filters.py、
+  jl/src・scripts・test）を copier の `_skip_if_exists`（種）に。
+  研究者が書き換える前提のファイルを雛形側の変更で衝突させない。更新を受けるのは規約の器（lab.toml、Makefile、pyproject、CLAUDE.md、settings.json など）。
+
 ### 追加
 - `labkit check` L004: マージの衝突マーカー（`<<<<<<< ` / `>>>>>>> ` で始まる行）。`labkit standards template`（copier update）が残した衝突を、
   pre-commit を入れていなくても check（Stop hook・CI）で止める。`standards template` は衝突したファイルを列挙する。

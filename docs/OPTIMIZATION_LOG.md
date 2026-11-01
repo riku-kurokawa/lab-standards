@@ -643,3 +643,17 @@
   バイナリの保護、否定のテスト（`=======` 単独・字下げは検出しない）。新しい規則は「実証された失敗」に対するもので、CLAUDE.md 規約 5 に沿う。
 - 結論: 採用。
 - 規模: check.py +25 行、standards.py ±5 行、README +1 行、テスト +6 行。labkit 67 / hooks 91 passed。
+
+### 70. 2026-11-01 — 例のコード・設定を copier の種に（更新で利用者のファイルと衝突させない）
+- 観点: 利用者が lab.toml と configs/base.toml を編集した v0.2.0 プロジェクトを `labkit standards template --ref HEAD` で更新する。
+- 発見: lab.toml（管理対象）は 3-way merge で保たれるが、base.toml は雛形側の 1 行追加と衝突してマーカーが残る。例のコード・設定・figspec は
+  研究者が自分のものに書き換える前提のファイルで、雛形の変更を 3-way merge で流し込むのは雑音でしかない。
+- 提案: configs/base.toml、configs/experiments/example.toml、figspecs/example_*.toml、scripts/run_example.py、src/<pkg>/*、tests/test_filters.py、
+  jl/src・scripts・test を `_skip_if_exists` に（サイクル 36 の「例は管理対象のまま」を撤回）。欲しければ消して update すれば再生成される。
+- 監査: 採用（変更付き）: Jinja 入りパターン（`src/{{ package_name }}/...`、`jl/src/{{ julia_module }}.jl`）は copy では効くが **update では効かない**
+  （copier 9.19 の `_apply_update` が答えを読む前に `match_skip` を評価・キャッシュし、`src//filters.py` に化ける）→ 素のグロブ
+  `src/*/__init__.py`、`src/*/filters.py`、`jl/src/*.jl` に置換し、copier.yml に注意書き。さらに研究者が書き換える configs/paths/local.toml と
+  jobs/slurm_example.sh も種に。依存先なし（`standards template` は copier update を呼ぶだけ、CI の render 検査は lab.toml のみ）。
+  不利益は既存プロジェクトが例の修正（サイクル 31 の snr_db 等）を受け取らなくなること。許容。
+- 結論: 採用。再検証: 5 ファイルに利用者の追記を入れて v0.2.0 → HEAD 更新、衝突なし・5 ファイルとも無変更、check 違反なし。
+- 規模: copier.yml +12 行（コメント 2 行含む）、CHANGELOG +5 行。コード変更なし。labkit 67 / hooks 91 passed。
