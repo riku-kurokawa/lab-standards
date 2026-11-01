@@ -20,9 +20,10 @@ GATED = {
     "gh_release": "gh release の作成・変更",
     "raw_freeze": "labkit raw freeze（生データの確定）",
     "template": "copier copy/update・labkit standards template（雛形の適用）",
+    "lab_toml": "labkit mode（lab.toml の check.mode の切替）",
 }
-# Claude 自身が決して実行してはいけない（承認を作る側の操作）
-FORBIDDEN = {"labkit_approve": "labkit approve / reject / answer（承認・回答は人間だけ）"}
+# Claude 自身が決して実行してはいけない（承認・委任を作る側の操作）
+FORBIDDEN = {"labkit_approve": "labkit approve / reject / answer / delegate（承認・回答・委任は人間だけ）"}
 
 # flow の forbid カテゴリ（stage.forbid）への対応
 FLOW_CATEGORY = {
@@ -33,6 +34,7 @@ FLOW_CATEGORY = {
     "gh_release": "release",
     "raw_freeze": "raw",
     "template": "template",
+    "lab_toml": "template",
     "link": "link",
     "experiments": "experiments",
 }
@@ -290,6 +292,10 @@ def classify_segment(seg: str, protected: list[str], current_branch: str | None)
             hits.append(Hit("template", seg))
         elif la[:1] == ["approve"] or la[:1] == ["reject"] or la[:1] == ["answer"]:
             hits.append(Hit("labkit_approve", seg, la[0]))
+        elif la[:1] == ["delegate"] and la[1:2] != ["list"]:
+            hits.append(Hit("labkit_approve", seg, "delegate"))
+        elif la[:1] == ["mode"] and len(la) > 1:
+            hits.append(Hit("lab_toml", seg, la[1]))
         elif la[:2] in (["standards", "link"], ["standards", "unlink"]):
             hits.append(Hit("link", seg))
         return hits
@@ -378,6 +384,8 @@ LABKIT_READ = {
     ("fig", "list"),
     ("queue", "list"),
     ("queue", "show"),
+    ("delegate", "list"),
+    ("mode",),
     ("flow", "status"),
     ("flow", "list"),
     ("standards", "status"),

@@ -51,6 +51,7 @@ def test_presence_default_and_switch(repo):
         "presence",
         "queue/",
         "approvals/",
+        "delegations.json",
     ]
     assert ("L001", "error") not in codes(repo)  # .lab はトップレベルに置いてよい
 
@@ -250,6 +251,56 @@ def test_flow_migrate_transitions_and_approval(repo, capsys):
     assert flow.active_flows(repo) == []  # done に達した flow は進行中ではない
     with pytest.raises(SystemExit, match="進行中ではありません"):
         flow.advance(repo, "migrate")
+
+
+def _inventory_ready(repo):
+    flow.start(repo, "migrate")
+    git(repo, "tag", "pre-migration")
+    flow.advance(repo, "migrate")
+    (repo / "scratch").mkdir(exist_ok=True)
+    (repo / "scratch" / "migration-inventory.csv").write_text(
+        "old_path,kind,new_path,size,note\n", encoding="utf-8", newline="\n"
+    )
+
+
+def test_flow_approval_is_bound_to_the_stage_not_the_head(repo):
+    """承認の後に commit しても承認は有効（v0.3 では HEAD に結び付いていて、commit のたびに積み直しになった）."""
+    _inventory_ready(repo)
+    with pytest.raises(SystemExit, match="承認待ち #Q001"):
+        flow.advance(repo, "migrate")
+    assert state.get_item(repo, "Q001")["head"] == flow.approval_key("migrate", "inventory")
+    state.approve(repo, "Q001", ttl_hours=1, who={})
+    git(repo, "commit", "-q", "--allow-empty", "-m", "more work")
+    st, _ = flow.advance(repo, "migrate")
+    assert st["stage"] == "apply-template" and st["history"][-1]["via"] == "approval:Q001"
+
+
+def test_flow_approval_stage_can_be_delegated(repo):
+    _inventory_ready(repo)
+    state.add_delegation(repo, ["flow"], hours=1, who={})
+    st, _ = flow.advance(repo, "migrate")  # キューに積まずに進む
+    assert st["stage"] == "apply-template" and st["history"][-1]["via"] == "delegation:D001"
+    assert state.list_queue(repo) == []
+
+
+def test_delegate_cli_and_mode(repo, capsys):
+    from labkit.cli import main
+
+    assert main(["delegate", "list"]) == 0 and "有効な委任はありません" in capsys.readouterr().out
+    assert main(["delegate", "migrate", "--hours", "2", "--note", "移行を任せる"]) == 0
+    out = capsys.readouterr().out
+    assert "D001" in out and "flow, raw_write, raw_freeze, lab_toml, template" in out
+    assert state.find_delegation(repo, "raw_write") is not None and state.find_delegation(repo, "git_push") is None
+    assert main(["delegate", "list"]) == 0 and "移行を任せる" in capsys.readouterr().out
+    assert main(["delegate", "nonsense"]) == 1  # 利用者の誤りは 1 行で（ValueError → 終了コード 1）
+    assert "委任できない" in capsys.readouterr().err
+    assert main(["delegate", "revoke", "D001"]) == 0
+    assert state.active_delegations(repo) == []
+    assert main(["delegate", "revoke", "D001"]) == 1  # 2 度目は無い（1 行のエラー）
+    (repo / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "warn"\n', encoding="utf-8", newline="\n")
+    assert main(["mode"]) == 0 and "mode = warn" in capsys.readouterr().out
+    assert main(["mode", "strict"]) == 0
+    assert 'mode = "strict"' in (repo / "lab.toml").read_text(encoding="utf-8")
 
 
 def test_flow_review_condition(repo):

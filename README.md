@@ -42,6 +42,7 @@ lab-standards/
 | 図はテンプレートのみ | `figspecs/*.toml` + `labkit fig`。描画ライブラリの直接 import は hooks と check が拒否 |
 | 形式の統一 | 配列は HDF5、表は Parquet。pickle・JLD2 は禁止 |
 | 取り返しのつかない操作は人間が承認 | push / tag / merge / gh pr merge / gh release / raw freeze / copier は hooks が止め、`.lab/queue` に積む。`labkit approve <ID>` で 1 回だけ通る |
+| 人間を待って止まらない | `labkit delegate <カテゴリ> --hours N` で「この期間この種類の操作は任せる」と宣言すると、hooks が承認を待たずに通す（記録・期限・取り消し付き）。flow の承認は段階に結び付き、commit しても無効にならない |
 | 手順は状態機械 | `labkit flow`（migrate / improve-standards）。完了条件を機械的に検査し、段階外の操作を hooks が拒否 |
 | レビューは独立 | `docs/reviews/` は lab-reviewer agent だけが書ける（agent_type で判定） |
 | 報告は実データと照合 | 開発ログの run ID と数値（`12.3 dB [run:<id>:<key>]`）を `labkit check` が runs/ と突き合わせる |
@@ -85,6 +86,8 @@ claude
 | 数値の引用 | `uv run labkit cite <run_id> <key> --unit dB` → `12.3 dB [run:<id>:<key>]` を文書に貼る |
 | 在席状態 | `uv run labkit presence here|away|status`（既定 away） |
 | 承認・質問 | `uv run labkit queue list` → `labkit approve <ID>` / `labkit reject <ID>` / `labkit answer <ID> "..."`（人間） |
+| 委任 | `uv run labkit delegate release --hours 8` / `labkit delegate migrate` / `labkit delegate list` / `labkit delegate revoke <ID>`（人間。カテゴリ一覧は `labkit delegate`） |
+| check の mode | `uv run labkit mode [warn|strict]`（人間、または `lab_toml` を委任された Claude） |
 | 手順 | `uv run labkit flow start migrate|improve-standards` → `flow status` → `flow advance` |
 | 実験の比較画面 | `make mlflow-sync && make mlflow-ui` → http://127.0.0.1:5000 |
 
@@ -116,6 +119,8 @@ Claude: 次のセッションで「承認済み #Q001」を文脈に受け取り
 
 - 判断の分かれる問いは `labkit queue ask` で積み、仮の判断で進む（人間は `labkit answer`）。
 - `labkit presence here` にすると、拒否ではなく通常の確認画面（ask）になる（確認画面が出ない permission mode では here でもキューに積む）。
+- 長い手順（移行、リリース）を任せるときは `labkit delegate migrate --hours 8` / `labkit delegate release --hours 2` のように**委任**しておく。
+  承認 1 件ごとに止まらず、hooks は通した操作の理由に委任 ID を残す。`labkit delegate list` で確認、`revoke` で取り消す。
 - 検出の限界（`sh -c`、スクリプト経由）とサンドボックス、GitHub のブランチ保護については `docs/harness.md`。
 
 ## 作業中のプロジェクトから本体を改良する

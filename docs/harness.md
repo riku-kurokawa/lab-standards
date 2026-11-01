@@ -42,6 +42,23 @@ Claude が承認を作れないようにする層:
    人間が Claude Code の `!` 実行で承認した場合もこのフラグが付く。`!` 実行が PreToolUse hook を通らないことは公式ドキュメントに明記が
    無く、本セッションでの観察（`!` の出力に hook のメッセージが出ない）に基づく（AGENT_QUEUE Q-002）。
 
+### 委任（v0.4.0）
+
+承認は「1 コマンド・1 HEAD・1 回」に結び付くので、長い手順では人間が承認のたびに呼ばれ、承認後に commit すると積み直しになる。
+`labkit delegate <カテゴリ...> --hours N [--note]`（人間のみ）で、期間内はそのカテゴリを hooks が通す（`permissionDecision: allow`、理由に委任 ID）。
+記録は `.lab/delegations.json`（git 管理外、`labkit delegate list` / `revoke <ID|all>`）。
+
+| カテゴリ | 通す操作 |
+|---|---|
+| `git_push` `git_tag` `git_merge` `gh_merge` `gh_release` `raw_freeze` `template` | 承認ゲートの対象そのもの。flow の段階が禁止していても通す（人間の判断を優先） |
+| `flow` | `labkit flow advance` の承認段階（キューに積まず進む。history に `via: delegation:D001`） |
+| `raw_write` | data/raw へのファイルの移動・コピー・Write（生データの搬入）。**削除は委任しても拒否** |
+| `lab_toml` | `labkit mode warn|strict` と lab.toml の編集（Bash / Edit。雛形の `permissions.deny` の `Edit(lab.toml)` は別層なので、Claude は `labkit mode` を使う） |
+| グループ `release` / `migrate` / `all` | 上の組み合わせ（`migrate` = flow, raw_write, raw_freeze, lab_toml, template） |
+
+Claude は `labkit delegate`（list 以外）を実行できず、`.lab/delegations.json` を書けない（承認と同じ層）。
+flow の承認は v0.4.0 から段階（`flow:<name>:<stage>`）に結び付く。
+
 ### 脅威モデル
 
 | 防げる | 防げない |

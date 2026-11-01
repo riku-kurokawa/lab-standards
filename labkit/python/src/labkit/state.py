@@ -18,22 +18,31 @@ import sys
 from pathlib import Path
 
 from labkit._labstate import (  # noqa: F401  （cli / flow / tests が labkit.state 経由で使う）
+    DELEGATABLE,
+    DELEGATION_GROUPS,
     LAB_DIR,
     _iso,
     _now,
+    active_delegations,
     active_flows,
+    add_delegation,
     consume_approval,
     current_stage,
+    describe_delegations,
+    expand_delegation,
+    find_delegation,
     find_valid_approval,
     get_presence,
     git_branch,
     git_head,
     lab_dir,
+    list_delegations,
     list_queue,
     load_gate_conf,
     next_id,
     pending_summary,
     request_approval,
+    revoke_delegation,
 )
 from labkit._labstate import find_scope as _find_scope
 from labkit._util import write_json_atomic, write_text_atomic

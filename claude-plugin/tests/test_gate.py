@@ -236,6 +236,103 @@ def test_claude_cannot_approve(proj):
     assert w.returncode == 0  # presence は Claude が切り替えてよい
 
 
+def _delegate(root: Path, *cats: str, hours: float = 8.0, revoked=None):
+    now = dt.datetime.now().astimezone()
+    items = st.list_delegations(root)
+    items.append(
+        {
+            "id": f"D{len(items) + 1:03d}",
+            "categories": st.expand_delegation(list(cats)),
+            "granted_at": now.isoformat(timespec="seconds"),
+            "expires_at": (now + dt.timedelta(hours=hours)).isoformat(timespec="seconds"),
+            "revoked_at": revoked,
+        }
+    )
+    (root / ".lab").mkdir(exist_ok=True)
+    (root / ".lab" / "delegations.json").write_text(json.dumps({"items": items}), encoding="utf-8", newline="\n")
+
+
+# ---- 委任（人間が「この期間この種類の操作は任せる」と宣言したら、承認を待たずに通す） ----
+def test_delegation_allows_gated_command_without_queue(proj):
+    _delegate(proj, "git_push")
+    res = bash(proj, "git push origin main")
+    assert decision(res) == "allow" and "委任 #D001" in res.stdout
+    assert st.list_queue(proj) == []  # キューには積まない
+    assert decision(bash(proj, "git tag v1")) == "deny"  # 委任していないカテゴリは従来どおり
+
+
+def test_delegation_groups_expiry_and_revoke(proj):
+    _delegate(proj, "release", hours=-1)  # 期限切れ
+    assert decision(bash(proj, "git push")) == "deny"
+    _delegate(proj, "release", revoked=dt.datetime.now().astimezone().isoformat(timespec="seconds"))
+    assert decision(bash(proj, "git push")) == "deny"
+    _delegate(proj, "release")
+    assert decision(bash(proj, "git push")) == "allow"
+    assert decision(bash(proj, "git tag v2")) == "allow"
+    with pytest.raises(ValueError):
+        st.expand_delegation(["nonsense"])
+
+
+def test_delegation_overrides_flow_forbid_for_that_category(proj):
+    (proj / ".lab" / "flows").mkdir(parents=True)
+    (proj / ".lab" / "flows" / "migrate.json").write_text(
+        json.dumps(
+            {
+                "flow": "migrate",
+                "status": "active",
+                "stage": "raw-data",
+                "stages": [{"name": "raw-data", "forbid": ["release", "raw"], "done": [], "approval": False}],
+            }
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    assert decision(bash(proj, "git push")) == "deny"
+    _delegate(proj, "git_push")
+    assert decision(bash(proj, "git push")) == "allow"
+    assert decision(bash(proj, "uv run labkit raw freeze")) == "deny"  # raw は委任していない
+
+
+def test_raw_write_delegation_allows_moving_in_but_never_deleting(proj):
+    assert decision(bash(proj, "mv incoming/x.bin data/raw/")) == "deny"
+    _delegate(proj, "raw_write")
+    assert decision(bash(proj, "mv incoming/x.bin data/raw/")) == "allow"
+    assert decision(bash(proj, "cp x data/raw/")) == "allow"
+    assert decision(bash(proj, "rm data/raw/x.bin")) == "deny"
+    assert decision(bash(proj, "find data/raw -name '*.tmp' -delete")) == "deny"
+    w = run(
+        "guard_write.py",
+        {
+            "tool_name": "Write",
+            "cwd": str(proj),
+            "tool_input": {"file_path": str(proj / "data/raw/new.csv"), "content": "1,2"},
+        },
+    )
+    assert w.returncode == 0
+
+
+def test_lab_toml_delegation(proj):
+    assert decision(bash(proj, "uv run labkit mode strict")) == "deny"  # 承認ゲートの対象（キューへ）
+    assert st.list_queue(proj)[-1]["command"] == "uv run labkit mode strict"
+    assert decision(bash(proj, "sed -i s/warn/strict/ lab.toml")) == "deny"
+    _delegate(proj, "lab_toml")
+    assert decision(bash(proj, "uv run labkit mode strict")) == "allow"
+    assert decision(bash(proj, "sed -i s/warn/strict/ lab.toml")) == "allow"
+    w = run(
+        "guard_write.py",
+        {"tool_name": "Edit", "cwd": str(proj), "tool_input": {"file_path": str(proj / "lab.toml"), "new_string": "x"}},
+    )
+    assert w.returncode == 0
+    assert decision(bash(proj, "uv run labkit mode")) == "pass"  # 表示だけは誰でも
+
+
+def test_claude_cannot_delegate(proj):
+    for cmd in ("labkit delegate git_push", "uv run labkit delegate all --hours 99", "labkit delegate revoke D001"):
+        assert decision(bash(proj, cmd)) == "deny", cmd
+    assert decision(bash(proj, "labkit delegate list")) == "pass"
+    assert decision(bash(proj, "echo x > .lab/delegations.json")) == "deny"
+
+
 def test_gate_disabled_in_lab_toml(proj):
     (proj / "lab.toml").write_text('[lab]\nproject = "t"\n[gate]\nenabled = false\n', encoding="utf-8", newline="\n")
     assert decision(bash(proj, "git push")) == "pass"

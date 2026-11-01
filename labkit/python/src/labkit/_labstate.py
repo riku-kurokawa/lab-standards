@@ -3,6 +3,7 @@
 正本はこのファイル（claude-plugin/scripts/_labstate.py）。labkit/python/src/labkit/_labstate.py はそのバイト同一のコピーで、
 テスト（test_harness.py::test_vendored_labstate_is_identical）が一致を検査する。
 hooks はここで「読む」「承認待ちを積む」「承認を使用済みにする」だけを行う。承認記録を新規に作るのは labkit approve（人間）だけ。
+委任（.lab/delegations.json）も同じ: 作る・取り消すのは labkit delegate（人間）だけで、hooks は読んで照合するだけ。
 """
 
 from __future__ import annotations
@@ -16,8 +17,32 @@ from pathlib import Path
 LAB_DIR = ".lab"
 DEFAULT_PRESENCE = "away"
 GITIGNORE = (
-    "# labkit が生成。presence・queue・approvals は手元だけの状態（flows/ は git 管理）\npresence\nqueue/\napprovals/\n"
+    "# labkit が生成。presence・queue・approvals・delegations は手元だけの状態（flows/ は git 管理）\n"
+    "presence\nqueue/\napprovals/\ndelegations.json\n"
 )
+
+# ---- 委任（delegation）----
+# 人間が `labkit delegate <category...> --hours N` で宣言する。期間内はそのカテゴリの操作を承認待ちに積まず通す
+# （承認ゲートの対象、flow の承認段階、data/raw への搬入、lab.toml の mode 切替）。承認と違い、コマンド全文や
+# HEAD には結び付かない。取り返しのつかない操作を「人間が不在でも進めてよい」と決めるのは人間だけ（Claude は実行できない）。
+DELEGATABLE = {
+    "git_push": "git push（リモートの変更）",
+    "git_tag": "git tag の作成・削除",
+    "git_merge": "保護ブランチへの merge",
+    "gh_merge": "gh pr merge",
+    "gh_release": "gh release の作成・変更",
+    "raw_freeze": "labkit raw freeze（生データの確定）",
+    "template": "copier copy/update・labkit standards template（雛形の適用）",
+    "flow": "labkit flow advance の承認段階（承認を待たずに進む）",
+    "raw_write": "data/raw へのファイルの移動・追加（生データの搬入。削除は含まない）",
+    "lab_toml": "lab.toml の変更（`labkit mode warn|strict` と編集）",
+}
+DELEGATION_GROUPS = {
+    "release": ["git_push", "git_tag", "git_merge", "gh_merge", "gh_release"],
+    "migrate": ["flow", "raw_write", "raw_freeze", "lab_toml", "template"],
+    "all": list(DELEGATABLE),
+}
+DELEGATIONS_FILE = "delegations.json"
 
 
 # ---- lab.toml の既定値（唯一の定義。labkit の config.load_lab と hooks の load_lab が共有する） ----
@@ -257,8 +282,11 @@ def next_id(root: Path) -> str:
     return f"Q{(max(nums) + 1) if nums else 1:03d}"
 
 
-def request_approval(root: Path, command: str, *, cwd: Path, reason: str, session_id: str = "") -> dict:
-    head = git_head(cwd)
+def request_approval(
+    root: Path, command: str, *, cwd: Path, reason: str, session_id: str = "", head: str | None = None
+) -> dict:
+    """承認待ちを積む。head を渡すと HEAD の代わりにそれに結び付ける（flow の承認は段階に結び付ける: `flow:<name>:<stage>`）."""
+    head = head or git_head(cwd)
     for it in list_queue(root):
         if (
             it.get("kind") == "approval"
@@ -321,6 +349,97 @@ def consume_approval(root: Path, rec: dict) -> None:
             _write_json(q, it)
         except (json.JSONDecodeError, OSError):
             pass
+
+
+def expand_delegation(names: list[str]) -> list[str]:
+    """グループ名（release / migrate / all）を展開し、未知の名前は ValueError."""
+    out: list[str] = []
+    for n in names:
+        if n in DELEGATION_GROUPS:
+            out += DELEGATION_GROUPS[n]
+        elif n in DELEGATABLE:
+            out.append(n)
+        else:
+            raise ValueError(
+                f"委任できないカテゴリ: {n!r}（使えるもの: {', '.join([*DELEGATABLE, *DELEGATION_GROUPS])}）"
+            )
+    return list(dict.fromkeys(out))
+
+
+def list_delegations(root: Path) -> list[dict]:
+    p = root / LAB_DIR / DELEGATIONS_FILE
+    if not p.is_file():
+        return []
+    try:
+        return list(json.loads(p.read_text(encoding="utf-8")).get("items", []))
+    except (json.JSONDecodeError, OSError, AttributeError):
+        return []
+
+
+def _save_delegations(root: Path, items: list[dict]) -> None:
+    _write_json(lab_dir(root) / DELEGATIONS_FILE, {"items": items})
+
+
+def delegation_active(d: dict, now: _dt.datetime | None = None) -> bool:
+    now = now or _now()
+    if d.get("revoked_at"):
+        return False
+    try:
+        return _dt.datetime.fromisoformat(d["expires_at"]) >= now
+    except (KeyError, ValueError):
+        return False
+
+
+def active_delegations(root: Path, now: _dt.datetime | None = None) -> list[dict]:
+    return [d for d in list_delegations(root) if delegation_active(d, now)]
+
+
+def find_delegation(root: Path, category: str, now: _dt.datetime | None = None) -> dict | None:
+    """category を含む有効な委任（期限内・未取り消し）。無ければ None."""
+    for d in active_delegations(root, now):
+        if category in d.get("categories", []):
+            return d
+    return None
+
+
+def add_delegation(root: Path, categories: list[str], *, hours: float, note: str = "", who: dict | None = None) -> dict:
+    items = list_delegations(root)
+    now = _now()
+    d = {
+        "id": f"D{len(items) + 1:03d}",
+        "categories": expand_delegation(categories),
+        "note": note,
+        "granted_at": _iso(now),
+        "expires_at": _iso(now + _dt.timedelta(hours=hours)),
+        "revoked_at": None,
+        **(who or {}),
+    }
+    items.append(d)
+    _save_delegations(root, items)
+    return d
+
+
+def revoke_delegation(root: Path, did: str) -> list[dict]:
+    """`all` で全部。取り消した委任を返す."""
+    items = list_delegations(root)
+    hit = []
+    for d in items:
+        if (did == "all" or d.get("id") == did) and not d.get("revoked_at"):
+            d["revoked_at"] = _iso(_now())
+            hit.append(d)
+    if not hit:
+        raise FileNotFoundError(f"有効な委任 {did} がありません（`labkit delegate list`）")
+    _save_delegations(root, items)
+    return hit
+
+
+def describe_delegations(root: Path) -> list[str]:
+    return [
+        f"{d['id']}: {', '.join(d['categories'])}（期限 {d['expires_at']}"
+        + (f"、{d['note']}" if d.get("note") else "")
+        + "）"
+        for d in active_delegations(root)
+    ]
 
 
 def active_flows(root: Path) -> list[dict]:

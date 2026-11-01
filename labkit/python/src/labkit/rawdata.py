@@ -15,10 +15,19 @@ from labkit.paths import datapath
 
 MANIFEST = "MANIFEST.sha256"
 IGNORE = {MANIFEST, ".gitkeep", "README.md"}
+# 隠しディレクトリ（.git など、生データとして置いた checkout のメタデータ）は台帳に入れない: git は読むだけの操作でも
+# .git/index を書き換えるので、固定すると検査のたびに「改変」になる（v0.4.0。checkout の同一性は commit で見る）
+_HIDDEN = (".",)
+
+
+def _is_hidden(rel: Path) -> bool:
+    return any(part.startswith(_HIDDEN) for part in rel.parts)
 
 
 def _files(raw: Path) -> list[Path]:
-    return sorted(p for p in raw.rglob("*") if p.is_file() and p.name not in IGNORE and not p.name.startswith("."))
+    return sorted(
+        p for p in raw.rglob("*") if p.is_file() and p.name not in IGNORE and not _is_hidden(p.relative_to(raw))
+    )
 
 
 def read_manifest(raw: Path) -> dict[str, tuple[str, int]]:
@@ -30,7 +39,10 @@ def read_manifest(raw: Path) -> dict[str, tuple[str, int]]:
         if not line.strip() or line.startswith("#"):
             continue
         digest, size, rel = line.split(None, 2)
-        out[rel.replace("\\", "/")] = (digest, int(size))  # 旧版（Windows）の \\ 区切りも受け付ける
+        rel = rel.replace("\\", "/")  # 旧版（Windows）の \\ 区切りも受け付ける
+        if _is_hidden(Path(rel)):
+            continue  # v0.3 以前の台帳にある隠しディレクトリの行は読まない（次の freeze で台帳から消える）
+        out[rel] = (digest, int(size))
     return out
 
 

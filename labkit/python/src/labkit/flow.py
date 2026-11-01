@@ -27,6 +27,11 @@ from labkit.state import active_flows  # noqa: F401  （cli が flow.active_flow
 ADVANCE_COMMAND = "labkit flow advance {name}"
 
 
+def approval_key(name: str, stage: str) -> str:
+    """承認を結び付ける鍵。HEAD ではなく段階に結び付ける（承認後に commit しても承認が無効にならない）."""
+    return f"flow:{name}:{stage}"
+
+
 # ---- 定義 ----
 def definitions() -> dict[str, dict]:
     out = {}
@@ -150,11 +155,18 @@ def advance(root: Path, name: str, session_id: str = "") -> tuple[dict, str]:
         raise SystemExit(
             f"段階 {cur['name']} の完了条件が満たされていません:\n" + "\n".join(f"  - {m}" for m in missing)
         )
+    via = None
     if cur["approval"]:
         cmd = ADVANCE_COMMAND.format(name=name)
-        head = state.git_head(root)
-        rec = state.find_valid_approval(root, cmd, head)
-        if rec is None:
+        key = approval_key(name, cur["name"])
+        rec = state.find_valid_approval(root, cmd, key)
+        deleg = state.find_delegation(root, "flow")
+        if rec is not None:
+            state.consume_approval(root, rec)
+            via = f"approval:{rec['id']}"
+        elif deleg is not None:
+            via = f"delegation:{deleg['id']}"
+        else:
             session_id = session_id or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
             item = state.request_approval(
                 root,
@@ -162,14 +174,18 @@ def advance(root: Path, name: str, session_id: str = "") -> tuple[dict, str]:
                 cwd=root,
                 session_id=session_id,
                 reason=f"flow {name}: 段階 {cur['name']} → {nxt['name']} の承認",
+                head=key,
             )
             raise SystemExit(
                 f"段階 {cur['name']} から進むには人間の承認が必要です。承認待ち #{item['id']} として記録しました。\n"
                 f"この操作に依存しない作業を続け、終了時の報告に挙げてください。人間: `labkit approve {item['id']}`"
+                f"（この承認は段階に結び付き、commit しても無効になりません）。`labkit delegate flow` で委任することもできます"
             )
-        state.consume_approval(root, rec)
     st["stage"] = nxt["name"]
-    st["history"].append({"stage": nxt["name"], "at": now_iso(), "event": "advance", "head": state.git_head(root)})
+    hist = {"stage": nxt["name"], "at": now_iso(), "event": "advance", "head": state.git_head(root)}
+    if via:
+        hist["via"] = via
+    st["history"].append(hist)
     if next_stage(st) is None and not nxt["done"]:
         st["status"] = "finished"
     save_state(root, st)

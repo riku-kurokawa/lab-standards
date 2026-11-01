@@ -136,6 +136,65 @@ def cmd_approve(a) -> int:
     return 0
 
 
+def cmd_delegate(a) -> int:
+    """人間が「この種類の操作はこの期間 Claude に任せる」と宣言する（hooks が Claude の実行を拒否する）."""
+    from labkit import state
+
+    root = _scope_root()
+    if a.action == "list":
+        lines = state.describe_delegations(root)
+        print("\n".join(lines) if lines else "有効な委任はありません")
+        if a.all:
+            for d in state.list_delegations(root):
+                if not state.delegation_active(d):
+                    print(f"  (期限切れ/取り消し) {d['id']}: {', '.join(d['categories'])} 期限 {d['expires_at']}")
+        return 0
+    if a.action == "revoke":
+        if not a.categories:
+            raise SystemExit("delegate revoke <ID|all>")
+        who = state.human_check()
+        for d in state.revoke_delegation(root, a.categories[0]):
+            print(f"取り消しました: {d['id']}  {', '.join(d['categories'])}")
+        if who["claude_shell"]:
+            print("  注意: Claude Code のシェル環境から実行しました（記録に claude_shell=true）")
+        return 0
+    if not a.categories:
+        raise SystemExit(
+            "delegate <カテゴリ...> [--hours N] [--note ...]  カテゴリ: "
+            + ", ".join(state.DELEGATABLE)
+            + "  グループ: "
+            + ", ".join(state.DELEGATION_GROUPS)
+        )
+    who = state.human_check()
+    d = state.add_delegation(root, a.categories, hours=float(a.hours), note=a.note or "", who=who)
+    print(
+        f"委任しました: {d['id']}  {', '.join(d['categories'])}\n  期限={d['expires_at']}  取り消し: labkit delegate revoke {d['id']}"
+    )
+    print("  期間中、Claude はこの種類の操作を承認待ちに積まずに実行します（hooks が理由に委任 ID を残す）")
+    if who["claude_shell"]:
+        print("  注意: Claude Code のシェル環境から実行しました（記録に claude_shell=true）")
+    return 0
+
+
+def cmd_mode(a) -> int:
+    """lab.toml の [check] mode を切り替える（人間、または lab_toml の委任を受けた Claude。hooks が承認ゲートとして扱う）."""
+    from labkit.config import find_root
+
+    root = find_root()
+    p = root / "lab.toml"
+    text = p.read_text(encoding="utf-8")
+    if a.value is None:
+        m = re.search(r'^mode\s*=\s*"(warn|strict)"', text, re.M)
+        print(f"mode = {m.group(1) if m else '(未設定: 既定 strict)'}")
+        return 0
+    new, n = re.subn(r'^(mode\s*=\s*)"(?:warn|strict)"', rf'\g<1>"{a.value}"', text, count=1, flags=re.M)
+    if n != 1:
+        raise SystemExit('lab.toml に [check] の `mode = "..."` の行が 1 つ見つかりません（手で編集してください）')
+    p.write_text(new, encoding="utf-8", newline="\n")
+    print(f'lab.toml: [check] mode = "{a.value}"')
+    return 0
+
+
 def cmd_reject(a) -> int:
     from labkit import state
 
@@ -475,6 +534,24 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("id")
     s.set_defaults(func=cmd_approve)
 
+    s = sub.add_parser(
+        "delegate",
+        help="委任（人間のみ）: この種類の操作をこの期間 Claude に任せる。`delegate list` / `delegate revoke <ID|all>`",
+    )
+    s.add_argument(
+        "categories", nargs="*", help="カテゴリ（git_push, raw_freeze, flow, raw_write, lab_toml, ...）か list / revoke"
+    )
+    s.add_argument("--hours", type=float, default=8.0, help="有効期間（既定 8 時間）")
+    s.add_argument("--note", help="目的（記録に残す）")
+    s.add_argument("--all", action="store_true", help="list: 期限切れ・取り消し済みも表示")
+    s.set_defaults(func=cmd_delegate, action=None)
+
+    s = sub.add_parser(
+        "mode", help="lab.toml の [check] mode を表示・切替（warn | strict）。Claude は lab_toml の委任があるときだけ"
+    )
+    s.add_argument("value", nargs="?", choices=["warn", "strict"])
+    s.set_defaults(func=cmd_mode)
+
     s = sub.add_parser("reject", help="却下（人間のみ）")
     s.add_argument("id")
     s.add_argument("--note")
@@ -515,6 +592,8 @@ def main(argv: list[str] | None = None) -> int:
             except (ValueError, OSError):
                 pass
     args = build_parser().parse_args(argv)
+    if args.cmd == "delegate" and args.categories and args.categories[0] in ("list", "revoke"):
+        args.action, args.categories = args.categories[0], args.categories[1:]
     if args.cmd == "lit" and args.action == "survey" and not args.question:
         raise SystemExit("--question が必要です")
     if args.cmd == "runs" and args.action == "show" and not args.run_id:

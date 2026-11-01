@@ -10,4 +10,5 @@ dist/
 .lab/presence
 .lab/queue/
 .lab/approvals/
+.lab/delegations.json
 claude-plugin/evals/results/

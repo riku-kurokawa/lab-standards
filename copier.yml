@@ -73,4 +73,4 @@ standards_repo:
 standards_ref:
   type: str
   help: 使う lab-standards のタグ（再現性のため固定）
-  default: "v0.3.1"
+  default: "v0.4.0"

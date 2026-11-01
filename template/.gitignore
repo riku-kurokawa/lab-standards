@@ -13,6 +13,7 @@
 /.lab/presence
 /.lab/queue/
 /.lab/approvals/
+/.lab/delegations.json
 
 # --- 文献（PDF は著作物・大容量なので管理外） ---
 /literature/pdfs/*

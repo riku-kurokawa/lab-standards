@@ -129,6 +129,24 @@ def test_check_paths_are_posix_and_ok_dirs_apply(project):
     assert l014 == ["scripts/stray.png"]
 
 
+def test_raw_manifest_ignores_vcs_metadata(project):
+    """data/raw に置いた checkout の .git/ は台帳に入れない（git は読むだけで index を書き換える）。旧台帳の行も読まない."""
+    from labkit.rawdata import freeze, read_manifest, verify
+
+    raw = project / "data" / "raw"
+    (raw / "repo" / ".git").mkdir(parents=True)
+    (raw / "repo" / ".git" / "index").write_bytes(b"idx")
+    (raw / "repo" / "a.csv").write_text("1\n", encoding="utf-8", newline="\n")
+    freeze(progress=lambda *_: None)
+    assert set(read_manifest(raw)) == {"repo/a.csv"}
+    (raw / "repo" / ".git" / "index").write_bytes(b"rewritten by git")  # 改変扱いにならない
+    assert verify(full=True) == []
+    mf = raw / "MANIFEST.sha256"
+    mf.chmod(0o644)
+    mf.write_text(mf.read_text(encoding="utf-8") + "0" * 64 + "  3  repo/.git/index\n", encoding="utf-8", newline="\n")
+    assert "repo/.git/index" not in read_manifest(raw) and verify(full=True) == []
+
+
 def test_legacy_windows_manifest_lines_verify(project):
     """旧版が Windows で書いた `sub\\r.bin` 形式の MANIFEST 行も検証できる."""
     import hashlib

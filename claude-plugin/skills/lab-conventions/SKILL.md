@@ -56,7 +56,10 @@ bool 配列: HDF5 上は uint8 + データセット属性 `labkit_dtype="bool"`�
   `presence=away`（既定、`labkit presence status`）では拒否され、承認待ち `.lab/queue/<ID>` に記録される。
   その操作に依存しない作業を続け、終了時に ID を報告する。承認後は同じリポジトリ・同じ HEAD で同じコマンド全文を実行する（1 回限り）。
 - 判断が分かれる問いは `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>" --impact "<変更時の影響>"` に積み、仮の判断で進む。
-- `labkit approve / reject / answer` は人間専用。レビュー記録 `docs/reviews/` は lab-reviewer agent だけが書く。
+- `labkit approve / reject / answer / delegate` は人間専用。レビュー記録 `docs/reviews/` は lab-reviewer agent だけが書く。
+- 人間が `labkit delegate <カテゴリ> --hours N` で委任した種類の操作（`labkit delegate list`、SessionStart が示す）は、
+  承認を待たずに実行してよい。hooks が通し、理由に委任 ID を残す。委任が無い操作は従来どおりキューへ。
+  長い手順を任されたら、止まる前に「`labkit delegate migrate --hours 8` で委任できます」と人間に伝える。
 - 手順のある作業（移行、本体の改良）は `labkit flow start <migrate|improve-standards>` → `status` → `advance`。
 
 ## 規約そのものを変えたいとき

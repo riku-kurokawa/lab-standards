@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.4.0 — 2026-11-01
+
+「人間を待って止まらない」。v0.3 のハーネスは取り返しのつかない操作を人間の承認に委ねたが、実際の移行（accelerated-diff-pat、
+2026-11-01）では、承認 1 件ごとに作業が止まり、承認が HEAD に結び付くため commit のたびに積み直しになった。
+人間が「この期間、この種類の操作は任せる」と一度宣言できる**委任**を足す。
+
+### 追加
+- **委任** `labkit delegate <カテゴリ...> [--hours N（既定 8）] [--note ...]`（人間のみ。hooks が Claude の実行を拒否する）、
+  `labkit delegate list`、`labkit delegate revoke <ID|all>`。記録は `.lab/delegations.json`（git 管理外）。
+  カテゴリ: `git_push` `git_tag` `git_merge` `gh_merge` `gh_release` `raw_freeze` `template`（承認ゲートの対象）、
+  `flow`（承認段階を待たずに進む）、`raw_write`（data/raw への搬入。削除は委任しても拒否）、`lab_toml`（`labkit mode` と編集）。
+  グループ: `release`、`migrate`（flow, raw_write, raw_freeze, lab_toml, template）、`all`。
+  期間内は hooks が該当カテゴリを通し（理由に委任 ID）、flow の段階が禁止していても人間の判断を優先する。承認と違い、コマンド全文や HEAD に結び付かない。
+- `labkit mode [warn|strict]`: `lab.toml` の `[check] mode` を表示・切替。Claude には承認ゲートの対象（`lab_toml` の委任があれば通る）。
+- SessionStart が有効な委任を文脈に入れる。承認待ちの拒否メッセージが、承認のほかに委任の方法も示す。
+
+### 変更
+- `labkit flow advance` の承認は HEAD ではなく **段階**（`flow:<name>:<stage>`）に結び付く。承認の後に commit しても無効にならない。
+  `.lab/flows/<name>.json` の history に `via`（`approval:Q001` / `delegation:D001`）を記録する。
+- `labkit raw freeze` / `check`（L002・L003）は隠しディレクトリ（`.git/` など、生データとして置いた checkout のメタデータ）を台帳に入れない。
+  git は読むだけの操作でも `.git/index` を書き換えるので、固定すると検査のたびに「改変」になっていた。旧台帳の該当行は読まず、次の freeze で消える。
+- `_labstate.py`: `request_approval(..., head=)` で結び付け先を上書きできる。
+
+### 移行
+- 既存プロジェクトは `labkit standards template --ref v0.4.0`（`.gitignore` に `/.lab/delegations.json`）と `pyproject.toml` のタグ更新。
+  委任を使わなければ挙動は v0.3 と同じ（既定は従来どおり承認待ち）。
+
 ## v0.3.1 — 2026-11-01
 
 ### 修正

@@ -31,6 +31,8 @@
 - **質問**: 判断の分かれる問いは質問ツールで止まらず
   `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>" --impact "<変更時の影響>"` で積み、仮の判断で進む。
   `labkit approve / reject / answer` は人間専用（Claude は実行できない）。
+- **委任**: 人間が `labkit delegate <カテゴリ> --hours N` で宣言した種類の操作（`labkit delegate list`）は承認を待たずに実行してよい。
+  長い手順で止まりそうなら、止まる前に委任の方法（例: `labkit delegate migrate --hours 8`）を人間に伝える。
 - **手順**: 移行は `labkit flow start migrate`、本体の改良は `labkit flow start improve-standards`。
   `labkit flow status` で今の段階・禁止操作・残り条件を確認し、満たしたら `labkit flow advance`。
 

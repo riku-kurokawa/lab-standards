@@ -1,6 +1,6 @@
 [project]
 name = "labkit"
-version = "0.3.1"
+version = "0.4.0"
 description = "研究用計算プロジェクトの共通ライブラリ（データ保存・run管理・図テンプレート・規約チェック・文献管理）"
 requires-python = ">=3.11"
 dependencies = [

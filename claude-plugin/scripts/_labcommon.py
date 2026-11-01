@@ -164,11 +164,13 @@ def queue_delta_context(root: Path) -> list[str]:
 
 
 def queue_context(root: Path) -> list[str]:
-    """SessionStart 用: 差分に加えて、承認待ちと未回答の質問も（会話が無い状態から再開するため）."""
-    from _labstate import pending_summary
+    """SessionStart 用: 差分に加えて、承認待ちと未回答の質問、有効な委任も（会話が無い状態から再開するため）."""
+    from _labstate import describe_delegations, pending_summary
 
     s = pending_summary(root)
     lines = queue_delta_context(root)
+    for d in describe_delegations(root):
+        lines.append(f"- 委任中 {d}: この種類の操作は承認を待たずに進めてよい（hooks が通し、理由に委任 ID を残す）")
     for it in s["pending"]:
         lines.append(
             f"- 承認待ち #{it['id']}: `{it['command']}` — 人間の `labkit approve {it['id']}` を待つ。"

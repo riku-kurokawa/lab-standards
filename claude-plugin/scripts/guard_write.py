@@ -25,7 +25,7 @@ from _labcommon import (
     read_input,
     rel,
 )
-from _labstate import active_flows, current_stage, find_scope
+from _labstate import active_flows, current_stage, find_delegation, find_scope
 
 
 def new_text(tool: str, ti: dict) -> str:
@@ -95,9 +95,17 @@ def main() -> None:
             )
 
     if r in PROTECTED_FILES:
-        block(f"{r} は規約ファイルです。変更が必要なら、理由と差分案を人間に提示してください（Claude は編集しない）。")
+        if r == "lab.toml" and find_delegation(root, "lab_toml") is not None:
+            return  # 人間が lab.toml の変更を委任中（mode の切替は `labkit mode` でもできる）。配置規約の対象外のファイル
+        else:
+            block(
+                f"{r} は規約ファイルです。変更が必要なら、理由と差分案を人間に提示してください（Claude は編集しない。"
+                "人間は `labkit delegate lab_toml` で委任できる）。"
+            )
     for ro in layout["readonly"]:
         if r == ro or r.startswith(ro.rstrip("/") + "/"):
+            if ro == "data/raw" and find_delegation(root, "raw_write") is not None:
+                return  # 生データの搬入を委任中。既存ファイルの書き換えは MANIFEST と合わなくなるので check が検出する
             block(
                 f"{r} は読み取り専用領域（{ro}）です。生データは不変。派生データは scripts から labkit.save で data/interim か data/processed に作ってください。"
             )
