@@ -657,3 +657,20 @@
   不利益は既存プロジェクトが例の修正（サイクル 31 の snr_db 等）を受け取らなくなること。許容。
 - 結論: 採用。再検証: 5 ファイルに利用者の追記を入れて v0.2.0 → HEAD 更新、衝突なし・5 ファイルとも無変更、check 違反なし。
 - 規模: copier.yml +12 行（コメント 2 行含む）、CHANGELOG +5 行。コード変更なし。labkit 67 / hooks 91 passed。
+
+### 71. 2026-11-01 — figspec の打ち間違いが traceback で終わっていた
+- 観点: HEAD から生成したプロジェクトで 8 種の図テンプレートを `labkit fig list` の例どおり（HDF5 / Parquet の両方、入れ子の配列名）描き、
+  次に打ち間違えた figspec を与える。
+- 発見: 8 種とも正常。配列名・列名・`[data]` のキー（signal、fs）・`err = "sem"` の 6 件がすべて素の `KeyError: 'x_rawww'` の traceback
+  （CLI が 1 行にするのは OSError / ValueError だけ）。ファイル名も候補も出ない。
+- 提案: `render()` で KeyError を figspec を名指しした ValueError に。
+- 監査: 採用（変更付き）: 置き場所は render で正しい（Parquet の列・`[data]` のキーは `_get` を通らず、CLI で拾うと他コマンドの bug も隠す）。
+  `err = "sem"` は「無い」ではなく不正な値 → errorbar で明示的に検査。入れ子 `grp/a` は末尾だけが出る → `_get` が全体のパスと「ある名前」を付けて投げ直す。
+  `e.args[0]` は空 args で落ちる → 守る。`!r` は値に引用符があると二重引用符に変わるのでテストが割れた → 引用符を自分で付ける。
+- 結論: 採用。
+- 規模: viz +11 行、テスト +12 行。labkit 67 / hooks 91 passed。
+
+## 打ち止め（2026-11-01）
+
+利用者の指示でサイクルを終了。71 サイクル（監査付き）を feat/optimize に積み、main へマージして v0.3.0 とした。
+残る人間向けの判断は AGENT_QUEUE.md（Q-001〜Q-020）。

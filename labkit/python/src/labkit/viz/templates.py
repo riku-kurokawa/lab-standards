@@ -77,7 +77,10 @@ def _options(ax, spec):
 def _get(d: dict, key: str):
     node = d
     for part in key.split("/"):
-        node = node[part]
+        try:
+            node = node[part]
+        except KeyError:
+            raise KeyError(f"{key}（ある名前: {sorted(node)}）") from None
     return np.asarray(node)
 
 
@@ -203,6 +206,8 @@ def errorbar(spec, ctx):
     d = spec["data"]
     df: pd.DataFrame = ctx.load(d["file"])
     err = d.get("err", "se")
+    if err not in ("sd", "se", "ci95"):
+        raise ValueError(f"errorbar: err は sd | se | ci95 のいずれか（{err!r}）")
     hue = d.get("hue")
     groups = [(None, df)] if not hue else list(df.groupby(hue, sort=True))
     cats = list(dict.fromkeys(df[d["x"]]))

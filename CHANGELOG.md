@@ -40,6 +40,8 @@ Claude Code の仕様の確認は `docs/notes/claude-code-spec.md`。
   pre-commit を入れていなくても check（Stop hook・CI）で止める。`standards template` は衝突したファイルを列挙する。
 
 ### 修正
+- `labkit fig`: figspec の配列名・列名・`[data]` のキーの打ち間違いは traceback（KeyError）ではなく、figspec を名指しした 1 行
+  （HDF5 ではある名前を列挙）。errorbar の `err` は sd | se | ci95 以外を拒否。
 - Julia の `LabKit.check()` / `labkit_cli(...)` は終了コードを返す（違反があると例外になっていた。Python の `labkit.check()` と同じ契約）。
 - labkit が書くテキスト（meta.json、metrics、log、サイドカー、MANIFEST、devlog/ADR の雛形、link の書き換え）を OS に依らず LF に
   （Windows では CRLF になり、LF で書く Julia 側や他の機械との間で差分が出ていた）。テストが機械的に検査する。

@@ -76,7 +76,11 @@ def render(spec_path: str | Path, run_id: str | None = None, out_dir: str | Path
     style.apply()
     import matplotlib.pyplot as plt
 
-    fig = REGISTRY[spec["template"]].func(spec, Context(load=load, metrics=metrics))
+    try:
+        fig = REGISTRY[spec["template"]].func(spec, Context(load=load, metrics=metrics))
+    except KeyError as e:  # [data] のキー、配列名、列名の打ち間違い
+        key = e.args[0] if e.args else e
+        raise ValueError(f"{spec_path}: '{key}' がありません（[data] の指定、またはデータの配列名・列名を確認）") from e
     name = spec["name"]
     paths = []
     for ext in ("pdf", "png"):

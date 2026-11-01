@@ -105,6 +105,29 @@ def test_figure_templates(project):
     )
     with pytest.raises(ValueError, match="len\\(x\\), len\\(y\\)"):
         render(project / "figspecs" / "bad.toml", run_id=run.run_id)
+    # 配列名・列名・[data] のキーの打ち間違いは traceback（KeyError）ではなく、figspec を名指しした 1 行
+    for text, pat in (
+        (
+            'template = "timeseries"\n[data]\nfile = "s.h5"\nx = "t"\ny = "xx"\n',
+            r"typo\.toml: 'xx（ある名前: \['t', 'x'\]）' がありません",
+        ),
+        (
+            'template = "timeseries"\n[data]\nfile = "s.h5"\nx = "t"\ny = "grp/a"\n',
+            r"'grp/a（ある名前",
+        ),  # 入れ子は全体のパスで
+        (
+            'template = "errorbar"\n[data]\nfile = "res.parquet"\nx = "methodd"\ny = "rmse"\n',
+            r"typo\.toml: 'methodd' がありません",
+        ),
+        ('template = "psd"\n[data]\nfile = "s.h5"\nfs = 1000.0\n', r"typo\.toml: 'signal' がありません"),
+        (
+            'template = "errorbar"\n[data]\nfile = "res.parquet"\nx = "method"\ny = "rmse"\nerr = "sem"\n',
+            r"err は sd \| se \| ci95",
+        ),
+    ):
+        (project / "figspecs" / "typo.toml").write_text(text, encoding="utf-8", newline="\n")
+        with pytest.raises(ValueError, match=pat):
+            render(project / "figspecs" / "typo.toml", run_id=run.run_id)
 
 
 def test_written_text_files_use_lf(project):
