@@ -40,13 +40,15 @@ plugin は `lab.toml` のあるプロジェクトと本体でだけ動く。判�
 
 ## 3. GitHub 側の保護（最後の砦）
 
-hooks は security boundary ではない。main への force push と削除の禁止、`v*` タグの保護を設定する（公開リポジトリは無料）:
+hooks は security boundary ではない。main への force push と削除、`v*` タグの付け替えと削除を ruleset で禁止する（公開リポジトリは無料。所有者にも適用される）:
 
 ```bash
-gh api -X PUT repos/<owner>/<repo>/branches/main/protection \
-  -F required_status_checks=null -F enforce_admins=false -F required_pull_request_reviews=null -F restrictions=null \
-  -F allow_force_pushes=false -F allow_deletions=false
-gh api -X POST repos/<owner>/<repo>/tags/protection -f pattern='v*'
+gh api -X POST repos/<owner>/<repo>/rulesets --input - <<'JSON'
+{"name":"protect-main","target":"branch","enforcement":"active","conditions":{"ref_name":{"include":["refs/heads/main"],"exclude":[]}},"rules":[{"type":"deletion"},{"type":"non_fast_forward"}]}
+JSON
+gh api -X POST repos/<owner>/<repo>/rulesets --input - <<'JSON'
+{"name":"protect-release-tags","target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v*"],"exclude":[]}},"rules":[{"type":"deletion"},{"type":"update"}]}
+JSON
 ```
 
 ## 4. 承認ゲートの使い方
