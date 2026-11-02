@@ -3,6 +3,7 @@
 configs/paths/<LAB_ENV>.toml（既定 local）:
     data_root = "data"              # 相対パスはプロジェクトルート基準
     runs_root = "runs"
+    mirror_root = ""                # 正本の写し先（NAS・外付け・クラウドのマウント）。`labkit mirror push`
     # HPC 例: data_root = "/lustre/$USER/myproj/data"
 """
 
@@ -13,23 +14,27 @@ from pathlib import Path
 
 from labkit.config import find_root, read_toml
 
-STAGES = ("raw", "external", "interim", "processed")
+# cache: 再生成できる中間物。サイドカー不要・引用不可（L022 の対象外）
+STAGES = ("raw", "external", "interim", "processed", "cache")
 
 
 def env_name() -> str:
     return os.environ.get("LAB_ENV", "local")
 
 
-def load_paths(root: Path | None = None) -> dict[str, Path]:
+def load_paths(root: Path | None = None) -> dict[str, Path | None]:
     r = root or find_root()
-    cfg = {"data_root": "data", "runs_root": "runs"}
+    cfg: dict = {"data_root": "data", "runs_root": "runs", "mirror_root": ""}
     f = r / "configs" / "paths" / f"{env_name()}.toml"
     if f.is_file():
         cfg.update(read_toml(f))
     elif env_name() != "local":
         raise FileNotFoundError(f"LAB_ENV={env_name()} ですが {f} がありません")
-    out = {}
+    out: dict[str, Path | None] = {}
     for k, v in cfg.items():
+        if not v:
+            out[k] = None
+            continue
         p = Path(os.path.expandvars(os.path.expanduser(str(v))))
         out[k] = p if p.is_absolute() else (r / p)
     return out
@@ -47,10 +52,8 @@ def runs_root(root: Path | None = None) -> Path:
 
 
 def readonly_roots(root: Path | None = None) -> list[Path]:
-    r = root or find_root()
     from labkit.config import load_lab
 
-    lab = load_lab(r)
-    ro = [(r / p).resolve() for p in lab["layout"]["readonly"]]
-    ro.append(datapath("raw", root=r).resolve())
-    return ro
+    r = root or find_root()
+    ro = [(r / p).resolve() for p in load_lab(r)["layout"]["readonly"]]
+    return [*ro, datapath("raw", root=r).resolve()]

@@ -1,37 +1,23 @@
 # セットアップ（別の PC / 新しいプロジェクト）
 
-macOS / Linux（Windows は WSL2 推奨。ネイティブでも動くがサンドボックスは無効）。所要 20〜30 分（Julia のパッケージ取得を含む）。
-本体のリリース手順（版の更新・タグ・push）は `CLAUDE.md`。
+macOS / Linux / WSL2 / Windows ネイティブ。Windows では sandbox が無効で hooks（テキスト照合）だけの保護になる（`docs/harness.md`）。
 
 ## 0. 前提ツール
 
 ```bash
-git --version                     # git
-gh --version || echo "GitHub CLI が必要: https://cli.github.com/"
-gh auth login                     # 初回のみ。HTTPS + ブラウザ認証でよい
-gh auth setup-git                 # git が gh の認証を使うようにする（非公開 repo の取得に必要）
-
-curl -LsSf https://astral.sh/uv/install.sh | sh     # uv（Python 環境管理）
-uv tool install copier                              # 雛形ツール
-python3 --version                                   # hooks 用。3.11 以上。無い／古いなら: uv python install 3.12 --default（python3 の実行ファイルを ~/.local/bin に置く）
-curl -fsSL https://install.julialang.org | sh       # juliaup（Julia 1.11 以上）
-make --version                                      # GNU make（雛形・本体の Makefile。`make check` など）。macOS は Xcode CLT、Debian/Ubuntu は build-essential、
-                                                    # Windows ネイティブは `winget install ezwinports.make`（4.4.1。Git for Windows に make は無い）。
-                                                    # Makefile は sh 構文なので PowerShell ではなく Git Bash から実行する
+git --version
+gh --version && gh auth login && gh auth setup-git   # GitHub CLI（git が gh の認証を使う）
+curl -LsSf https://astral.sh/uv/install.sh | sh      # uv（Python 環境管理）
+uv tool install copier                               # 雛形ツール
+python3 --version                                    # hooks の入口用。3.11 以上。無ければ: uv python install 3.12 --default
+make --version                                       # GNU make。Windows ネイティブは `winget install ezwinports.make`、Git Bash から実行
 ```
 
-`MLFLOW_DISABLE_TELEMETRY=true` と `DO_NOT_TRACK=true` をシェルの起動ファイル（`~/.zshrc` など）にも書いておくとより確実:
-
-```bash
-echo 'export MLFLOW_DISABLE_TELEMETRY=true DO_NOT_TRACK=true' >> ~/.zshrc
-```
-
-Windows ネイティブでは Python の既定の文字コードがコンソールのコードページ（cp932）になる。labkit と hooks は自分の入出力を UTF-8 に固定しているが、
-自作スクリプトの print や他ツールも含めて揃えるには `PYTHONUTF8=1` を置く。雛形の `.claude/settings.json` の `env` に入っているので Claude Code の
-セッション内は既定で有効。自分の端末でも使うなら、ユーザー環境変数にも設定する:
+Windows ネイティブでは Python の既定の文字コードがコンソールのコードページ（cp932）になる。雛形の `.claude/settings.json` の `env` に
+`PYTHONUTF8=1` が入っているので Claude Code のセッション内は既定で有効。自分の端末でも使うならユーザー環境変数にも設定する:
 
 ```powershell
-[Environment]::SetEnvironmentVariable('PYTHONUTF8', '1', 'User')   # 新しい端末から有効
+[Environment]::SetEnvironmentVariable('PYTHONUTF8', '1', 'User')
 ```
 
 ## 1. 本体を手元に置く
@@ -40,45 +26,48 @@ Windows ネイティブでは Python の既定の文字コードがコンソー�
 git clone https://github.com/riku-kurokawa/lab-standards.git ~/dev/lab-standards
 ```
 
-`~/dev/lab-standards` が本体を編集する唯一の場所になる（`labkit standards link`、flow improve-standards、skill が参照する）。
-別の場所に置くなら `export LAB_STANDARDS_DEV=/path/to/lab-standards` を起動ファイルに書く。
+`~/dev/lab-standards` が本体を編集する場所（`labkit standards link`、skill improve-standards が参照する）。別の場所なら `export LAB_STANDARDS_DEV=/path`。
 
 ## 2. Claude Code に plugin を登録する
 
-自分の PC では**手元のパス**から登録する（本体の hooks・skills の編集が再起動後すぐ効く）。Claude Code の中で:
-
 ```
-/plugin marketplace add ~/dev/lab-standards
+/plugin marketplace add riku-kurokawa/lab-standards
 /plugin install lab-rules@lab-standards
 ```
 
-他の PC（HPC のログインノードなど）で使う場合は `/plugin marketplace add riku-kurokawa/lab-standards`。
-plugin は `lab.toml` のあるプロジェクトと lab-standards 本体でだけ動き、他のディレクトリでは何もしない。
+plugin は `lab.toml` のあるプロジェクトと本体でだけ動く。判定は各プロジェクトの venv の labkit が行うので、新しい版を出したら
+`/plugin marketplace update lab-standards` と各プロジェクトの `labkit standards unlink --to vX.Y.Z` の両方を行う（SessionStart が不一致を知らせる）。
 
-## 3. 承認ゲートの使い方
+## 3. GitHub 側の保護（最後の砦）
 
-Claude が `git push` / `git tag` / main への merge / `gh pr merge` / `gh release` / `labkit raw freeze` / `copier` を実行しようとすると hooks が止め、
-承認待ちとして `.lab/queue/` に記録する（既定 `presence=away`）。戻ったら:
+hooks は security boundary ではない。main への force push と削除の禁止、`v*` タグの保護を設定する（公開リポジトリは無料）:
 
 ```bash
-uv run labkit queue list              # 承認待ち・質問・却下の一覧（ID、コマンド全文、HEAD、理由、記録時点の差分）
-uv run labkit approve Q001            # 24 時間・1 回限り・同じ HEAD にのみ有効
+gh api -X PUT repos/<owner>/<repo>/branches/main/protection \
+  -F required_status_checks=null -F enforce_admins=false -F required_pull_request_reviews=null -F restrictions=null \
+  -F allow_force_pushes=false -F allow_deletions=false
+gh api -X POST repos/<owner>/<repo>/tags/protection -f pattern='v*'
+```
+
+## 4. 承認ゲートの使い方
+
+Claude が保護ブランチへの push/merge・`git tag`・`gh release`・`gh pr merge`・`labkit raw freeze` を実行しようとすると hooks が止め、承認待ちとして `.lab/queue/` に記録する。戻ったら:
+
+```bash
+uv run labkit queue list              # 承認待ち・質問・却下の一覧
+uv run labkit approve Q001            # その種類の操作をそのブランチで 24 時間許可（commit しても有効）
 uv run labkit reject Q001 --note "理由"
 uv run labkit answer Q002 "lz4 で"     # 質問への回答（Claude は次の入力で受け取る）
-uv run labkit presence here           # 在席中は拒否ではなく通常の確認画面にする（確認画面が出ない permission mode ではキューのまま）
+uv run labkit delegate release --hours 8   # 先に宣言しておく（release = push/tag/merge/gh）
 ```
 
-Claude Code の `!` 実行（`! uv run labkit approve Q001`）でも承認できる。
-**GitHub 側で main のブランチ保護（直接 push 禁止・PR 必須）を設定しておく**ことを強く勧める（hooks は security boundary ではない）。
+対話中（permission mode が default）なら拒否ではなく通常の確認画面になる。
 
-サンドボックス（雛形の `.claude/settings.json` の `sandbox`）は macOS / Linux / WSL2 で有効。Linux と WSL2 では
-`bubblewrap` と `socat` が必要。Windows ネイティブでは無効（hooks と chmod のみ）。詳細は `docs/harness.md`。
+## 5. 正本の写し
 
-## 4. 動作確認
+`configs/paths/local.toml` の `mirror_root` に NAS・外付け・クラウドドライブのマウント先を書き、節目で `uv run labkit mirror push`。
+機械が壊れても `runs/` と `data/` が残る。
 
-README の「新しいプロジェクトを作る」を実行し、最後に:
+## 6. 動作確認
 
-```bash
-uv run labkit standards status          # Python・Julia とも release の同じタグになっていること
-uv run labkit presence status           # away（既定）
-```
+README の「新しいプロジェクトを作る」を実行し、最後に `uv run labkit standards status` が release の同じタグになっていることを確かめる。

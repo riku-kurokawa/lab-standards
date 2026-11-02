@@ -8,7 +8,7 @@ description: lab.toml のあるプロジェクトで HPC（Slurm など）向け
 ## 原則
 
 - コードは git でのみ移す（手元で commit → push → HPC で pull）。HPC 上でコードを編集しない。
-- データと run は HPC のストレージに置く。パスは `configs/paths/hpc.toml`、実行時は `LAB_ENV=hpc`。
+- データと run は HPC のストレージに置く。パスは `configs/paths/hpc.toml`、実行時は `LAB_ENV=hpc`。jobs/ にも絶対パスを書かない（L012）。
 - 手元へは小さな成果物（`meta.json`, `metrics.json`, `figures/`）だけを持ってくる。
 
 ## ジョブスクリプトを作る
@@ -16,7 +16,6 @@ description: lab.toml のあるプロジェクトで HPC（Slurm など）向け
 1. `jobs/slurm_example.sh` をコピーして `jobs/<name>.sh` を作る。変えるのは `#SBATCH` 行と最後のコマンドだけ。
 2. 必ず残す部分: `export LAB_ENV=hpc`、未コミット変更チェック、`set -euo pipefail`。
 3. 資源量（time, mem, cpus, gpus）は見積もりの根拠を開発ログに書く。分からなければ小さく試してから増やす。
-4. Julia の場合: 最後のコマンドを `julia --project=jl jl/scripts/run_<name>.jl "${CONFIG}" ...` にする。
 
 ## パラメータスイープ
 
@@ -34,6 +33,7 @@ rsync -av --include='*/' --include='meta.json' --include='metrics.json' --includ
   --include='figures/***' --exclude='*' hpc:<runs_root>/ runs/
 ```
 図は HPC 上で `LAB_ENV=hpc uv run labkit fig ...` を実行して作れば、大きなデータを動かさずに済む。
+時間切れで running のまま残った run は `labkit runs mark <id> --to interrupted --reason "time limit"`。
 
 ## Claude が HPC に対してしないこと
 

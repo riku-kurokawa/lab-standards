@@ -1,6 +1,6 @@
 """データの保存・読み込み。保存経路はここに一本化する.
 
-対応形式（Julia 版と同一）:
+対応形式:
     .h5 / .hdf5   多次元配列（dict -> データセット、入れ子 dict -> グループ）
     .parquet      表（pandas / polars / pyarrow / 列の dict）
     その他        writer() で任意ライブラリの書き込みを包む（TB 級・Zarr など）
@@ -10,9 +10,6 @@
     2. sha256 を計算
     3. サイドカー <file>.meta.json に来歴（run_id, git, 入力, attrs）を記録
 読み取り専用領域（data/raw など）への保存は拒否する。
-
-配列の軸順: Python で shape (n_ch, n_t) の配列は、Julia でも size (n_ch, n_t) で読める
-（LabKit.jl が保存・読込時に軸を反転するため）。
 """
 
 from __future__ import annotations
@@ -73,7 +70,7 @@ def _write_sidecar(path: Path, fmt: str, root: Path, attrs: dict, inputs, descri
         "created_by": f"labkit-python {__version__}",
         "run_id": run.run_id if run else None,
         "git": run.git if run else git_info(root),
-        "inputs": [describe_input(Path(p), root, 2 * 1024**3, {}) for p in (inputs or [])],
+        "inputs": [describe_input(Path(p), root) for p in (inputs or [])],
         "attrs": attrs or {},
         "description": description,
     }
@@ -100,8 +97,7 @@ def _write_h5(tmp: Path, data: dict, attrs: dict) -> None:
             else:
                 arr = np.asarray(v)
                 kw = {"compression": "gzip", "compression_opts": 4, "chunks": True} if arr.size > 1024 else {}
-                # bool は HDF5 に無い型（h5py は enum、HDF5.jl は UInt8 で書き、相手が Bool に戻せない）。
-                # uint8 + 属性 labkit_dtype="bool" で書き、読む側（Python / Julia とも）が bool に戻す
+                # bool は HDF5 に無い型。uint8 + 属性 labkit_dtype="bool" で書き、読む側が bool に戻す
                 is_bool = arr.dtype == np.bool_
                 ds = group.create_dataset(k, data=arr.astype(np.uint8) if is_bool else arr, **kw)
                 if is_bool:
@@ -236,7 +232,7 @@ def _read_h5(path: Path) -> dict:
             else:
                 val = v[()]
                 tag = v.attrs.get("labkit_dtype")
-                if (tag.decode() if isinstance(tag, bytes) else tag) == "bool":  # HDF5.jl は固定長の bytes で書く
+                if (tag.decode() if isinstance(tag, bytes) else tag) == "bool":
                     val = val.astype(bool)
                 out[k] = val.decode() if isinstance(val, bytes) else val
         return out

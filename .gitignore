@@ -3,12 +3,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
-labkit/julia/LabKit/Manifest.toml
 dist/
 
-# ハーネスの手元だけの状態
-.lab/presence
-.lab/queue/
-.lab/approvals/
-.lab/delegations.json
-claude-plugin/evals/results/
+# ハーネスの手元だけの状態（本体には flow が無いので全部）
+.lab/

@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: devlog-before-stop
-context:
-  scaffold_script: fixture.sh   # _shared/project.sh のコピー（テストで一致を検査）

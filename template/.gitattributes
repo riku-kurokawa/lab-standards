@@ -1,0 +1,8 @@
+# テキストは LF に揃える（Windows と HPC の間で差分を出さない）
+*.sh text eol=lf
+*.sha256 text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+# 生データは凍結済み（MANIFEST.sha256）。checkout が改行を書き換えると台帳と合わなくなる
+data/raw/** -text

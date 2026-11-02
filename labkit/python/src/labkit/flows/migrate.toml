@@ -1,40 +1,29 @@
-# 手順の状態機械: 既存プロジェクトを lab-standards に移行する（skill: migrate-project）
-#
-# 各段階（stage）:
-#   name        段階名（`labkit flow status` に出る）
-#   description 何をする段階か（Claude への指示にもなる）
-#   approval    true なら、この段階から次へ進むのに人間の承認が要る（away ならキューに積まれる）
-#   forbid      この段階で禁止する操作のカテゴリ。hooks が拒否する:
-#               code（src/scripts/jl/configs/tests/figspecs の編集）, experiments（scripts の実行）,
-#               raw（labkit raw freeze）, template（copier / labkit standards template）,
-#               link（labkit standards link/unlink）, release（git push/tag, gh release/merge）
-#   [[stage.done]] 完了条件（すべて満たすと advance できる）。type は flow.py の CONDITIONS を参照。
+# 手順のチェックリスト: 既存プロジェクトを lab-standards に移行する（skill: migrate-project）
+#   labkit flow start migrate → flow status → flow advance
+# 各段階の done 条件を advance が機械的に検査する。操作の禁止はしない（取り返しのつかない操作は承認ゲートが別に守る）。
+# approval = true の段階から進むには人間の承認（`labkit approve` か `labkit delegate flow`）が要る。
 
 name = "migrate"
 description = "既存プロジェクトを lab-standards の構造へ段階的に移行する"
 
 [[stage]]
 name = "freeze"
-description = "すべてを commit し、タグ pre-migration を打つ（承認ゲートの対象）。git 管理外データのバックアップ有無を人間に確認する（質問はキューへ）"
-forbid = ["code", "experiments", "raw", "template", "link"]
+description = "すべてを commit してタグ pre-migration を打ち（承認ゲート）、git 管理外のデータを `labkit mirror push --to <写し先> --paths <dir...>` で写しておく"
 done = [
   { type = "clean_tree" },
   { type = "git_tag", name = "pre-migration" },
+  { type = "mirror" },
 ]
 
 [[stage]]
 name = "inventory"
-description = "読み取りのみ。scratch/migration-inventory.csv（old_path, kind, new_path, size, note）を作る。人間のレビュー（承認）を待つ"
+description = "読み取りのみ。scratch/migration-inventory.csv（old_path, kind, new_path, size, note）を作り、人間の承認を待つ"
 approval = true
-forbid = ["code", "experiments", "raw", "template", "link", "release"]
-done = [
-  { type = "csv", path = "scratch/migration-inventory.csv", columns = ["old_path", "kind", "new_path", "size", "note"] },
-]
+done = [{ type = "csv", path = "scratch/migration-inventory.csv", columns = ["old_path", "kind", "new_path", "size", "note"] }]
 
 [[stage]]
 name = "apply-template"
-description = "人間が copier copy を実行（承認ゲート）。lab.toml を mode=\"warn\" にしてもらい、uv sync → labkit check の違反一覧を開発ログに記録する"
-forbid = ["experiments", "raw", "release"]
+description = "copier copy で雛形を適用し、lab.toml を mode=\"warn\" にして uv sync → labkit check の違反一覧を開発ログに記録する"
 done = [
   { type = "file", path = "lab.toml" },
   { type = "file", path = ".copier-answers.yml" },
@@ -43,24 +32,17 @@ done = [
 
 [[stage]]
 name = "raw-data"
-description = "棚卸し表の raw を data/raw/ へ移す（移動コマンドは人間に提示）。人間が labkit raw freeze を実行する（承認ゲート）"
-forbid = ["experiments", "template", "release"]
-done = [
-  { type = "manifest" },
-]
+description = "棚卸し表の raw を data/raw/ へ移し、`labkit raw freeze` で台帳に登録する（承認ゲート）"
+done = [{ type = "manifest" }]
 
 [[stage]]
 name = "code"
 description = "関数を src/ に切り出してテストを書く。入口を scripts/ に、パラメータを configs/ に。手を付けないものは legacy/ へ"
-forbid = ["raw", "template", "release"]
-done = [
-  { type = "check", ignore = ["L050", "L021", "L002", "L003"] },
-]
+done = [{ type = "check", ignore = ["L050", "L002", "L003"] }]
 
 [[stage]]
 name = "reproduce"
 description = "主要な結果を新パイプラインで再生成し旧結果と数値で比較、開発ログと ADR に残す。lab-reviewer のレビュー記録（pass）が必要"
-forbid = ["raw", "template", "release"]
 done = [
   { type = "runs", min = 1 },
   { type = "review", stage = "reproduce" },
@@ -68,8 +50,7 @@ done = [
 
 [[stage]]
 name = "strict"
-description = "人間に lab.toml の mode を strict に戻してもらい、labkit check が通ることを確認する"
-forbid = ["raw", "template", "release"]
+description = "lab.toml の mode を strict に戻し、labkit check が通ることを確認する"
 done = [
   { type = "lab_mode", value = "strict" },
   { type = "check" },
@@ -78,5 +59,4 @@ done = [
 [[stage]]
 name = "done"
 description = "移行完了"
-forbid = []
 done = []

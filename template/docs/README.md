@@ -2,7 +2,7 @@
 
 | パス | 中身 | 作り方 |
 |---|---|---|
-| `devlog/YYYY-MM-DD.md` | 開発ログ（1 日 1 ファイル、必須見出しあり） | `labkit devlog` |
+| `devlog/YYYY-MM-DD.md` | 開発ログ（1 日 1 ファイル。変更ファイルと run は自動、判断は人が書く） | `labkit devlog` |
 | `decisions/NNNN-slug.md` | ADR（設計判断の記録） | `labkit adr "タイトル" --slug english-slug` |
 | `reviews/YYYY-MM-DD_<flow>_<段階>.md` | 独立レビューの記録（frontmatter に commit と verdict） | lab-reviewer agent（`labkit review template`） |
 | `data-dictionary.md` | 変数・列の意味と単位 | 手で更新 |

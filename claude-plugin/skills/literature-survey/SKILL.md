@@ -18,7 +18,7 @@ description: lab.toml のあるプロジェクトで先行研究のサーベイ�
    - タグが足りないときは `tags.toml` への追加を人間に提案する（表記ゆれを作らない）。
 5. **ノートを書く**: `notes/<citekey>.md` の見出しに沿って要約する。読んだ範囲に応じて `status`（unread / skimmed / read / key）を正直に付ける。アブストラクトしか読んでいなければ skimmed。
 6. **サーベイ本文を書く**: 主張ごとに `[@citekey]` を付ける。手法の比較表、未解決の問題、本研究への示唆を書く。引用は references.bib にあるものだけ（`labkit check` L046 が検査）。
-7. 最後に `uv run labkit lit index` と `uv run labkit check`。
+7. 最後に `uv run labkit lit index` と `uv run labkit check`（L040〜L046 が書式・タグ・引用を検査する）。
 
 ## PDF
 

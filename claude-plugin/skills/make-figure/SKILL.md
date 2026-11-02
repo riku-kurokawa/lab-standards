@@ -5,11 +5,11 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
 
 # 図を作る
 
-図はすべて labkit の図テンプレートで作る。matplotlib・Plots・Makie などを直接使うコードは hooks がブロックする。
+図はすべて labkit の図テンプレートで作る。matplotlib などを直接使うコードは hooks がブロックする。
 
 1. **テンプレートを選ぶ**: `uv run labkit fig list` で一覧と必須キー・例を確認する。
-   現在のテンプレート: timeseries, spectrogram, psd, learning_curve, errorbar, scatter, heatmap, histogram
-2. **データを用意する**: 図に必要な値は run の中に保存しておく（`save(runpath(run, "x.h5"), ...)`、表なら `.parquet`）。集計値が必要なら、集計は src の関数で行いスクリプトで保存する（図テンプレートで計算しない）。
+   timeseries, band（平均±帯）, spectrogram, psd, learning_curve, errorbar（類別または数値 x、log 軸可）, bar, scatter, heatmap, histogram, panels（複数パネル）
+2. **データを用意する**: 図に必要な値は run の中に保存しておく（`save(runpath(run, "x.h5"), ...)`、表なら `.parquet`）。集計は src の関数で行いスクリプトで保存する（図テンプレートで計算しない）。
 3. **figspec を書く**: `figspecs/<name>.toml`
    ```toml
    template = "timeseries"
@@ -27,11 +27,24 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
    x = "Time [s]"                  # 物理量と単位を必ず書く
    y = "Voltage [µV]"
 
-   [options]                       # xlim, ylim, logx, logy, grid, legend, legend_loc
+   [options]                       # xlim, ylim, logx, logy, grid, legend, legend_loc, aspect
    xlim = [0, 2]
    ```
+   複数パネル:
+   ```toml
+   template = "panels"
+   layout = [1, 2]
+   size = "double"
+   [[panel]]
+   template = "timeseries"
+   data = {file = "s.h5", x = "t", y = "x"}
+   labels = {title = "signal", x = "Time [s]", y = "a.u."}
+   [[panel]]
+   template = "psd"
+   data = {file = "s.h5", signal = "x", fs = 1000.0}
+   ```
 4. **出力する**: `uv run labkit fig figspecs/<name>.toml --run <run_id>`
-   → `runs/<run_id>/figures/<name>.pdf`, `.png`, `.figmeta.json`（使ったデータの sha256 と spec の写し）
+   → `runs/<run_id>/figures/<name>.pdf`, `.png`, `.figmeta.json`（spec の写し、使ったデータの sha256、commit）
 5. **確認する**: png を Read で開いて見た目を確認し、軸ラベル・単位・凡例・範囲を figspec で直す。
 
 ## 合うテンプレートが無いとき

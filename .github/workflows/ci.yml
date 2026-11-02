@@ -1,13 +1,5 @@
 name: ci
-on:
-  push:
-  pull_request:
-  workflow_dispatch:
-    inputs:
-      run_evals:
-        description: "plugin eval を実行する（API 費用がかかる。ANTHROPIC_API_KEY が必要）"
-        type: boolean
-        default: false
+on: [push, pull_request]
 
 jobs:
   python:
@@ -15,51 +7,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
-      - name: version consistency
-        run: python3 tools/release.py --check
-      - name: lint (ruff check + format)
-        run: make lint
-      - name: labkit tests
-        working-directory: labkit/python
-        # 言語間テストは julia ジョブで（この runner にも julia はあるが LabKit の環境は instantiate していない）
-        run: uv run --extra dev --extra polars pytest -q --ignore=tests/test_cross_language.py
-      - name: hook tests
-        run: uv run --with pytest pytest -q claude-plugin/tests
+      - run: python3 tools/release.py --check
+      - run: make lint
+      - run: make test-python
       - name: render template with copier
         run: |
           git config --global user.email ci@example.com && git config --global user.name ci
-          uvx copier copy --defaults --vcs-ref HEAD -d project_name="CI project" -d author=ci . /tmp/ciproj
-          test -f /tmp/ciproj/lab.toml && test -f /tmp/ciproj/.copier-answers.yml
-          python3 -c "import json; json.load(open('/tmp/ciproj/.claude/settings.json'))"
-          # 生成コードは、雛形がプロジェクトに課す format 基準を満たす（設定は生成された pyproject を使う）
-          uvx ruff@0.17 format --check --config /tmp/ciproj/pyproject.toml /tmp/ciproj
-
-  julia:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: julia-actions/setup-julia@v3
-        with:
-          version: "1.11"
-      - name: LabKit.jl tests
-        run: julia --project=labkit/julia/LabKit -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
-      - uses: astral-sh/setup-uv@v10.3.3
-      - name: cross-language (Julia writes, Python reads)
-        working-directory: labkit/python
-        run: uv run --extra dev pytest -q tests/test_cross_language.py
-
-  # 振る舞いの回帰テスト。モデル呼び出しの費用がかかるので手動起動のみ
-  evals:
-    if: github.event_name == 'workflow_dispatch' && inputs.run_evals
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: npm install -g @anthropic-ai/claude-code
-      - run: claude plugin eval claude-plugin --trust-plugin --scaffold --allow-tools Bash Write Edit --runs 1 --ablation none --no-publish --max-cost-usd 10 --json results.json
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: eval-results
-          path: results.json
+          make test-template

@@ -1,4 +1,6 @@
-# ruff / nbstripout / labkit は uv.lock の版を使う（make lint と同じ ruff。版を 2 か所で揃える必要が無い）
+# ruff / nbstripout / labkit は uv.lock の版を使う（make lint と同じ ruff）
+# data/raw/ は読み取り専用（labkit raw freeze）なので整形系の hook から除外する
+exclude: ^data/raw/
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

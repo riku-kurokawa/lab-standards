@@ -121,6 +121,11 @@ def _norm_doi(doi: str) -> str:
 
 
 # ---------- 操作 ----------
+def _pdf_dir(root: Path, lab: dict) -> Path:
+    p = Path(lab["literature"]["pdf_dir"]).expanduser()
+    return p if p.is_absolute() else root / p
+
+
 def lit_dir(root: Path, lab: dict) -> Path:
     return root / lab["literature"]["dir"]
 
@@ -172,7 +177,7 @@ def add_entry(
         f.write(("\n" if bibf.exists() and bibf.stat().st_size else "") + format_entry(citekey, fields))
     has_pdf = False
     if pdf is not None:
-        dst = root / lab["literature"]["pdf_dir"] / f"{citekey}.pdf"
+        dst = _pdf_dir(root, lab) / f"{citekey}.pdf"
         dst.parent.mkdir(parents=True, exist_ok=True)
         Path(pdf).replace(dst)
         has_pdf = True
@@ -220,7 +225,7 @@ def build_index(root: Path, lab: dict) -> Path:
         note = d / "notes" / f"{key}.md"
         fm = read_frontmatter(note)[0] if note.exists() else None
         fm = fm or {}
-        pdf = (root / lab["literature"]["pdf_dir"] / f"{key}.pdf").exists()
+        pdf = (_pdf_dir(root, lab) / f"{key}.pdf").exists()
         tags = ", ".join(fm.get("tags", []) or [])
         title = f.get("title", "").replace("|", "/")
         rows.append(
@@ -275,8 +280,8 @@ def check_literature(root: Path, lab: dict) -> list[tuple[str, Path, str]]:
             for t in fm.get("tags", []) or []:
                 if vocab and t not in vocab:
                     issues.append(("L043", n, f"タグ {t!r} が tags.toml にありません"))
-    pdfdir = root / lab["literature"]["pdf_dir"]
-    if pdfdir.is_dir():
+    pdfdir = _pdf_dir(root, lab)
+    if pdfdir.is_dir() and pdfdir.is_relative_to(root):  # 複数プロジェクトで共有する書庫（プロジェクト外）は検査しない
         for p in sorted(pdfdir.iterdir()):
             if p.name.startswith(".") or p.name == ".gitkeep":
                 continue

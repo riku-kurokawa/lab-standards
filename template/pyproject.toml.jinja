@@ -10,14 +10,11 @@ dependencies = [
   "scipy",
 ]
 
-[project.optional-dependencies]
-mlflow = ["labkit[mlflow]"]
-
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.17", "pre-commit>=3.2", "nbstripout>=0.9"]
 
 [tool.uv.sources]
-# lab-standards のバージョンを固定（更新は copier update と合わせて行う）
+# lab-standards のバージョンを固定（更新は `labkit standards unlink --to vX.Y.Z` と `labkit standards template --ref vX.Y.Z`）
 labkit = { git = "https://github.com/{{ standards_repo }}.git", tag = "{{ standards_ref }}", subdirectory = "labkit/python" }
 
 [build-system]

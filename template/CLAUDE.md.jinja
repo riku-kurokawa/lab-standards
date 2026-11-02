@@ -1,22 +1,32 @@
 # {{ project_name }}
 
-研究用計算プロジェクト。規約は lab-standards（`lab.toml`）に従う。詳細な手順は lab-rules plugin の skills にある。
+研究用計算プロジェクト。規約は lab-standards（`lab.toml`）に従う。手順は lab-rules plugin の skills にある。
+
+## 研究契約
+
+<!-- このプロジェクトの研究を律する約束をここに書く（雛形の規約ではなく、研究そのものの不変条件）。例:
+- 問い: 何を明らかにするか。主張は実測だけに基づく
+- 不変条件: 変えてよいもの・変えてはいけないもの（問題定義、損失、反復数、乱数の扱い、物理定数…）
+- 公平性: 比較するものの条件（同じ seed・同じデータ分割・同じ計測法）
+- 検証ゲート: 主張の前に必ず通す小さく速い検査（例: `make smoke`）
+-->
 
 ## 完了条件
 
 - `make check`（= `labkit check` + テスト + lint）が通るまで作業は完了ではない。
-- コードを変えた日は `docs/devlog/YYYY-MM-DD.md` を更新する（`labkit devlog` で作成）。
+- コードを変えた日は `docs/devlog/YYYY-MM-DD.md` の 目的・判断と理由・未解決 を書く（`labkit devlog` が変更ファイルと run を自動で埋める）。
   run の数値は `labkit cite <run_id> <key> --unit <単位>` の出力（`12.3 dB [run:<run_id>:snr_db]`）を貼る。
+- 正式な run は commit してから実行する（dirty な run は `dirty.patch` 付きで記録されるが、結果としては引用しない）。
 
 ## 置き場所の判定
 
 | 作るもの | 置き場所 | 方法 |
 |---|---|---|
-| 再利用する関数（純粋関数） | `src/{{ package_name }}/`{% if use_julia %}・`jl/src/` {% endif %}| テストを `tests/` に書く |
-| 実行の入口 | `scripts/`{% if use_julia %}・`jl/scripts/`{% endif %} | 設定を読み `src` を呼ぶだけの薄いもの |
-| パラメータ | `configs/experiments/*.toml` | `extends = "../base.toml"` |
-| 実験結果 | `runs/<run_id>/` | `labkit.Run` 経由でのみ生成 |
-| 派生データ | `data/interim`, `data/processed` | `labkit.save` / `writer` 経由でのみ生成 |
+| 再利用する関数（純粋関数） | `src/{{ package_name }}/` | テストを `tests/` に書く |
+| 実行の入口 | `scripts/` | 設定を読み `src` を呼ぶだけの薄いもの |
+| パラメータ | `configs/experiments/*.toml` | `extends = "../base.toml"`。seed を必ず持つ |
+| 実験結果 | `runs/<run_id>/` | `labkit.Run` 経由でのみ生成。異常終了は `labkit runs mark` |
+| 派生データ | `data/interim`, `data/processed` | `labkit.save` / `writer` 経由（サイドカー付き）。再生成できる中間物は `data/cache` |
 | 図 | `runs/<run_id>/figures/` | `figspecs/*.toml` + `labkit fig`。描画ライブラリを直接使わない |
 | 文献・サーベイ | `literature/` | `labkit lit add` / `labkit lit survey` |
 | 設計判断 | `docs/decisions/` | `labkit adr "タイトル"` |
@@ -25,25 +35,17 @@
 
 ## 人間が不在でも止まらない
 
-- **承認ゲート**: `git push` / `git tag` / main への merge / `gh pr merge` / `gh release` / `labkit raw freeze` / `copier` は
-  hooks が止める。`presence=away`（既定）では拒否され、承認待ち `.lab/queue/<ID>` に記録される。
-  拒否されたら、その操作に依存しない作業を続け、終了時に ID を報告する。承認後は**同じリポジトリ・同じ HEAD で同じコマンド全文**を実行する（cwd は照合しない）。
-- **質問**: 判断の分かれる問いは質問ツールで止まらず
-  `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>" --impact "<変更時の影響>"` で積み、仮の判断で進む。
-  `labkit approve / reject / answer` は人間専用（Claude は実行できない）。
-- **委任**: 人間が `labkit delegate <カテゴリ> --hours N` で宣言した種類の操作（`labkit delegate list`）は承認を待たずに実行してよい。
-  長い手順で止まりそうなら、止まる前に委任の方法（例: `labkit delegate migrate --hours 8`）を人間に伝える。
-- **手順**: 移行は `labkit flow start migrate`、本体の改良は `labkit flow start improve-standards`。
-  `labkit flow status` で今の段階・禁止操作・残り条件を確認し、満たしたら `labkit flow advance`。
-
-## 雛形・labkit・hooks 自体を直したくなったら
-
-このプロジェクト内のコピーは直さない。`labkit flow start improve-standards`（skill `improve-standards`）に従い、
-lab-standards 本体を直してリリースしてから `labkit standards unlink --to vX.Y.Z` / `labkit standards template --ref vX.Y.Z` で取り込む。
-このプロジェクトだけの例外は `lab.toml` で行う（人間が編集）。
+- **承認ゲート**: 保護ブランチへの push/merge・`git tag`・`gh release`・`gh pr merge`・`labkit raw freeze` は hooks が止め、
+  承認待ち `.lab/queue/<ID>` に記録する。feat ブランチへの push は自由。拒否されたら依存しない作業を続け、終了時に ID を報告する。
+  人間の `labkit approve <ID>` はその種類の操作をそのブランチで 24 時間許可する（commit しても無効にならない）。
+- **質問**: 判断の分かれる問いは `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>"` で積み、仮の判断で進む。
+- **委任**: 人間が `labkit delegate <カテゴリ> --hours N` で宣言した操作は待たずに実行してよい（`labkit delegate list`）。
+- `labkit approve / reject / answer / delegate` は人間専用（Claude は実行できない）。
 
 ## 禁止事項
 
-- `data/raw/` と完了した `runs/` の変更、`lab.toml` の編集、`.lab/approvals` `.lab/queue` `.lab/flows` の直接編集。
-- pickle・JLD2 など言語依存形式での保存、コード中の絶対パス（`configs/paths/*.toml` を使う）。
+- `data/raw/` と `runs/` の変更、`lab.toml` の編集、`.lab/` の直接編集。
+- pickle など言語依存形式での保存、`np.save` での成果物保存（来歴が付かない）、コード中の絶対パス（`configs/paths/*.toml` を使う）。
 - 規約に合わない新しいトップレベルディレクトリの作成。
+
+雛形・labkit・hooks を直したくなったら、プロジェクト内のコピーは直さず lab-standards 本体（skill: improve-standards）。

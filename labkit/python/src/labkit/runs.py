@@ -1,20 +1,17 @@
-"""run（実験1回 = 1ディレクトリ）の管理.
+"""run（実験 1 回 = 1 ディレクトリ）の管理.
 
     cfg = load_config("configs/experiments/example.toml")
     with Run("example", cfg, inputs=[datapath("raw", "rec01.h5")]) as run:
         save(runpath(run, "signal.h5"), {"t": t, "x": x})
         log_metric(run, "snr_db", 12.3, step=0)
 
-ディレクトリ構成（Julia 版も同一）:
-    runs/<run_id>/
-        meta.json        来歴: git, 環境, Slurm, 入力 hash, 出力一覧, 状態
-        config.json      解決済み設定
-        config/          元の設定ファイルのコピー
-        metrics.jsonl    {"key","value","step","time"} を1行ずつ
-        metrics.json     各メトリクスの最終値
-        log.txt
-        figures/         labkit fig の出力先（完了後も書き込み可）
-完了後、figures/ 以外は読み取り専用になる。
+runs/<run_id>/
+    meta.json        来歴: git（commit, dirty）, 環境（lockfile, パッケージ, GPU）, seed, 入力の hash と系譜, 出力の hash, 状態
+    dirty.patch      git.dirty=true のときだけ: 未コミットの差分（これが無いと dirty な run は再現できない）
+    config.json      解決済み設定、config/ に元ファイルの写し
+    metrics.jsonl    {"key","value","step","time"} を 1 行ずつ。metrics.json は各指標の最終値
+    log.txt、heartbeat（最後に生きていた時刻）、figures/（labkit fig の出力先。完了後も書き込み可）
+完了後、figures/ 以外は読み取り専用になる。異常終了で running のまま残った run は `labkit runs mark <id> failed`。
 """
 
 from __future__ import annotations
@@ -34,21 +31,26 @@ from pathlib import Path
 from typing import Any
 
 from labkit._util import (
+    env_info,
+    git_dirty_patch,
     git_info,
     labkit_source,
     now_iso,
+    read_json,
     rel_or_abs,
     sha256_file,
     sha256_tree,
     slugify,
     slurm_info,
     write_json_atomic,
+    write_text_atomic,
 )
 from labkit._version import SCHEMA_VERSION, __version__
 from labkit.config import find_root, load_lab
-from labkit.paths import runs_root
+from labkit.paths import datapath, load_paths, runs_root
 
 _current: contextvars.ContextVar[Run | None] = contextvars.ContextVar("labkit_run", default=None)
+STATUSES = ("running", "finished", "failed", "interrupted")
 
 
 def current_run() -> Run | None:
@@ -56,15 +58,13 @@ def current_run() -> Run | None:
 
 
 def make_run_id(name: str, commit: str | None) -> str:
-    ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    short = commit[:7] if commit else "nogit"
-    return f"{ts}_{slugify(name)}_{short}_{secrets.token_hex(2)}"
+    """UTC の秒 + 名前 + commit7 + 乱数 4 桁。衝突したら Run が乱数を引き直す."""
+    ts = _dt.datetime.now(_dt.UTC).strftime("%Y%m%d-%H%M%S")
+    return f"{ts}_{slugify(name)}_{commit[:7] if commit else 'nogit'}_{secrets.token_hex(2)}"
 
 
 def _manifest_lookup(root: Path) -> dict[str, str]:
     """data/raw/MANIFEST.sha256 を {絶対パス: sha256} で返す."""
-    from labkit.paths import datapath
-
     raw = datapath("raw", root=root)
     mf = raw / "MANIFEST.sha256"
     out: dict[str, str] = {}
@@ -76,18 +76,23 @@ def _manifest_lookup(root: Path) -> dict[str, str]:
     return out
 
 
-def describe_input(path: Path, root: Path, max_bytes: float, manifest: dict[str, str]) -> dict:
+def describe_input(path: Path, root: Path, max_bytes: float | None = None, manifest: dict | None = None) -> dict:
+    """入力の来歴: 存在・サイズ・sha256（台帳 → サイドカー → 計算）と、サイドカーにあれば生成元の run_id（系譜）."""
     p = Path(path).resolve()
     rec: dict[str, Any] = {"path": rel_or_abs(p, root), "exists": p.exists()}
     if not p.exists():
         return rec
+    if max_bytes is None:
+        max_bytes = float(load_lab(root)["runs"]["hash_max_gb"]) * 1024**3
+    manifest = _manifest_lookup(root) if manifest is None else manifest
     size = p.stat().st_size if p.is_file() else sum(q.stat().st_size for q in p.rglob("*") if q.is_file())
     rec.update(size=size, mtime=_dt.datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec="seconds"))
     sidecar = p.with_name(p.name + ".meta.json")
     if str(p) in manifest:
         rec.update(sha256=manifest[str(p)], sha256_source="manifest")
     elif sidecar.is_file():
-        rec.update(sha256=json.loads(sidecar.read_text(encoding="utf-8"))["sha256"], sha256_source="sidecar")
+        sc = read_json(sidecar)
+        rec.update(sha256=sc.get("sha256"), sha256_source="sidecar", run_id=sc.get("run_id"))
     elif size <= max_bytes:
         rec.update(sha256=sha256_file(p) if p.is_file() else sha256_tree(p), sha256_source="computed")
     else:
@@ -129,24 +134,38 @@ class Run:
         with open(self.dir / "metrics.jsonl", "a", encoding="utf-8", newline="\n") as f:
             f.write(json.dumps(rec) + "\n")
         self._last[key] = rec["value"]
+        self._beat()
 
     def log(self, message: str) -> None:
         line = f"[{now_iso()}] {message}"
         print(line)
         with open(self.dir / "log.txt", "a", encoding="utf-8", newline="\n") as f:
             f.write(line + "\n")
+        self._beat()
 
     def add_input(self, path: str | os.PathLike) -> None:
-        rec = describe_input(Path(path), self.root, self._max_bytes(), _manifest_lookup(self.root))
-        self.meta.setdefault("inputs", []).append(rec)
+        self.meta.setdefault("inputs", []).append(describe_input(Path(path), self.root, self._max_bytes()))
         write_json_atomic(self.dir / "meta.json", self.meta)
 
-    # ---- コンテキスト ----
+    # ---- 内部 ----
     def _max_bytes(self) -> float:
-        return float(self.lab["runs"]["hash_inputs_max_gb"]) * 1024**3
+        return float(self.lab["runs"]["hash_max_gb"]) * 1024**3
+
+    def _beat(self) -> None:
+        write_text_atomic(self.dir / "heartbeat", now_iso() + "\n")
+
+    def _mkdir(self) -> None:
+        for _ in range(5):  # 同じ秒に始まる配列ジョブなどで ID が衝突したら乱数を引き直す
+            try:
+                self.dir.mkdir(parents=True, exist_ok=False)
+                return
+            except FileExistsError:
+                self.run_id = make_run_id(self.name, self.git["commit"] if self.git else None)
+                self.dir = self.dir.with_name(self.run_id)
+        raise FileExistsError(f"run ディレクトリを作れません: {self.dir}")
 
     def __enter__(self) -> Run:
-        self.dir.mkdir(parents=True, exist_ok=False)
+        self._mkdir()
         (self.dir / "figures").mkdir()
         self._t0 = time.time()
         files = self.config.pop("_files", [])
@@ -155,9 +174,10 @@ class Run:
             cdir = self.dir / "config"
             cdir.mkdir()
             for f in files:
-                shutil.copy2(f, cdir / Path(f).name)
+                shutil.copy2(f, cdir / rel_or_abs(Path(f), self.root / "configs").replace("/", "__"))
         write_json_atomic(self.dir / "config.json", self.config)
         manifest = _manifest_lookup(self.root)
+        paths = load_paths(self.root)
         self.meta = {
             "schema_version": SCHEMA_VERSION,
             "run_id": self.run_id,
@@ -171,8 +191,12 @@ class Run:
             "finished": None,
             "duration_s": None,
             "host": platform.node(),
+            "pid": os.getpid(),
             "lab_env": os.environ.get("LAB_ENV", "local"),
+            "paths": {k: str(v) for k, v in paths.items() if v is not None},
             "git": self.git,
+            "env": env_info(self.root),
+            "seed": self.config.get("seed"),
             "slurm": slurm_info(),
             "command": [sys.executable, *sys.argv],
             "cwd": os.getcwd(),
@@ -184,9 +208,13 @@ class Run:
             "error": None,
         }
         write_json_atomic(self.dir / "meta.json", self.meta)
+        self._beat()
         self._token = _current.set(self)
         if self.git and self.git["dirty"]:
-            self.log("警告: 未コミットの変更がある状態で実行しています（meta.json の git.dirty=true）")
+            write_text_atomic(self.dir / "dirty.patch", git_dirty_patch(self.root))
+            self.log("警告: 未コミットの変更がある状態で実行（git.dirty=true。差分は dirty.patch）")
+        if self.meta["seed"] is None:
+            self.log("警告: 設定に seed がありません（乱数を使うなら seed を設定に入れる）")
         if self.meta["labkit_source"]["mode"] == "link":
             self.log("注意: labkit は手元の lab-standards を参照中（link）。この run は正式版の結果ではありません")
         return self
@@ -203,32 +231,56 @@ class Run:
             self.meta["status"] = "failed"
             self.meta["error"] = "".join(traceback.format_exception(exc_type, exc, tb))[-4000:]
         write_json_atomic(self.dir / "metrics.json", self._last)
-        skip = {"meta.json"}
-        self.meta["outputs"] = sorted(
-            (
-                {"path": p.relative_to(self.dir).as_posix(), "size": p.stat().st_size}
-                for p in self.dir.rglob("*")
-                if p.is_file() and p.name not in skip and "figures" not in p.relative_to(self.dir).parts
-            ),
-            key=lambda d: d["path"],
-        )
+        self.meta["outputs"] = _outputs(self.dir, self._max_bytes())
         write_json_atomic(self.dir / "meta.json", self.meta)
         freeze_run(self.dir)
         return False
 
 
-def freeze_run(run_dir: Path) -> None:
-    """figures/ 以外を読み取り専用にする（run の不変性）."""
-    ro = stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
-    for p in sorted(run_dir.rglob("*"), key=lambda q: len(q.parts), reverse=True):
-        rel = p.relative_to(run_dir).parts
-        if rel and rel[0] == "figures":
+def _outputs(run_dir: Path, max_bytes: float) -> list[dict]:
+    out = []
+    for p in sorted(run_dir.rglob("*")):
+        rel = p.relative_to(run_dir)
+        if not p.is_file() or p.name in ("meta.json", "heartbeat") or rel.parts[0] == "figures":
             continue
-        if p.is_file():
-            os.chmod(p, ro)
-        elif p.is_dir():
-            os.chmod(p, ro | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    # ルート自体は figures/ を書けるよう、ファイル追加だけ禁止しない（mode 0755 のまま）
+        size = p.stat().st_size
+        out.append({"path": rel.as_posix(), "size": size, "sha256": sha256_file(p) if size <= max_bytes else None})
+    return out
+
+
+def freeze_run(run_dir: Path, writable: bool = False) -> None:
+    """figures/ 以外を読み取り専用にする（run の不変性）。writable=True で戻す（mark 用）."""
+    ro = stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
+    mode = (ro | stat.S_IWUSR) if writable else ro
+    for p in sorted(run_dir.rglob("*"), key=lambda q: len(q.parts), reverse=True):
+        if p.relative_to(run_dir).parts[0] == "figures":
+            continue
+        os.chmod(p, mode | (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH if p.is_dir() else 0))
+
+
+def mark_run(run_id: str, status: str, reason: str = "", root: Path | None = None) -> dict:
+    """異常終了（OOM・kill・時間切れ）で running のまま残った run の状態を記録する。Claude が実行してよい."""
+    if status not in STATUSES[1:]:
+        raise ValueError(f"status は {STATUSES[1:]} のいずれか: {status!r}")
+    d = find_run(run_id, root)
+    meta = read_json(d / "meta.json")
+    if meta.get("status") != "running":
+        raise ValueError(f"{d.name} は status={meta.get('status')}（running の run だけ mark できる）")
+    freeze_run(d, writable=True)
+    meta.update(status=status, finished=now_iso(), error=f"marked {status} by labkit runs mark: {reason}".strip())
+    if not (d / "metrics.json").exists():
+        last: dict[str, float] = {}
+        mf = d / "metrics.jsonl"
+        if mf.is_file():
+            for line in mf.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    rec = json.loads(line)
+                    last[rec["key"]] = rec["value"]
+        write_json_atomic(d / "metrics.json", last)
+    meta["outputs"] = _outputs(d, float(load_lab(root or find_root())["runs"]["hash_max_gb"]) * 1024**3)
+    write_json_atomic(d / "meta.json", meta)
+    freeze_run(d)
+    return meta
 
 
 def runpath(run: Run, *parts: str) -> Path:
@@ -269,7 +321,7 @@ def list_runs(root: Path | None = None) -> list[dict]:
         mf = d / "meta.json"
         if mf.is_file():
             try:
-                out.append(json.loads(mf.read_text(encoding="utf-8")))
+                out.append(read_json(mf))
             except json.JSONDecodeError:
                 out.append({"run_id": d.name, "status": "broken-meta"})
     return out

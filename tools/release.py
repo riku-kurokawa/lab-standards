@@ -1,6 +1,6 @@
 """リリース補助: 版番号を全ファイルで揃え、整合性を検査する.
 
-    python tools/release.py 0.3.0        # 版を書き換え、検査する
+    python tools/release.py 1.0.0        # 版を書き換え、検査する
     python tools/release.py --check      # 書き換えずに整合性だけ検査（CI 用）
 
 検査内容: 全ファイルの版が一致 / CHANGELOG に該当版の節がある / 作業ブランチが main でない（書き換え時）
@@ -20,8 +20,6 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGETS = [
     ("labkit/python/pyproject.toml", r'^version = "([^"]+)"', 'version = "{v}"'),
     ("labkit/python/src/labkit/_version.py", r'^__version__ = "([^"]+)"', '__version__ = "{v}"'),
-    ("labkit/julia/LabKit/Project.toml", r'^version = "([^"]+)"', 'version = "{v}"'),
-    ("labkit/julia/LabKit/src/LabKit.jl", r'^const LABKIT_VERSION = "([^"]+)"', 'const LABKIT_VERSION = "{v}"'),
     ("claude-plugin/.claude-plugin/plugin.json", r'^  "version": "([^"]+)"', '  "version": "{v}"'),
     ("copier.yml", r'^  default: "v([^"]+)"\s*$', '  default: "v{v}"'),
 ]

@@ -1,5 +1,40 @@
 # Changelog
 
+## v1.0.0 — 2026-11-02
+
+「統制を入力側から成果物側へ」。2 プロジェクトでの実運用の監査（`docs/audit-2026-11-02.md`、ADR `docs/decisions/0001-artifact-first.md`）に基づく全面改訂。
+互換を壊す変更を含むためメジャー。既存プロジェクトの `lab.toml`・figspec・run の meta.json はそのまま動く。
+
+### 変更（統制の縮小）
+- 承認は「種類＋ブランチ＋期限」の委任に統一（`labkit approve` = その種類をそのブランチで 24 時間許可）。HEAD・コマンド全文には結び付かない。
+- 承認ゲートの対象を 保護ブランチへの push/merge・force push・tag・gh release/merge・raw freeze に限定。feat ブランチへの push、copier、lab.toml の mode 切替は自由。
+- presence を削除。permission mode が default / acceptEdits / plan なら確認画面、それ以外はキュー。
+- flow は完了条件のチェックリストだけに（段階による操作禁止を削除）。improve-standards flow は削除し、通常の PR 手順（skill）に。
+- Stop hook は `labkit check --claims`（成果物の検証）と開発ログの判断欄だけで止める。ruff は pre-commit へ。
+
+### 追加（来歴と保全）
+- `meta.json`: `env`（OS・CPU・GPU・uv.lock の sha256・主要パッケージ版・スレッド変数）、`seed`、`pid`、`paths`、入力の生成元 `run_id`（系譜）、出力の `sha256`。
+  dirty な run は `dirty.patch`（未追跡ファイルも dirty に数える）。run ID は UTC、衝突時は引き直す。`heartbeat` で最終活動時刻。
+- `labkit runs mark <id> --to failed|interrupted|finished --reason`（異常終了した run の記録。Claude が実行してよい）。L021 は警告に。
+- `labkit mirror push|pull`（`configs/paths/*.toml` の `mirror_root` へ差分コピー）。migrate の freeze 段階は写しを要求する。
+- `labkit devlog` が変更ファイル・今日の commit・今日の run を自動ブロックで埋める。必須見出しは 目的・結果・観察・判断と理由・未解決 の 4 つ。
+- `data/cache`（サイドカー不要の再生成可能な中間物）。L022 はサブディレクトリも検査。
+- 図テンプレート `band`・`bar`・`panels`、`errorbar` の `xmode = "numeric"`、`options.aspect`。figmeta.json に commit。
+- check: L016（np.save / np.savez / torch.save、警告）、L030（判断欄が空）、L034（結果節の数値に引用なし、警告）、`code_dirs` に jobs、
+  絶対パスの既定に `/mnt/` と `(?<![A-Za-z])[A-Za-z]:[\/]`（raw 文字列・`/` 区切りの Windows パスも検出、`https://` は除外）。
+- SessionStart が plugin と labkit の版の不一致を知らせる。
+- 雛形: CLAUDE.md に「研究契約」欄、`.gitattributes`（`data/raw/** -text`）、pre-commit から `data/raw/` を除外、`configs/base.toml` の seed を必須に。
+
+### 削除
+- Julia 版（LabKit.jl）、MLflow 連携、plugin eval、`lit key` / `lit check`、`labkit mode`、`human_check`、OPTIMIZATION_LOG / AGENT_QUEUE / docs/notes、
+  hooks の `_labstate.py` 重複（判定を labkit に一本化。plugin は標準ライブラリの入口 `scripts/hook.py` だけ）。
+
+### 移行
+1. 本体: `/plugin marketplace update lab-standards`（他の PC でも）。
+2. 各プロジェクト: `uv run labkit standards unlink --to v1.0.0` → commit → `uv run labkit standards template --ref v1.0.0`（衝突を解消）→ `make check` → commit。
+3. `configs/paths/local.toml` に `mirror_root` を書き、`uv run labkit mirror push`。
+4. 開発ログの既存ファイルは 7 見出しのまま通る。空の見出しがあれば L030 になるので埋めるか消す。
+
 ## v0.4.0 — 2026-11-01
 
 「人間を待って止まらない」。v0.3 のハーネスは取り返しのつかない操作を人間の承認に委ねたが、実際の移行（accelerated-diff-pat、

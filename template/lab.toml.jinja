@@ -1,7 +1,7 @@
 # ============================================================
 # lab.toml — このプロジェクトの規約の唯一の設定源
-#   labkit check / Claude Code の hooks / LabKit.jl がすべてここを読む。
-#   変更は人間が行う（Claude は編集できないよう hooks で保護されている）。
+#   labkit check / Claude Code の hooks がここを読む。変更は人間が行う（Claude は `labkit delegate lab_toml` の委任中だけ）。
+#   ここに無いキーは labkit の既定値（labkit/config.py の DEFAULTS）。
 # ============================================================
 
 [lab]
@@ -12,60 +12,44 @@ project = "{{ project_slug }}"   # 生成元の版は .copier-answers.yml（stan
 allowed = [
   "README.md", "CLAUDE.md", "lab.toml", "pyproject.toml", "uv.lock", "Makefile",
   ".gitignore", ".gitattributes", ".pre-commit-config.yaml", ".copier-answers.yml", ".python-version",
-  ".claude", ".git", ".venv", ".mlflow", ".pytest_cache", ".ruff_cache", ".lab",
-  "src", "scripts", "jl", "configs", "tests", "data", "runs", "notebooks",
+  ".claude", ".git", ".venv", ".pytest_cache", ".ruff_cache", ".lab",
+  "src", "scripts", "configs", "tests", "data", "runs", "notebooks",
   "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "legacy",
 ]
 # Claude が Write/Edit で直接書いてよい場所（data/ と runs/ はスクリプト経由でのみ生成）
 writable = [
-  "src", "scripts", "jl", "configs", "tests", "figspecs", "jobs", "docs",
-  "literature", "prompts", "scratch", "notebooks",
-  "README.md", "CLAUDE.md", "pyproject.toml", "Makefile", ".gitignore",
+  "src", "scripts", "configs", "tests", "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "notebooks",
+  "README.md", "CLAUDE.md", "pyproject.toml", "Makefile", ".gitignore", ".gitattributes",
 ]
 # 誰も書き換えない場所
 readonly = ["data/raw", "legacy"]
 
 [check]
-mode = "strict"          # 移行中は "warn"（違反を表示するが失敗にしない）
-# 図はテンプレート以外で作らない
-banned_plot_imports = [
-  "matplotlib", "seaborn", "plotly", "bokeh", "altair", "pylab",
-  "Plots", "Makie", "CairoMakie", "GLMakie", "WGLMakie", "PyPlot", "Gadfly", "UnicodePlots", "PlotlyJS",
-]
-plot_import_allowed = []   # 例外のファイル（glob）。原則空のまま
-# 言語依存・安全でない保存形式
-banned_formats = ["pickle", "cPickle", "dill", "joblib", "cloudpickle", "JLD2", "BSON"]
-format_allowed = []        # 例: ["src/{{ package_name }}/models/checkpoint.py"]（学習チェックポイント等）
-abs_path_patterns = ['/home/\w', '/Users/\w', '[A-Za-z]:\\\\', '/lustre', '/gpfs', '/scratch/', '/work/', '/groups/']
-code_dirs = ["src", "scripts", "jl", "tests", "notebooks"]
-figure_ok_dirs = ["docs/assets", "literature/pdfs", "literature/inbox", "scratch"]
-data_ok_dirs = ["tests/fixtures", "scratch"]
+mode = "strict"            # 移行中は "warn"（違反を表示するが失敗にしない）
+plot_import_allowed = []   # 描画ライブラリを直接 import してよいファイル（glob）。原則空
+format_allowed = []        # pickle 等を許すファイル（glob）。例: ["src/{{ package_name }}/models/checkpoint.py"]
 skip = []                  # 一時的に無効化するチェックコード（例: ["L012"]）
-# L033: run ID と同じ行にある書式なしの数値を警告する（"warn" | "off"）。数値は `labkit cite` の書式で書く
-cite_bare_numbers = "warn"
 
 [devlog]
 dir = "docs/devlog"
-required_headings = ["目的", "実施内容", "変更ファイル", "実行した run", "結果・観察", "判断と理由", "未解決・次の作業"]
+required_headings = ["目的", "結果・観察", "判断と理由", "未解決・次の作業"]
+must_fill = ["目的", "判断と理由", "未解決・次の作業"]   # 空だと L030（終了時チェックが止める）
 
 [adr]
 dir = "docs/decisions"
-required_headings = ["背景", "決定", "理由と検討した代替案", "影響"]
 
 [runs]
-hash_inputs_max_gb = 2.0   # これより大きい入力は sha256 を計算しない（MANIFEST/サイドカーの値は使う）
+hash_max_gb = 2.0          # これより大きい入力・出力は sha256 を計算しない（MANIFEST/サイドカーの値は使う）
 
 [literature]
-dir = "literature"
 pdf_dir = "literature/pdfs"   # 複数プロジェクトで共有するなら "~/lab-library/pdfs" など
 
 [claude]
-require_devlog = true      # コードを変更したセッションは当日の開発ログが無いと終了できない
+require_devlog = true      # コードを変更した日は開発ログの 目的・判断と理由・未解決 を書かないと終了できない
 max_stop_blocks = 3        # 終了時チェックで止める最大回数（無限ループ防止）
 
 [gate]
-# 承認ゲート: git push / git tag / 保護ブランチへの merge / gh pr merge / gh release / labkit raw freeze / copier
-# presence=away（既定）では拒否して .lab/queue に積む。人間が `labkit approve <ID>` すると 1 回だけ通る
+# 承認ゲート: 保護ブランチへの push/merge・tag・gh release/merge・labkit raw freeze。feat ブランチへの push は自由
 enabled = true
 protected_branches = ["main", "master"]
-approval_ttl_hours = 24
+approval_ttl_hours = 24    # `labkit approve` が与える許可（同じ種類・同じブランチ）の有効時間

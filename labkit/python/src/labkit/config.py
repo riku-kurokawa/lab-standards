@@ -1,4 +1,4 @@
-"""プロジェクトルートと lab.toml（規約の唯一の設定源）の読み込み."""
+"""プロジェクトルートと lab.toml（規約の唯一の設定源）の読み込み。既定値もここが唯一の定義."""
 
 from __future__ import annotations
 
@@ -6,7 +6,100 @@ import os
 import tomllib
 from pathlib import Path
 
-from labkit._labstate import DEFAULTS, deep_merge  # noqa: F401  （DEFAULTS は他モジュールが config 経由で参照）
+from labkit._util import deep_merge
+
+DEFAULTS: dict = {
+    "lab": {"project": ""},
+    "layout": {
+        "allowed": [
+            "README.md",
+            "CLAUDE.md",
+            "lab.toml",
+            "pyproject.toml",
+            "uv.lock",
+            "Makefile",
+            ".gitignore",
+            ".gitattributes",
+            ".pre-commit-config.yaml",
+            ".copier-answers.yml",
+            ".python-version",
+            ".claude",
+            ".git",
+            ".venv",
+            ".pytest_cache",
+            ".ruff_cache",
+            ".lab",
+            "src",
+            "scripts",
+            "configs",
+            "tests",
+            "data",
+            "runs",
+            "notebooks",
+            "figspecs",
+            "jobs",
+            "docs",
+            "literature",
+            "prompts",
+            "scratch",
+            "legacy",
+        ],
+        "writable": [
+            "src",
+            "scripts",
+            "configs",
+            "tests",
+            "figspecs",
+            "jobs",
+            "docs",
+            "literature",
+            "prompts",
+            "scratch",
+            "notebooks",
+            "README.md",
+            "CLAUDE.md",
+            "pyproject.toml",
+            "Makefile",
+            ".gitignore",
+            ".gitattributes",
+        ],
+        "readonly": ["data/raw", "legacy"],
+    },
+    "check": {
+        "mode": "strict",
+        "banned_plot_imports": ["matplotlib", "seaborn", "plotly", "bokeh", "altair", "pylab"],
+        "plot_import_allowed": [],
+        "banned_formats": ["pickle", "cPickle", "dill", "joblib", "cloudpickle"],
+        "format_allowed": [],
+        # 絶対パス: POSIX の home / HPC の共有領域 / Windows のドライブ（"C:/", r"D:\"。"https://" は除く）
+        "abs_path_patterns": [
+            r"/home/\w",
+            r"/Users/\w",
+            r"/mnt/\w",
+            r"(?<![A-Za-z])[A-Za-z]:[\\/]",
+            r"/lustre",
+            r"/gpfs",
+            r"/scratch/",
+            r"/work/",
+            r"/groups/",
+        ],
+        "code_dirs": ["src", "scripts", "tests", "notebooks", "jobs"],
+        "figure_ok_dirs": ["docs/assets", "literature/pdfs", "literature/inbox", "scratch"],
+        "data_ok_dirs": ["tests/fixtures", "scratch"],
+        "skip": [],
+    },
+    "devlog": {
+        "dir": "docs/devlog",
+        "required_headings": ["目的", "結果・観察", "判断と理由", "未解決・次の作業"],
+        # 空だと L030（Stop hook が止める）。機械で埋まる欄（変更ファイル・run）は `labkit devlog` が自動生成する
+        "must_fill": ["目的", "判断と理由", "未解決・次の作業"],
+    },
+    "adr": {"dir": "docs/decisions", "required_headings": ["背景", "決定", "理由と検討した代替案", "影響"]},
+    "runs": {"hash_max_gb": 2.0},
+    "literature": {"dir": "literature", "pdf_dir": "literature/pdfs"},
+    "claude": {"require_devlog": True, "max_stop_blocks": 3},
+    "gate": {"enabled": True, "protected_branches": ["main", "master"], "approval_ttl_hours": 24},
+}
 
 
 def find_root(start: str | os.PathLike | None = None) -> Path:
@@ -21,8 +114,26 @@ def find_root(start: str | os.PathLike | None = None) -> Path:
         if (d / "lab.toml").is_file():
             return d
     raise FileNotFoundError(
-        f"lab.toml が {p} から上位に見つかりません。lab-standards で生成したプロジェクト内で実行してください。"
+        f"lab.toml が {p} から上位に見つかりません。lab-standards のプロジェクト内で実行してください。"
     )
+
+
+def find_scope(start: str | os.PathLike | None = None) -> tuple[Path, str] | None:
+    """(root, "project" | "standards")。lab.toml のあるプロジェクトか lab-standards 本体。どちらでもなければ None."""
+    p = Path(start or Path.cwd()).expanduser()
+    if not p.is_absolute():
+        p = Path.cwd() / p
+    p = p.resolve()
+    while not p.exists():
+        p = p.parent
+    if p.is_file():
+        p = p.parent
+    for d in (p, *p.parents):
+        if (d / "lab.toml").is_file():
+            return d, "project"
+        if (d / "copier.yml").is_file() and (d / "labkit" / "python").is_dir():
+            return d, "standards"
+    return None
 
 
 def read_toml(path: str | os.PathLike) -> dict:
@@ -35,5 +146,7 @@ def read_toml(path: str | os.PathLike) -> dict:
 
 
 def load_lab(root: str | os.PathLike | None = None) -> dict:
+    """lab.toml を既定値に重ねる。本体（lab.toml 無し）では既定値だけ."""
     r = Path(root) if root else find_root()
-    return deep_merge(DEFAULTS, read_toml(r / "lab.toml"))
+    f = r / "lab.toml"
+    return deep_merge(DEFAULTS, read_toml(f)) if f.is_file() else dict(DEFAULTS)

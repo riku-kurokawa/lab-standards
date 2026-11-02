@@ -16,7 +16,7 @@ from labkit.paths import datapath
 MANIFEST = "MANIFEST.sha256"
 IGNORE = {MANIFEST, ".gitkeep", "README.md"}
 # 隠しディレクトリ（.git など、生データとして置いた checkout のメタデータ）は台帳に入れない: git は読むだけの操作でも
-# .git/index を書き換えるので、固定すると検査のたびに「改変」になる（v0.4.0。checkout の同一性は commit で見る）
+# .git/index を書き換えるので、固定すると検査のたびに「改変」になる（checkout の同一性は commit で見る）
 _HIDDEN = (".",)
 
 
@@ -41,7 +41,7 @@ def read_manifest(raw: Path) -> dict[str, tuple[str, int]]:
         digest, size, rel = line.split(None, 2)
         rel = rel.replace("\\", "/")  # 旧版（Windows）の \\ 区切りも受け付ける
         if _is_hidden(Path(rel)):
-            continue  # v0.3 以前の台帳にある隠しディレクトリの行は読まない（次の freeze で台帳から消える）
+            continue  # 旧台帳にある隠しディレクトリの行は読まない（次の freeze で台帳から消える）
         out[rel] = (digest, int(size))
     return out
 

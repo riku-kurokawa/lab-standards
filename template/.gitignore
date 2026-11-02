@@ -1,4 +1,4 @@
-# --- 生成物・大容量（再生成できるもの） ---
+# --- 生成物・大容量（再生成できるもの。正本の写しは `labkit mirror push`） ---
 /data/*/*
 !/data/*/.gitkeep
 !/data/*/README.md
@@ -7,13 +7,11 @@
 !/runs/.gitkeep
 /scratch/*
 !/scratch/.gitkeep
-/.mlflow/
 
 # --- ハーネスの手元だけの状態（flows/ は git 管理） ---
-/.lab/presence
 /.lab/queue/
-/.lab/approvals/
 /.lab/delegations.json
+/.lab/mirror.json
 
 # --- 文献（PDF は著作物・大容量なので管理外） ---
 /literature/pdfs/*
@@ -30,6 +28,3 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 .claude/settings.local.json
-
-# --- Julia ---
-/jl/Manifest.toml.bak

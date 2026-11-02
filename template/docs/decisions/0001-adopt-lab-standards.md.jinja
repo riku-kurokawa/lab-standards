@@ -16,9 +16,9 @@ lab-standards {{ standards_ref }} のディレクトリ構造と `lab.toml` の�
 ## 理由と検討した代替案
 
 - CLAUDE.md に規則を書くだけ: 長い作業で守られなくなるため不採用。
-- 規則をコード（labkit）と検証（check/hooks）に落とす: 決定的に守られるため採用。
+- 規則をコード（labkit）と成果物の検証（check / hooks）に落とす: 守られたかを後から確かめられるため採用。
 
 ## 影響
 
 - 図は `labkit fig` のテンプレートでのみ作る。新しい図種は lab-standards 側に追加する。
-- 保存形式は HDF5 / Parquet に限定する。
+- 保存形式は HDF5 / Parquet に限定する。run の来歴（commit・環境・seed・入力と出力の hash）が meta.json に残る。

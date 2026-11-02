@@ -1,7 +1,7 @@
 [project]
 name = "labkit"
-version = "0.4.0"
-description = "研究用計算プロジェクトの共通ライブラリ（データ保存・run管理・図テンプレート・規約チェック・文献管理）"
+version = "1.0.0"
+description = "研究用計算プロジェクトの共通ライブラリ（run の来歴・データ保存・図テンプレート・規約チェック・承認ゲート）"
 requires-python = ">=3.11"
 dependencies = [
   "numpy>=1.24",
@@ -16,7 +16,6 @@ dependencies = [
 
 [project.optional-dependencies]
 polars = ["polars>=0.20"]
-mlflow = ["mlflow>=3.0"]
 dev = ["pytest>=8", "ruff>=0.17"]
 
 [project.scripts]

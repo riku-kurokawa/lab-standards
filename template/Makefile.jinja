@@ -1,14 +1,11 @@
 # 複数の手順をまとめる入口だけを置く。単発の操作は `uv run labkit <cmd>`（`uv run labkit --help`）
-.PHONY: check test lint fmt example mlflow-sync mlflow-ui
+.PHONY: check test lint fmt example
 
 check: lint test
 	uv run labkit check
 
 test:
 	uv run pytest -q
-{%- if use_julia %}
-	julia --project=jl -e 'using Pkg; Pkg.test()'
-{%- endif %}
 
 lint:
 	uv run ruff check src scripts tests
@@ -22,9 +19,3 @@ example:
 	@RUN=$$(uv run python scripts/run_example.py configs/experiments/example.toml | tail -1) && \
 	for s in example_timeseries example_psd example_learning_curve; do \
 	  uv run labkit fig figspecs/$$s.toml --run $$RUN; done
-
-mlflow-sync:
-	uv run --extra mlflow labkit mlflow sync
-
-mlflow-ui:
-	uv run --extra mlflow labkit mlflow ui

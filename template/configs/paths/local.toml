@@ -1,3 +1,6 @@
 # LAB_ENV=local（既定）。相対パスはプロジェクトルート基準
 data_root = "data"
 runs_root = "runs"
+# 正本（data/ と runs/。git 管理外）の写し先。NAS・外付け・クラウドドライブのマウントなど、この機械が壊れても残る場所
+# 例: "D:/mirror" / "/Volumes/lab/mirror" / "~/OneDrive/lab-mirror"。`uv run labkit mirror push` で差分コピー
+mirror_root = ""

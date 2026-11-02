@@ -1,4 +1,4 @@
-# 全実験に共通の既定値。実験ごとの差分は experiments/*.toml に extends で書く
+# 全実験に共通の既定値。実験ごとの差分は experiments/*.toml に extends で書く。seed は必ず持つ（meta.json に記録される）
 seed = 0
 
 [signal]
@@ -10,4 +10,3 @@ noise_std = 0.5
 [filter]
 order = 4
 cutoffs_hz = [200.0, 100.0, 50.0, 20.0]
-windows = [3, 9, 27, 81]   # Julia 例（移動平均）が使う。Python 例は cutoffs_hz を使う

@@ -1,139 +1,87 @@
-# ハーネス: Claude を規約と手順に従わせる仕組み（v0.3.0）
+# ハーネス: 成果物を検証し、取り返しのつかない操作だけを止める（v1.0.0）
 
-目的は「人間が不在でも、Claude が止まらず、しかし取り返しのつかない操作はしない」こと。
-部品は 4 つ: 承認ゲート、手順の状態機械、独立レビュー、報告と実データの照合。すべて hooks（lab-rules plugin）と
-`labkit` のコマンドで機械的に検証し、文章だけの規約を増やさない。
+目的は「人間が不在でも Claude が止まらず、研究記録が検証可能で、取り返しのつかない操作はしない」こと。
+v0.3/v0.4 は入力側（Claude が打つコマンド）の統制に投資し、実運用で迂回され、迂回のたびに記録が歪んだ（`docs/audit-2026-11-02.md`）。
+v1.0.0 は成果物側（run・データ・文書が検証できるか）に軸を移し、統制は最小にした。
 
 ```
-人間                         Claude Code                          .lab/（プロジェクト直下）
-labkit approve Q001  ──→  approvals/Q001.json  ←── guard_bash が照合 ──  git push（同じコマンド全文・同じ HEAD）
-labkit answer Q002   ──→  queue/Q002.json      ←── SessionStart / UserPromptSubmit が文脈へ
-labkit presence here ──→  presence             ←── here: ask / away: 拒否してキューへ
-                          flows/<name>.json    ←── labkit flow start/advance、guard_* が禁止操作を拒否
+人間                          Claude Code                       .lab/（プロジェクト直下）
+labkit approve Q001  ──→  delegations.json  ←── labkit hook が照合 ──  git push origin main
+labkit answer Q002   ──→  queue/Q002.json   ←── SessionStart / UserPromptSubmit が文脈へ
+                          flows/migrate.json ←── labkit flow start/advance（チェックリスト）
+                          mirror.json        ←── labkit mirror push（正本の写し）
 docs/reviews/*.md    ←── lab-reviewer agent だけが書く（agent_type で判定）
 ```
 
-## 1. 承認ゲート
+部品は 4 つ: 成果物の検証、承認ゲート、独立レビュー、手順のチェックリスト。判定はすべて `labkit`（`labkit hook`）にあり、plugin は stdin を渡す入口だけ。
 
-対象: `git push`、`git tag`（作成・削除）、保護ブランチ（`[gate] protected_branches`、既定 main/master）への `git merge`、
-`gh pr merge`、`gh release`（create/edit/delete/upload）、`labkit raw freeze`、
-`copier copy|update|recopy`、`labkit standards template`（古い雛形の `make raw-freeze` / `make std-template` も検出。`make std-link|std-unlink` は flow の link カテゴリとしてのみ扱う）。
-`command git push`、`git -c x=y -C dir push`、`sudo`/`env`/`VAR=x` 接頭辞、`&&`/`;`/`|`/改行で連結したもの、
-`uv run labkit ...`、`python -m labkit.cli ...` も検出する（`claude-plugin/scripts/_labgate.py`、shlex でトークン化）。
+## 1. 成果物の検証（labkit check --claims）
 
-| presence | 挙動 |
+Stop hook が毎回見るのはこれだけ（体裁の検査は pre-commit と CI）:
+
+| 何を | どう |
 |---|---|
-| `away`（既定） | 拒否。`.lab/queue/<ID>.json` に要求（コマンド全文、cwd、ブランチ、HEAD、差分の要約、理由、時刻、session_id）を記録。Claude には「承認待ち #ID として記録した。依存しない作業を続け、終了時の報告に挙げよ」 |
-| `here` | `permissionDecision: "ask"` で通常の確認画面。ただし `permission_mode` が bypassPermissions / dontAsk のときは確認画面が出ないので away と同じ扱い（auto では ask が確認画面に届く） |
+| run | `meta.json` がスキーマどおり（L020）。commit・dirty（dirty なら `dirty.patch`）・環境・seed・入力の hash と生成元 run・出力の hash。running のまま残った run は警告（L021）→ `labkit runs mark` |
+| 派生データ | `data/interim`・`processed` の全ファイル（サブディレクトリも）にサイドカー（L022）。`data/cache` は対象外 |
+| 生データ | MANIFEST との一致・読み取り専用（L002/L003） |
+| 開発ログ | 目的・判断と理由・未解決 が空でない（L030）。変更ファイルと run は `labkit devlog` が自動で埋めるので、人が書くのは判断だけ |
+| 数値の主張 | `12.3 dB [run:<id>:<key>]` が runs/ の `metrics.json` と一致（L032/L033）。「結果・観察」節の小数に引用が無ければ警告（L034） |
 
-承認は人間だけが行う: `labkit queue list` → `labkit approve <ID>`（引数なし。実行者と `claude_shell` を記録）。
-承認は **コマンド全文 + そのときの HEAD** に結び付き、**24 時間**（`[gate] approval_ttl_hours`）で期限切れ、**1 回限り**。
-照合はこの 4 点（コマンド全文・HEAD・期限・未使用）。cwd は記録されるが照合しない（`git -C <dir>` のときはそのリポジトリの HEAD を使う）。
-git リポジトリ外では HEAD は「なし」として記録され、コマンド全文・期限・1 回限りだけで照合する。
-hook は一致する承認があるときだけ通し、通したら `used_at` を記録する。`labkit reject <ID>` で却下。
+## 2. 承認ゲート
 
-Claude が承認を作れないようにする層:
-1. `guard_bash` が `labkit approve|reject|answer`（どの呼び出し形でも）と、`.lab/approvals|queue|flows` への
-   リダイレクト・sed・python -c などを拒否する。
-2. `guard_write` が `.lab/approvals`, `.lab/queue`, `.lab/flows` への Write/Edit を拒否する（`.lab/presence` は可）。
-3. 雛形の `.claude/settings.json` の `permissions.deny`（`Edit(.lab/approvals/**)` など）と
-   サンドボックスの `filesystem.denyWrite`（`.lab/approvals`, `.lab/queue`, `.lab/flows`）が OS レベルで書き込みを止める（対応 OS のみ）。
-4. `labkit approve` 自身は、実行環境が Claude Code のシェル（`CLAUDECODE=1`）かを記録する（`claude_shell`）。
-   人間が Claude Code の `!` 実行で承認した場合もこのフラグが付く。`!` 実行が PreToolUse hook を通らないことは公式ドキュメントに明記が
-   無く、本セッションでの観察（`!` の出力に hook のメッセージが出ない）に基づく（AGENT_QUEUE Q-002）。
+対象は取り返しのつかない、または共有先を変える操作だけ: **保護ブランチ**（`[gate] protected_branches`）への push と merge、
+force push・リモートブランチの削除・`--tags`、`git tag` の作成・削除、`gh pr merge`、`gh release`、`labkit raw freeze`。
+**feat ブランチへの push は自由**。copier / lab.toml の mode 切替はゲートの対象外（git で戻せる）。
 
-### 委任（v0.4.0）
-
-承認は「1 コマンド・1 HEAD・1 回」に結び付くので、長い手順では人間が承認のたびに呼ばれ、承認後に commit すると積み直しになる。
-`labkit delegate <カテゴリ...> --hours N [--note]`（人間のみ）で、期間内はそのカテゴリを hooks が通す（`permissionDecision: allow`、理由に委任 ID）。
-記録は `.lab/delegations.json`（git 管理外、`labkit delegate list` / `revoke <ID|all>`）。
-
-| カテゴリ | 通す操作 |
+| 状態 | 挙動 |
 |---|---|
-| `git_push` `git_tag` `git_merge` `gh_merge` `gh_release` `raw_freeze` `template` | 承認ゲートの対象そのもの。flow の段階が禁止していても通す（人間の判断を優先） |
-| `flow` | `labkit flow advance` の承認段階（キューに積まず進む。history に `via: delegation:D001`） |
-| `raw_write` | data/raw へのファイルの移動・コピー・Write（生データの搬入）。**削除は委任しても拒否** |
-| `lab_toml` | `labkit mode warn|strict` と lab.toml の編集（Bash / Edit。雛形の `permissions.deny` の `Edit(lab.toml)` は別層なので、Claude は `labkit mode` を使う） |
-| グループ `release` / `migrate` / `all` | 上の組み合わせ（`migrate` = flow, raw_write, raw_freeze, lab_toml, template） |
+| 委任あり（`labkit delegate` / `labkit approve` の結果。期限内・ブランチ一致） | 許可（理由に委任 ID） |
+| permission mode が default / acceptEdits / plan（確認画面が人間に届く） | `ask`（通常の確認画面） |
+| それ以外（auto / bypassPermissions / dontAsk） | 拒否し、`.lab/queue/<ID>.json` に記録（種類・ブランチ・コマンド・HEAD・理由・session） |
 
-Claude は `labkit delegate`（list 以外）を実行できず、`.lab/delegations.json` を書けない（承認と同じ層）。
-flow の承認は v0.4.0 から段階（`flow:<name>:<stage>`）に結び付く。
+承認 = `labkit approve <ID>` が、その承認待ちの**種類をそのブランチで `approval_ttl_hours`（既定 24 時間）許可する委任**を作ること。
+コマンド全文や HEAD には結び付かないので、承認後に commit しても無効にならず、同じ種類の操作は期限内なら何度でも通る。
+`labkit delegate <カテゴリ...> [--branch B] [--hours N]` は人間が先に宣言する形（カテゴリ: git_push git_tag git_merge gh_merge gh_release raw_freeze flow raw_write lab_toml、グループ release / migrate / all）。
 
-### 脅威モデル
+Claude が承認を作れないようにする層: (1) `labkit hook` が `labkit approve|reject|answer|delegate` と `.lab/` への直接書き込みを拒否、
+(2) 雛形の `permissions.deny` と sandbox の `denyWrite`（対応 OS のみ）。
 
-| 防げる | 防げない |
-|---|---|
-| Claude が通常の形で push / tag / merge / freeze / copier を実行すること | `sh -c "git push"`、スクリプトや Makefile のターゲット経由、エイリアス、`.git/` を直接触る操作（テキスト照合の限界。Claude Code の公式ドキュメントも Bash ルールを「security boundary ではない」としている） |
-| Claude が `labkit approve` を実行すること、承認ファイルを Write/Edit/リダイレクトで作ること | 書き込み可能な場所（scratch/）に置いたスクリプトが承認ファイルを書くこと（承認記録に秘密は無い）。サンドボックスの `denyWrite` だけが止める（Windows ネイティブでは止まらない） |
-| 承認の使い回し（別コマンド、別 HEAD、期限切れ、2 回目） | 承認済みコマンドの中身そのものの危険性（人間が内容を読んで承認する前提） |
-| 承認待ちで Claude が止まること（Stop hook は**このセッションが積んだ**承認待ちがあるときだけ終了を許す） | — |
+**脅威モデル**: hooks はテキスト照合であり security boundary ではない（`sh -c`、スクリプト経由、エイリアスは見えない）。
+Windows ネイティブでは sandbox が無効で、chmod は読み取り専用属性だけ。**最後の砦は GitHub 側の main のブランチ保護**（`docs/SETUP.md`）。
+ゲートの目的は「うっかり」と「無人時の暴走」を止めることで、敵対的な回避を止めることではない。
 
-**最後の砦は GitHub 側の main ブランチ保護**（直接 push の禁止、PR 必須、タグ保護）。これは本リポジトリでは
-設定できないので、人間が設定する（AGENT_QUEUE.md の approval 項目）。
+## 3. 成果物の保護（hooks）
 
-## 2. 手順の状態機械（labkit flow）
+`data/raw` への書き込み・削除（搬入は `raw_write` の委任があれば移動だけ可）、`runs/` の削除・権限変更、`lab.toml` の編集（`lab_toml` の委任があれば可）、
+`.lab/` の直接編集、`git clean -x`、`git checkout -- data/raw`、`layout.writable` 以外への Write、描画ライブラリ・pickle の import を止める。
+いずれも成果物（原本・run・規約・状態）を壊す操作であり、作業の手順は縛らない。
 
-定義は `labkit/python/src/labkit/flows/<name>.toml`（宣言的）。段階ごとに名前・説明・完了条件（機械的に検査）・
-承認の要否・禁止する操作カテゴリを持つ。`labkit flow start` で定義を `.lab/flows/<name>.json`（git 管理）に写すので、
-hooks は状態ファイルだけを読む。
+## 4. 独立レビュー
 
-- `labkit flow advance` は完了条件を検査し、満たしていなければ不足を列挙して失敗する。承認が要る段階では、承認ゲートと
-  同じ仕組みで `labkit flow advance <name>` というコマンドを承認待ちに積む（人間が `labkit approve`）。
-- `guard_bash` / `guard_write` は、現在の段階で禁止されたカテゴリ（code, experiments, raw, template, link, release）を
-  拒否し、「今は <段階>。先に <条件> が必要」と返す。禁止されていない作業（準備・ドキュメント・テスト・scratch）は続けられる。
-  これは**うっかりの防止**であり、敵対的な回避（`labkit flow abort` → 作業 → `flow start`、`cd scripts && python x.py`）は止めない。
-  取り返しのつかない操作だけは承認ゲート（別層）が守る。
-- SessionStart（compact 含む）が現在の段階・残り条件・承認待ち・質問を文脈に入れる。UserPromptSubmit は人間の操作による差分
-  （承認済み・未実行、回答あり、却下）だけを添える。
-- フロー: migrate（freeze → inventory【承認】→ apply-template → raw-data → code → reproduce【レビュー】→ strict → done）、
-  improve-standards（triage【承認】→ branch → implement → test【レビュー】→ release【承認】→ adopt → done。本体の labkit/ を変えたら link 必須）。
-  improve-standards の状態は**プロジェクト側**に置く。本体側の push/tag/merge は本体ディレクトリの承認ゲートが守る。
+`lab-reviewer` agent がレビューし、`docs/reviews/YYYY-MM-DD_<flow>_<段階>.md` に frontmatter（reviewer, flow, stage, commit, verdict, findings）付きで保存する。
+`docs/reviews/` は hook 入力の `agent_type` が lab-reviewer のときだけ書ける（自己採点の防止）。lab-reviewer の Bash は読み取りの許可リストだけ。
+migrate の reproduce 段階は、現在の HEAD に対する verdict=pass の記録が無いと進めない。
 
-## 3. 独立レビュー
+## 5. 手順のチェックリスト（labkit flow）
 
-`lab-reviewer` agent（`claude-plugin/agents/lab-reviewer.md`）がレビューし、`docs/reviews/YYYY-MM-DD_<flow>_<段階>.md` に
-frontmatter（reviewer, flow, stage, commit, verdict, findings）付きで保存する。`labkit check` L035 が書式を検査する。
+定義は `labkit/flows/migrate.toml`。段階ごとの完了条件（clean tree、タグ、写し、CSV、lab.toml の mode、MANIFEST、check、run、レビュー）を
+`labkit flow advance` が機械的に検査する。**段階による操作の禁止はしない**（v0.3 の forbid は守られず、記録だけが矛盾した）。
+承認が要る段階（inventory）はカテゴリ `flow` の委任（`labkit approve` / `labkit delegate flow`）で進む。
+freeze 段階は `labkit mirror push` 済みであることを要求する（配置替えの途中でデータを失わないため）。
 
-- 自己採点の防止: `guard_write` は、hook 入力の `agent_type` が `lab-reviewer`（plugin では `lab-rules:lab-reviewer`）の
-  ときだけ `docs/reviews/` への書き込みを許し、メインのエージェントには拒否する。lab-reviewer は `docs/reviews/` 以外に
-  書けず、Bash は許可リストの読み取りコマンドだけ（`_labgate.reviewer_allowed`。載っていないものは拒否し、拒否メッセージに許可一覧を出す）。
-- plugin の agent は frontmatter の `hooks` / `permissionMode` が無視される（公式ドキュメント）ため、agent 専用の hook ではなく
-  plugin 共通の PreToolUse hook で `agent_type` を見て分岐している。
-- 完了条件 `review`: 現在の HEAD に対する verdict=pass の記録。HEAD が変わると無効になるので、指摘に対応して commit したら
-  もう一度レビューを受ける（skill に手順）。
+## 6. 正本の写し（labkit mirror）
 
-## 4. 報告と実データの照合（labkit check）
+`runs/` と `data/` は git 管理外なので、`configs/paths/<LAB_ENV>.toml` の `mirror_root` に `labkit mirror push` で差分コピーする
+（size と mtime で比較、`--verify` で sha256。削除はしない）。写し先には `MIRROR.json`、手元には `.lab/mirror.json`。
+外部ツール不要で、NAS・外付け・クラウドドライブのマウントに使える。
 
-- **L032**: 開発ログ・ADR・サーベイ・レビュー記録に出てくる run ID（`YYYYMMDD-HHMMSS_<slug>_<commit7>_<hex4>`）が `runs/` に
-  あり `meta.json` を持つこと。failed/interrupted/running の run や link 中の labkit で実行した run の引用は警告。
-  HPC の run は `meta.json` と `metrics.json` だけ同期すれば足りる。
-- **L033**: 数値の引用は `12.3 dB [run:<run_id>:snr_db]` 書式。表示桁で丸めて `metrics.json` と比較する。
-  run ID と同じ行の書式なし数値は警告（`[check] cite_bare_numbers = "off"` で無効化）。
-- `labkit cite <run_id> <key> [--digits N] [--unit dB]` が書式を出力する（Julia: `LabKit.cite`）。
-- 警告（severity=warn）は strict でも終了コードを 1 にしない。`labkit check` の出力に `(warn)` と付く。
+## 7. 文脈への注入
 
-## 5. サンドボックス
+SessionStart（compact 含む）: 今日の開発ログの有無、承認ゲートの 1 行、有効な委任、承認待ち・質問・却下、進行中の flow、plugin と labkit の版の不一致。
+UserPromptSubmit: 人間の操作で生じた差分（承認済み・回答あり・却下）だけ。何も無ければ 0 行。
 
-雛形の `.claude/settings.json` に `sandbox` を設定した（キーは docs/notes/claude-code-spec.md で確認）:
-`filesystem.denyWrite` = data/raw, lab.toml, .lab/approvals, .lab/queue, .lab/flows。`allowWrite` に uv / Julia / pre-commit のキャッシュ。
-`network.allowedDomains` に PyPI・GitHub・Julia パッケージサーバ・astral.sh。`autoAllowBashIfSandboxed: false`
-（サンドボックス内でも hooks と確認画面を通す）。runs/・data/interim・data/processed はプロジェクト内なので既定で書ける。
+## 後方互換
 
-**対応 OS**: macOS、Linux、WSL2（bubblewrap と socat が必要）。**Windows ネイティブでは sandbox は動作せず**、
-Claude Code は「unsandboxed」で実行する（公式ドキュメント）。その場合は hooks（テキスト照合）と chmod（run と data/raw の
-読み取り専用化）だけの保護に劣化する。本リポジトリの v0.3.0 の開発は Windows で行ったため、サンドボックス有効での
-`make check && make example` は未確認（AGENT_QUEUE.md）。
-
-## 6. 振る舞いの回帰テスト（plugin eval）
-
-`claude-plugin/evals/` に 7 ケース（README 参照）。`make eval` で実行。費用はアカウントのモデル呼び出し（README に見積もり）。
-CI では手動起動のみ。
-
-## 後方互換と既定値
-
-- v0.2.0 のプロジェクトはそのまま動く。`.lab/` は `labkit` が最初に必要になったときに作り、`.lab/.gitignore` も書く。
-  古い `lab.toml` が `layout.allowed` を列挙していても `.lab` は許可される。`.lab/queue` と `approvals` は gitignore され、その PC だけの
-  状態（承認は HEAD と 24 時間に結び付く）。質問の置き場は `.lab/queue` の 1 つだけで、終了時の報告は Claude の最後のメッセージ。
-- 承認ゲートは既定で有効（presence=away）。無効にするには `lab.toml` の `[gate] enabled = false`（人間が編集）。
-- `permissions.deny` の `Write(...)` ルールは公式ドキュメント上効かないので、雛形では `Edit(...)` に統一した
-  （Edit の deny は Write にも効く）。
+- v0.x のプロジェクトの `lab.toml` はそのまま読める（無くなったキー `cite_bare_numbers`・`presence`・`[runs] hash_inputs_max_gb` は無視）。
+- `.lab/approvals/`・`.lab/presence` は使わない（残っていても害は無い）。承認は `.lab/delegations.json` に記録される。
+- v0.x の run の meta.json は新しい schema でも通る（追加フィールドはすべて任意）。

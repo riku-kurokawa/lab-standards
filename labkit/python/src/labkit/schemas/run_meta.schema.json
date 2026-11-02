@@ -1,67 +1,239 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "labkit/run_meta/1",
-  "title": "runs/<run_id>/meta.json（Python・Julia 共通）",
+  "title": "runs/<run_id>/meta.json",
   "type": "object",
-  "required": ["schema_version", "run_id", "name", "status", "language", "labkit_version",
-               "created", "git", "command", "inputs", "outputs"],
+  "required": [
+    "schema_version",
+    "run_id",
+    "name",
+    "status",
+    "language",
+    "labkit_version",
+    "created",
+    "git",
+    "command",
+    "inputs",
+    "outputs"
+  ],
   "properties": {
-    "schema_version": {"const": "1"},
-    "run_id": {"type": "string", "pattern": "^\\d{8}-\\d{6}_[a-z0-9-]+_([0-9a-f]{7}|nogit)_[0-9a-f]{4}$"},
-    "name": {"type": "string", "minLength": 1},
-    "status": {"enum": ["running", "finished", "failed", "interrupted"]},
-    "language": {"enum": ["python", "julia"]},
-    "language_version": {"type": "string"},
-    "labkit_version": {"type": "string"},
+    "schema_version": {
+      "const": "1"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^\\d{8}-\\d{6}_[a-z0-9-]+_([0-9a-f]{7}|nogit)_[0-9a-f]{4}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "running",
+        "finished",
+        "failed",
+        "interrupted"
+      ]
+    },
+    "language": {
+      "enum": [
+        "python"
+      ]
+    },
+    "language_version": {
+      "type": "string"
+    },
+    "labkit_version": {
+      "type": "string"
+    },
     "labkit_source": {
       "type": "object",
-      "required": ["mode", "version"],
+      "required": [
+        "mode",
+        "version"
+      ],
       "properties": {
-        "mode": {"enum": ["release", "link"]},
-        "version": {"type": "string"},
-        "path": {"type": "string"},
-        "git": {"type": ["object", "null"]}
+        "mode": {
+          "enum": [
+            "release",
+            "link"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "git": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
       }
     },
-    "created": {"type": "string"},
-    "finished": {"type": ["string", "null"]},
-    "duration_s": {"type": ["number", "null"]},
-    "host": {"type": "string"},
-    "lab_env": {"type": "string"},
+    "created": {
+      "type": "string"
+    },
+    "finished": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "duration_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "host": {
+      "type": "string"
+    },
+    "lab_env": {
+      "type": "string"
+    },
     "git": {
-      "type": ["object", "null"],
-      "required": ["commit", "dirty"],
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "commit",
+        "dirty"
+      ],
       "properties": {
-        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "branch": {"type": "string"},
-        "dirty": {"type": "boolean"}
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "dirty": {
+          "type": "boolean"
+        }
       }
     },
-    "slurm": {"type": ["object", "null"]},
-    "command": {"type": "array", "items": {"type": "string"}},
-    "cwd": {"type": "string"},
-    "config_files": {"type": "array", "items": {"type": "string"}},
-    "config_overrides": {"type": "array", "items": {"type": "string"}},
+    "slurm": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "config_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "config_overrides": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "inputs": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["path", "exists"],
+        "required": [
+          "path",
+          "exists"
+        ],
         "properties": {
-          "path": {"type": "string"},
-          "exists": {"type": "boolean"},
-          "size": {"type": "integer"},
-          "sha256": {"type": ["string", "null"]},
-          "sha256_source": {"enum": ["manifest", "sidecar", "computed", "skipped_too_large"]}
+          "path": {
+            "type": "string"
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sha256_source": {
+            "enum": [
+              "manifest",
+              "sidecar",
+              "computed",
+              "skipped_too_large"
+            ]
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
     "outputs": {
       "type": "array",
-      "items": {"type": "object", "required": ["path", "size"]}
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "size"
+        ],
+        "properties": {
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
     },
-    "external_outputs": {"type": "array", "items": {"type": "string"}},
-    "tags": {"type": "object"},
-    "error": {"type": ["string", "null"]}
+    "external_outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tags": {
+      "type": "object"
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pid": {
+      "type": "integer"
+    },
+    "paths": {
+      "type": "object"
+    },
+    "env": {
+      "type": "object"
+    },
+    "seed": {
+      "type": [
+        "integer",
+        "number",
+        "string",
+        "null"
+      ]
+    }
   }
 }

@@ -1,17 +1,16 @@
 # {{ project_name }}
 
-> lab-standards {{ standards_ref }} から生成。規約: `lab.toml`、Claude 向け要約: `CLAUDE.md`
+> lab-standards {{ standards_ref }} から生成。規約: `lab.toml`、Claude 向け: `CLAUDE.md`
 
 ## セットアップ
 
 ```bash
 uv sync                                   # Python 環境（labkit を含む）
-{%- if use_julia %}
-julia --project=jl -e 'using Pkg; Pkg.instantiate()'
-{%- endif %}
 uv run pre-commit install                 # commit 時のチェック
 make check                                # 規約チェック + テスト
 ```
+
+`configs/paths/local.toml` の `mirror_root` に写し先（NAS・外付け・クラウドドライブのマウント）を書き、`uv run labkit mirror push` で `data/` と `runs/` の正本を機械の外に置く。
 
 ## 再現手順
 
@@ -26,13 +25,10 @@ uv run labkit runs list
 |---|---|---|
 | `src/{{ package_name }}/` | 再利用ライブラリ（純粋関数） | ✓ |
 | `scripts/` | 薄いエントリポイント | ✓ |
-{%- if use_julia %}
-| `jl/` | Julia パッケージ（`src/`, `scripts/`） | ✓ |
-{%- endif %}
 | `configs/` | 実験設定（TOML）、環境別パス `paths/` | ✓ |
 | `figspecs/` | 図の仕様（テンプレート名・データ・ラベル） | ✓ |
 | `data/raw/` | 生データ（不変・`MANIFEST.sha256`） | MANIFEST のみ |
-| `data/{external,interim,processed}/` | 外部データ・中間・最終派生データ | × |
+| `data/{external,interim,processed,cache}/` | 外部データ・中間・最終派生データ・再生成できるキャッシュ | × |
 | `runs/<run_id>/` | 実験 1 回分（設定・来歴・指標・図） | × |
 | `docs/devlog/` | 開発ログ（1 日 1 ファイル） | ✓ |
 | `docs/decisions/` | ADR（設計判断の記録） | ✓ |
@@ -42,4 +38,4 @@ uv run labkit runs list
 | `prompts/` | LLM 用プロンプト | ✓ |
 | `notebooks/` | 探索用（結果を報告に使うなら scripts 化する） | ✓ |
 | `scratch/` | 自由な作業場所 | × |
-| `.lab/` | ハーネスの状態（flows/ は ✓、presence・queue・approvals は ×） | 一部 |
+| `.lab/` | ハーネスの状態（flows/ は ✓、queue・delegations・mirror は ×） | 一部 |

@@ -1,4 +1,4 @@
-"""内部ユーティリティ（ハッシュ・原子的書き込み・git 情報など）."""
+"""内部ユーティリティ（ハッシュ・原子的書き込み・git と環境の情報）."""
 
 from __future__ import annotations
 
@@ -6,9 +6,12 @@ import datetime as _dt
 import hashlib
 import json
 import os
+import platform
 import re
 import secrets
+import shutil
 import subprocess
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +30,7 @@ def sha256_tree(path: str | os.PathLike) -> str:
     """ディレクトリ（Zarr など）を相対パス順に連結してハッシュする."""
     root = Path(path)
     h = hashlib.sha256()
-    # 相対パスは / 区切りの文字列で並べ、ハッシュに入れる（OS と Julia 実装で同じ値になる）
-    files = sorted(((q.relative_to(root).as_posix(), q) for q in root.rglob("*") if q.is_file()), key=lambda t: t[0])
-    for rel, p in files:
+    for rel, p in sorted((q.relative_to(root).as_posix(), q) for q in root.rglob("*") if q.is_file()):
         h.update(rel.encode())
         h.update(bytes.fromhex(sha256_file(p)))
     return h.hexdigest()
@@ -54,6 +55,10 @@ def write_json_atomic(path: Path, obj: Any) -> None:
     write_text_atomic(path, json.dumps(obj, ensure_ascii=False, indent=2, default=_json_default) + "\n")
 
 
+def read_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def _json_default(o: Any) -> Any:
     try:
         import numpy as np
@@ -67,30 +72,88 @@ def _json_default(o: Any) -> Any:
     return str(o)
 
 
-def git_info(root: Path) -> dict | None:
-    def _git(*args: str) -> str:
-        return subprocess.run(
-            ["git", *args], cwd=root, capture_output=True, text=True, check=True, encoding="utf-8", errors="replace"
-        ).stdout.strip()
+def deep_merge(base: dict, override: dict) -> dict:
+    out = dict(base)
+    for k, v in override.items():
+        out[k] = deep_merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
 
+
+def git(cwd: Path, *args: str) -> str | None:
+    """git コマンドの標準出力。git が無い・リポジトリ外・失敗なら None."""
     try:
-        commit = _git("rev-parse", "HEAD")
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        return subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+            encoding="utf-8",
+            errors="replace",
+        ).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return None
-    try:
-        branch = _git("rev-parse", "--abbrev-ref", "HEAD")
-    except subprocess.CalledProcessError:
-        branch = ""
-    dirty = bool(_git("status", "--porcelain", "--untracked-files=no"))
-    return {"commit": commit, "branch": branch, "dirty": dirty}
+
+
+def git_info(root: Path) -> dict | None:
+    """commit・branch・dirty。dirty は未追跡ファイル（コードになりうる）も数える."""
+    commit = git(root, "rev-parse", "HEAD")
+    if commit is None:
+        return None
+    status = git(root, "status", "--porcelain", "--untracked-files=all") or ""
+    return {"commit": commit, "branch": git(root, "rev-parse", "--abbrev-ref", "HEAD") or "", "dirty": bool(status)}
+
+
+def git_dirty_patch(root: Path) -> str:
+    """未コミットの状態を再現できる記録: 状態一覧 + 追跡ファイルの差分（未追跡は名前だけ）."""
+    status = git(root, "status", "--porcelain", "--untracked-files=all") or ""
+    diff = git(root, "diff", "HEAD", "--", ".", ":(exclude)uv.lock") or ""
+    return f"# git status --porcelain --untracked-files=all\n{status}\n\n# git diff HEAD\n{diff}\n"
+
+
+PACKAGES = ("numpy", "scipy", "pandas", "h5py", "pyarrow", "torch", "jax", "cupy", "polars", "scikit-learn")
+THREAD_VARS = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "CUDA_VISIBLE_DEVICES")
+
+
+def env_info(root: Path) -> dict:
+    """run の環境: OS・CPU・GPU・ロックファイルの hash・主要パッケージの版・スレッド設定."""
+    pkgs = {}
+    for name in PACKAGES:
+        try:
+            pkgs[name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            continue
+    lock = root / "uv.lock"
+    gpu = None
+    if shutil.which("nvidia-smi"):
+        try:
+            out = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                encoding="utf-8",
+                errors="replace",
+            ).stdout.strip()
+            gpu = out.splitlines() or None
+        except (subprocess.SubprocessError, OSError):
+            gpu = None
+    return {
+        "os": platform.platform(),
+        "cpu": platform.processor() or platform.machine(),
+        "gpu": gpu,
+        "lockfile_sha256": sha256_file(lock) if lock.is_file() else None,
+        "packages": pkgs,
+        "threads": {k: os.environ[k] for k in THREAD_VARS if k in os.environ},
+    }
 
 
 def labkit_source() -> dict:
     """labkit がリリース版か、手元の本体チェックアウト（link）かを記録する."""
     from labkit._version import __version__
 
-    here = Path(__file__).resolve()
-    for d in here.parents:
+    for d in Path(__file__).resolve().parents:
         if (d / "copier.yml").is_file() and (d / "labkit" / "python").is_dir():
             return {"mode": "link", "version": __version__, "path": str(d), "git": git_info(d)}
     return {"mode": "release", "version": __version__}
@@ -110,22 +173,7 @@ def slurm_info() -> dict | None:
 
 
 def slugify(text: str) -> str:
-    s = re.sub(r"[^0-9A-Za-z]+", "-", text).strip("-").lower()
-    return s or "run"
-
-
-def flatten(d: dict, prefix: str = "") -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    for k, v in d.items():
-        key = f"{prefix}.{k}" if prefix else str(k)
-        if isinstance(v, dict):
-            out.update(flatten(v, key))
-        else:
-            out[key] = v
-    return out
-
-
-from labkit._labstate import deep_merge  # noqa: E402,F401  （定義は hooks と共有する _labstate.py）
+    return re.sub(r"[^0-9A-Za-z]+", "-", text).strip("-").lower() or "run"
 
 
 def rel_or_abs(path: Path, root: Path) -> str:

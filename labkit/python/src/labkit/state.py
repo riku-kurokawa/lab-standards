@@ -1,88 +1,121 @@
-"""ハーネスの状態（.lab/）: 在席状態・承認待ちキュー・承認記録.
+"""ハーネスの状態（.lab/）: 承認待ち・質問のキューと委任.
 
-    .lab/presence              "here" | "away"（既定 away）
-    .lab/queue/<ID>.json       要求（kind=approval）と質問（kind=question）
-    .lab/approvals/<ID>.json   承認記録（`labkit approve` だけが書く。Claude は書けない）
-    .lab/flows/<name>.json     手順の状態機械（flow.py。git 管理）
+    .lab/queue/<ID>.json      承認待ち（kind=approval）と質問（kind=question）。hooks と `labkit queue ask` が積む
+    .lab/delegations.json     委任: 「このカテゴリの操作をこの期間（このブランチで）任せる」。人間の `labkit delegate` と
+                              `labkit approve`（= 承認待ちの 1 件をカテゴリ＋ブランチの委任に変える）だけが書く
+    .lab/flows/<name>.json    手順の状態（flow.py。git 管理）
 
-読み書きの共通部分は labkit/_labstate.py（claude-plugin/scripts/_labstate.py のバイト同一コピー）。
-ここには labkit 側だけが行う操作（人間の承認・却下・回答、質問の登録、presence の変更）を置く。
+承認は HEAD やコマンド全文には結び付かない。commit しても無効にならず、同じ種類の操作は期限内なら何度でも通る。
 """
 
 from __future__ import annotations
 
 import datetime as _dt
-import getpass
+import json
 import os
-import sys
 from pathlib import Path
 
-from labkit._labstate import (  # noqa: F401  （cli / flow / tests が labkit.state 経由で使う）
-    DELEGATABLE,
-    DELEGATION_GROUPS,
-    LAB_DIR,
-    _iso,
-    _now,
-    active_delegations,
-    active_flows,
-    add_delegation,
-    consume_approval,
-    current_stage,
-    describe_delegations,
-    expand_delegation,
-    find_delegation,
-    find_valid_approval,
-    get_presence,
-    git_branch,
-    git_head,
-    lab_dir,
-    list_delegations,
-    list_queue,
-    load_gate_conf,
-    next_id,
-    pending_summary,
-    request_approval,
-    revoke_delegation,
-)
-from labkit._labstate import find_scope as _find_scope
-from labkit._util import write_json_atomic, write_text_atomic
+from labkit._util import git, read_json, write_json_atomic
 
-PRESENCE_VALUES = ("here", "away")
+LAB_DIR = ".lab"
+GITIGNORE = "# labkit が生成。queue と delegations は手元だけの状態（flows/ は git 管理）\nqueue/\ndelegations.json\n"
+DELEGATABLE = {
+    "git_push": "保護ブランチへの push・force push・リモートの削除",
+    "git_tag": "git tag の作成・削除",
+    "git_merge": "保護ブランチへの merge",
+    "gh_merge": "gh pr merge",
+    "gh_release": "gh release の作成・変更",
+    "raw_freeze": "labkit raw freeze（生データの確定）",
+    "flow": "labkit flow advance の承認段階（承認を待たずに進む）",
+    "raw_write": "data/raw へのファイルの移動・追加（生データの搬入。削除は含まない）",
+    "lab_toml": "lab.toml の編集",
+}
+GROUPS = {
+    "release": ["git_push", "git_tag", "git_merge", "gh_merge", "gh_release"],
+    "migrate": ["flow", "raw_write", "raw_freeze", "lab_toml"],
+    "all": list(DELEGATABLE),
+}
 
 
-def find_scope(start: str | os.PathLike | None = None) -> tuple[Path, str] | None:
-    """(root, "project" | "standards")。省略時は cwd から探す."""
-    return _find_scope(start or Path.cwd())
+def _now() -> _dt.datetime:
+    return _dt.datetime.now().astimezone()
 
 
-def set_presence(root: Path, value: str) -> str:
-    if value not in PRESENCE_VALUES:
-        raise ValueError(f"presence は {PRESENCE_VALUES} のいずれか: {value!r}")
-    write_text_atomic(lab_dir(root) / "presence", value + "\n")
-    return value
+def _iso(t: _dt.datetime) -> str:
+    return t.isoformat(timespec="seconds")
+
+
+def lab_dir(root: Path) -> Path:
+    d = root / LAB_DIR
+    d.mkdir(exist_ok=True)
+    gi = d / ".gitignore"
+    if not gi.is_file():
+        gi.write_text(GITIGNORE, encoding="utf-8", newline="\n")
+    return d
+
+
+def git_branch(cwd: Path) -> str | None:
+    return git(cwd, "rev-parse", "--abbrev-ref", "HEAD")
+
+
+def session_id(explicit: str = "") -> str:
+    return explicit or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
 
 
 # ---- queue ----
-def get_item(root: Path, qid: str) -> dict:
-    import json
+def list_queue(root: Path) -> list[dict]:
+    d = root / LAB_DIR / "queue"
+    out = []
+    for p in sorted(d.glob("Q*.json")) if d.is_dir() else []:
+        try:
+            out.append(read_json(p))
+        except (json.JSONDecodeError, OSError):
+            continue
+    return out
 
+
+def get_item(root: Path, qid: str) -> dict:
     p = root / LAB_DIR / "queue" / f"{qid}.json"
     if not p.is_file():
         raise FileNotFoundError(f"キューに {qid} がありません（`labkit queue list`）")
-    return json.loads(p.read_text(encoding="utf-8"))
+    return read_json(p)
 
 
-def save_item(root: Path, item: dict) -> Path:
-    p = lab_dir(root) / "queue" / f"{item['id']}.json"
-    write_json_atomic(p, item)
-    return p
+def save_item(root: Path, item: dict) -> None:
+    write_json_atomic(lab_dir(root) / "queue" / f"{item['id']}.json", item)
 
 
-def ask_question(
-    root: Path, question: str, *, options: list[str], assumed: str, impact: str = "", session_id: str = ""
-) -> dict:
+def _next_id(root: Path) -> str:
+    nums = [int(i["id"][1:]) for i in list_queue(root) if i.get("id", "Q")[1:].isdigit()]
+    return f"Q{(max(nums) + 1) if nums else 1:03d}"
+
+
+def request(root: Path, category: str, command: str, *, cwd: Path, reason: str, session: str = "") -> dict:
+    """承認待ちを積む（同じカテゴリ・同じコマンドが pending ならそれを返す）."""
+    for it in list_queue(root):
+        if it.get("kind") == "approval" and it.get("status") == "pending" and it.get("command") == command:
+            return it
     item = {
-        "id": next_id(root),
+        "id": _next_id(root),
+        "kind": "approval",
+        "status": "pending",
+        "category": category,
+        "command": command,
+        "cwd": str(cwd),
+        "branch": git_branch(cwd),
+        "head": git(cwd, "rev-parse", "HEAD"),
+        "log": (git(cwd, "log", "--oneline", "-3") or "").replace("\n", " / "),
+        "reason": reason,
+        "created": _iso(_now()),
+        "session_id": session_id(session),
+    }
+    save_item(root, item)
+    return item
+
+
+def ask_question(root: Path, question: str, *, options: list[str], assumed: str, impact: str = "") -> dict:
+    item = {
+        "id": _next_id(root),
         "kind": "question",
         "status": "open",
         "question": question,
@@ -91,7 +124,7 @@ def ask_question(
         "impact": impact,
         "answer": None,
         "created": _iso(_now()),
-        "session_id": session_id or os.environ.get("CLAUDE_CODE_SESSION_ID", ""),
+        "session_id": session_id(),
     }
     save_item(root, item)
     return item
@@ -107,67 +140,119 @@ def answer_question(root: Path, qid: str, answer: str) -> dict:
 
 
 def mark_done(root: Path, qid: str) -> dict:
-    """Claude が「対応済み」にする（質問の回答を取り込んだ／承認済み要求を実行した）."""
+    """Claude が「対応済み」にする（回答を取り込んだ／承認済みの操作を実行した／却下を確認した）."""
     it = get_item(root, qid)
     it.update(status="done", done=_iso(_now()))
     save_item(root, it)
     return it
 
 
-# ---- 承認（人間だけ） ----
-def human_check() -> dict:
-    """承認の実行者の記録（誰が・端末か・Claude Code のシェルか）。
-
-    Claude が承認を作れないことは hooks（guard_bash が `labkit approve` を拒否）で保証する。ここは記録だけで、
-    確認の儀式（ID 再入力・--yes）は置かない: 再入力は Windows の非対話シェルで動かず、フラグは Claude も付けられる。
-    """
-    return {
-        "by": getpass.getuser(),
-        "tty": sys.stdin.isatty(),
-        "claude_shell": bool(os.environ.get("CLAUDECODE")),
-    }
-
-
-def approve(root: Path, qid: str, *, ttl_hours: float, who: dict) -> dict:
+def approve(root: Path, qid: str, *, ttl_hours: float) -> dict:
+    """承認 = その承認待ちのカテゴリを、そのブランチで ttl の間だけ委任する."""
     it = get_item(root, qid)
-    if it.get("kind") != "approval":
-        raise ValueError(f"{qid} は承認要求ではありません（kind={it.get('kind')}）")
-    if it.get("status") != "pending":
-        raise ValueError(f"{qid} は {it.get('status')} です（pending のみ承認できます）")
-    now = _now()
-    rec = {
-        "id": qid,
-        "command": it["command"],
-        "head": it.get("head"),
-        "cwd": it.get("cwd"),
-        "approved_at": _iso(now),
-        "expires_at": _iso(now + _dt.timedelta(hours=ttl_hours)),
-        "used_at": None,
-        **who,
-    }
-    d = lab_dir(root) / "approvals"
-    d.mkdir(exist_ok=True)
-    write_json_atomic(d / f"{qid}.json", rec)
-    it.update(status="approved", approved=_iso(now))
+    if it.get("kind") != "approval" or it.get("status") != "pending":
+        raise ValueError(
+            f"{qid} は pending の承認待ちではありません（kind={it.get('kind')}, status={it.get('status')}）"
+        )
+    d = add_delegation(root, [it["category"]], hours=ttl_hours, branch=it.get("branch"), note=f"approve {qid}")
+    it.update(status="approved", approved=_iso(_now()), delegation=d["id"])
     save_item(root, it)
-    return rec
+    return d
 
 
 def reject(root: Path, qid: str, note: str = "") -> dict:
     it = get_item(root, qid)
     if it.get("status") not in ("pending", "approved"):
         raise ValueError(f"{qid} は {it.get('status')} です")
-    if it.get("status") == "approved":
-        (root / LAB_DIR / "approvals" / f"{qid}.json").unlink(missing_ok=True)
+    if it.get("delegation"):
+        revoke_delegation(root, it["delegation"])
     it.update(status="rejected", rejected=_iso(_now()), note=note)
     save_item(root, it)
     return it
 
 
-def list_approvals(root: Path) -> list[dict]:
-    import json
+def pending_summary(root: Path) -> dict[str, list[dict]]:
+    q = list_queue(root)
+    return {
+        "pending": [i for i in q if i.get("kind") == "approval" and i.get("status") == "pending"],
+        "approved": [i for i in q if i.get("kind") == "approval" and i.get("status") == "approved"],
+        "rejected": [i for i in q if i.get("kind") == "approval" and i.get("status") == "rejected"],
+        "open_questions": [i for i in q if i.get("kind") == "question" and i.get("status") == "open"],
+        "answered": [i for i in q if i.get("kind") == "question" and i.get("status") == "answered"],
+    }
 
-    d = root / LAB_DIR / "approvals"
-    if not d.is_dir():
+
+# ---- 委任 ----
+def expand(names: list[str]) -> list[str]:
+    out: list[str] = []
+    for n in names:
+        if n in GROUPS:
+            out += GROUPS[n]
+        elif n in DELEGATABLE:
+            out.append(n)
+        else:
+            raise ValueError(f"委任できないカテゴリ: {n!r}（使えるもの: {', '.join([*DELEGATABLE, *GROUPS])}）")
+    return list(dict.fromkeys(out))
+
+
+def list_delegations(root: Path) -> list[dict]:
+    p = root / LAB_DIR / "delegations.json"
+    try:
+        return list(read_json(p)["items"]) if p.is_file() else []
+    except (json.JSONDecodeError, OSError, KeyError):
         return []
-    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(d.glob("Q*.json"))]
+
+
+def _active(d: dict) -> bool:
+    try:
+        return not d.get("revoked_at") and _dt.datetime.fromisoformat(d["expires_at"]) >= _now()
+    except (KeyError, ValueError):
+        return False
+
+
+def active_delegations(root: Path) -> list[dict]:
+    return [d for d in list_delegations(root) if _active(d)]
+
+
+def find_delegation(root: Path, category: str, branch: str | None = None) -> dict | None:
+    """category を含み、ブランチ限定なら branch が一致する有効な委任."""
+    for d in active_delegations(root):
+        if category in d["categories"] and (not d.get("branch") or d["branch"] == branch):
+            return d
+    return None
+
+
+def add_delegation(
+    root: Path, categories: list[str], *, hours: float, branch: str | None = None, note: str = ""
+) -> dict:
+    items = list_delegations(root)
+    now = _now()
+    d = {
+        "id": f"D{len(items) + 1:03d}",
+        "categories": expand(categories),
+        "branch": branch,
+        "note": note,
+        "granted_at": _iso(now),
+        "expires_at": _iso(now + _dt.timedelta(hours=hours)),
+        "revoked_at": None,
+    }
+    write_json_atomic(lab_dir(root) / "delegations.json", {"items": [*items, d]})
+    return d
+
+
+def revoke_delegation(root: Path, did: str) -> list[dict]:
+    items = list_delegations(root)
+    hit = [d for d in items if (did == "all" or d["id"] == did) and _active(d)]
+    if not hit:
+        raise FileNotFoundError(f"有効な委任 {did} がありません（`labkit delegate list`）")
+    for d in hit:
+        d["revoked_at"] = _iso(_now())
+    write_json_atomic(lab_dir(root) / "delegations.json", {"items": items})
+    return hit
+
+
+def describe_delegation(d: dict) -> str:
+    scope = f"、ブランチ {d['branch']}" if d.get("branch") else ""
+    return f"{d['id']}: {', '.join(d['categories'])}（期限 {d['expires_at']}{scope}" + (
+        f"、{d['note']}）" if d.get("note") else "）"
+    )

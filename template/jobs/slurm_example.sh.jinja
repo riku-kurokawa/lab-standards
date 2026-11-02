@@ -11,7 +11,6 @@ set -euo pipefail
 
 cd "${SLURM_SUBMIT_DIR}"
 export LAB_ENV=hpc                         # configs/paths/hpc.toml を使う
-export MLFLOW_DISABLE_TELEMETRY=true DO_NOT_TRACK=true
 
 # HPC 上でのコード編集は禁止。commit 済みであることを確認（meta.json の git.dirty でも記録される）
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then

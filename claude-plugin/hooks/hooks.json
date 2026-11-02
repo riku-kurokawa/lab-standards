@@ -1,41 +1,23 @@
 {
-  "description": "lab-standards: lab.toml のあるプロジェクトで規約・承認ゲート・手順を強制する。lab-standards 本体では承認ゲートのみ。それ以外では何もしない",
+  "description": "lab-standards: lab.toml のあるプロジェクトで承認ゲート・成果物の保護・終了時の検証を行う（判定は labkit hook）。それ以外では何もしない",
   "hooks": {
     "SessionStart": [
       {
         "matcher": "startup|resume|clear|compact",
-        "hooks": [
-          { "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session_context.py"], "timeout": 20 }
-        ]
+        "hooks": [{ "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hook.py", "session"], "timeout": 30 }]
       }
     ],
     "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/prompt_context.py"], "timeout": 10 }
-        ]
-      }
+      { "hooks": [{ "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hook.py", "prompt"], "timeout": 15 }] }
     ],
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
-        "hooks": [
-          { "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/guard_write.py"], "timeout": 10 }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          { "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/guard_bash.py"], "timeout": 15 }
-        ]
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hook.py", "pretool"], "timeout": 20 }]
       }
     ],
     "Stop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/stop_check.py"], "timeout": 300 }
-        ]
-      }
+      { "hooks": [{ "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hook.py", "stop"], "timeout": 300 }] }
     ]
   }
 }

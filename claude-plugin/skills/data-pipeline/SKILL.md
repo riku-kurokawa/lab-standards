@@ -1,15 +1,15 @@
 ---
 name: data-pipeline
-description: lab.toml のあるプロジェクトで生データの受け入れ・登録、前処理による派生データ（data/interim, data/processed）の作成、データ辞書の更新を行うときの手順。
+description: lab.toml のあるプロジェクトで生データの受け入れ・登録、前処理による派生データ（data/interim, data/processed）の作成、キャッシュ（data/cache）、データ辞書の更新を行うときの手順。
 ---
 
 # データの受け入れと前処理
 
 ## 生データ（data/raw）
 
-- 生データの配置は人間が行う。Claude は data/raw に書き込めない（hooks がブロックする）。
-- 配置後、人間が `uv run labkit raw freeze` を実行すると `MANIFEST.sha256` に登録され、読み取り専用になる。
-- 新しい生データが来たら `docs/data-dictionary.md` の data/raw の表（取得元・取得日・形式・変数・単位）を埋める。分からない項目は空欄にせず「要確認」と書き、人間に尋ねる。
+- 配置は人間が行う（または人間が `labkit delegate raw_write` を宣言したとき Claude が `mv` で 1 つずつ移す。削除はしない）。
+- 配置後、`uv run labkit raw freeze`（承認ゲート）で `MANIFEST.sha256` に登録され、読み取り専用になる。
+- 新しい生データが来たら `docs/data-dictionary.md` の data/raw の表（取得元・取得日・形式・変数・単位）を埋める。分からない項目は「要確認」と書き、人間に尋ねる。
 - 形式が HDF5 / Parquet 以外（.mat, .csv, 機器固有形式）でもそのまま置く。変換結果は派生データとして作る。
 
 ## 派生データ（data/interim, data/processed）
@@ -24,12 +24,20 @@ description: lab.toml のあるプロジェクトで生データの受け入れ�
        save(datapath("processed", "<name>.parquet"), table, inputs=[src],
             description="列の意味は docs/data-dictionary.md 参照", overwrite=True)
    ```
-   - 配列は `.h5`、表は `.parquet`。それ以外の形式で保存しない。
-   - 再生成のときだけ `overwrite=True`。
-   - TB 級で一度にメモリに載らないときは `writer()` で一時パスを受け取り、チャンク単位で書く。
+   - 配列は `.h5`、表は `.parquet`。サブディレクトリに置いてよい。`np.save` は来歴が付かない（L016 警告）。
+   - 再生成のときだけ `overwrite=True`。TB 級は `writer()` で一時パスを受け取り、チャンク単位で書く。
 3. `docs/data-dictionary.md` の data/processed の表に、生成スクリプト・変数・単位を追記する。
 4. 派生データは消しても `生データ + コード + 設定` から再生成できる状態を保つ。手で修正したデータを作らない。
+
+## キャッシュ（data/cache）
+
+前計算・学習の中間重みなど、再生成できて結果として引用しないものは `data/cache/` に置く（サイドカー不要、check の対象外）。
+scratch に逃がさない（scratch は成果物の根拠にできない）。
 
 ## 外部データ（data/external）
 
 公開データセットなどは取得スクリプトを `scripts/fetch_<name>.py` に書き、取得元 URL・取得日・ライセンスをデータ辞書に記録する。
+
+## 正本の保全
+
+`data/` と `runs/` は git 管理外。`configs/paths/local.toml` の `mirror_root` を設定し、節目で `uv run labkit mirror push`。

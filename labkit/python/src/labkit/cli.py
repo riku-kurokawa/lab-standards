@@ -1,4 +1,4 @@
-"""labkit コマンド。Python でも Julia でも、操作はすべてこの CLI に揃える."""
+"""labkit コマンド."""
 
 from __future__ import annotations
 
@@ -17,33 +17,8 @@ def _tpl(name: str) -> str:
     return resources.files("labkit.templates").joinpath(name).read_text(encoding="utf-8")
 
 
-def cmd_check(a) -> int:
-    from labkit.check import run_check
-
-    issues, mode = run_check(full=a.full, ignore=set(a.ignore or []))
-    if a.warn:
-        mode = "warn"
-    if a.strict:
-        mode = "strict"
-    errors = [i for i in issues if i.severity == "error"]
-    warns = [i for i in issues if i.severity != "error"]
-    if a.json:
-        print(json.dumps([vars(i) for i in issues], ensure_ascii=False, indent=2))
-    else:
-        for i in issues:
-            print(i)
-        if issues:
-            print(
-                f"\nlabkit check: {len(errors)} 件の違反、{len(warns)} 件の警告（mode={mode}{', full' if a.full else ''}）"
-            )
-        else:
-            print("labkit check: 違反なし ✓")
-    return 1 if errors and mode == "strict" else 0
-
-
-# ---- v0.3.0 ハーネス: 在席状態・承認キュー・手順・引用・レビュー ----
-def _scope_root():
-    from labkit.state import find_scope
+def _scope_root() -> Path:
+    from labkit.config import find_scope
 
     sc = find_scope()
     if sc is None:
@@ -51,245 +26,23 @@ def _scope_root():
     return sc[0]
 
 
-def _gate_conf(root) -> dict:
-    from labkit.config import DEFAULTS, load_lab
+def cmd_check(a) -> int:
+    from labkit.check import run_check
 
-    if (root / "lab.toml").is_file():
-        return load_lab(root)["gate"]
-    return dict(DEFAULTS["gate"])
-
-
-def cmd_presence(a) -> int:
-    from labkit import state
-
-    root = _scope_root()
-    if a.value == "status":
-        print(f"presence = {state.get_presence(root)}（既定 away。here: 確認画面を出す / away: 拒否してキューに積む）")
+    issues, mode = run_check(full=a.full, ignore=set(a.ignore or []), claims=a.claims)
+    mode = "warn" if a.warn else "strict" if a.strict else mode
+    errors = [i for i in issues if i.severity == "error"]
+    if a.json:
+        print(json.dumps([vars(i) for i in issues], ensure_ascii=False, indent=2))
     else:
-        print(f"presence = {state.set_presence(root, a.value)}")
-    return 0
-
-
-def _print_item(it: dict) -> None:
-    if it.get("kind") == "approval":
-        print(f"{it['id']}  [{it.get('status')}]  {it.get('command')}")
+        for i in issues:
+            print(i)
         print(
-            f"      cwd={it.get('cwd')} branch={it.get('branch')} head={(it.get('head') or '')[:7]} "
-            f"created={it.get('created')}"
+            f"\nlabkit check: {len(errors)} 件の違反、{len(issues) - len(errors)} 件の警告（mode={mode}）"
+            if issues
+            else "labkit check: 違反なし ✓"
         )
-        if it.get("reason"):
-            print(f"      理由: {it['reason']}")
-        if it.get("diff_summary"):  # 承認は記録時の HEAD に結び付くので、記録時点の要約が判断材料
-            print(f"      記録時点: {it['diff_summary']}")
-    elif it.get("kind") == "question":
-        print(f"{it['id']}  [{it.get('status')}]  質問: {it.get('question')}")
-        if it.get("options"):
-            print(f"      選択肢: {' / '.join(it['options'])}")
-        print(
-            f"      仮の判断: {it.get('assumed')}" + (f"（変更時の影響: {it['impact']}）" if it.get("impact") else "")
-        )
-        if it.get("answer"):
-            print(f"      回答: {it['answer']}")
-    else:
-        print(f"{it.get('id')}  [{it.get('status')}]")
-
-
-def cmd_queue(a) -> int:
-    from labkit import state
-
-    root = _scope_root()
-    if a.action == "list":
-        items = state.list_queue(root)
-        if a.all is False:
-            # rejected は Claude が `queue done` で確認するまで未処理
-            items = [i for i in items if i.get("status") in ("pending", "approved", "open", "answered", "rejected")]
-        if not items:
-            print("キューは空です")
-        for it in items:
-            _print_item(it)
-    elif a.action == "ask":
-        if not a.text or not a.assumed:
-            raise SystemExit("queue ask <質問> --assumed <仮の判断> [--options A B ...] [--impact ...]")
-        it = state.ask_question(root, a.text, options=a.options or [], assumed=a.assumed, impact=a.impact or "")
-        print(
-            f'質問 #{it["id"]} を積みました。仮の判断（{a.assumed}）で先に進んでください。人間: `labkit answer {it["id"]} "..."`'
-        )
-    elif a.action == "done":
-        if not a.text:
-            raise SystemExit("queue done <ID>")
-        it = state.mark_done(root, a.text)
-        print(f"{it['id']} を done にしました")
-    return 0
-
-
-def cmd_approve(a) -> int:
-    from labkit import state
-
-    root = _scope_root()
-    who = state.human_check()
-    rec = state.approve(root, a.id, ttl_hours=float(_gate_conf(root)["approval_ttl_hours"]), who=who)
-    print(
-        f"承認しました: {rec['id']}  {rec['command']}\n  HEAD={(rec['head'] or '')[:7]}  期限={rec['expires_at']}  1 回限り"
-    )
-    if who["claude_shell"]:
-        print("  注意: Claude Code のシェル環境から承認しました（記録に claude_shell=true）")
-    return 0
-
-
-def cmd_delegate(a) -> int:
-    """人間が「この種類の操作はこの期間 Claude に任せる」と宣言する（hooks が Claude の実行を拒否する）."""
-    from labkit import state
-
-    root = _scope_root()
-    if a.action == "list":
-        lines = state.describe_delegations(root)
-        print("\n".join(lines) if lines else "有効な委任はありません")
-        if a.all:
-            for d in state.list_delegations(root):
-                if not state.delegation_active(d):
-                    print(f"  (期限切れ/取り消し) {d['id']}: {', '.join(d['categories'])} 期限 {d['expires_at']}")
-        return 0
-    if a.action == "revoke":
-        if not a.categories:
-            raise SystemExit("delegate revoke <ID|all>")
-        who = state.human_check()
-        for d in state.revoke_delegation(root, a.categories[0]):
-            print(f"取り消しました: {d['id']}  {', '.join(d['categories'])}")
-        if who["claude_shell"]:
-            print("  注意: Claude Code のシェル環境から実行しました（記録に claude_shell=true）")
-        return 0
-    if not a.categories:
-        raise SystemExit(
-            "delegate <カテゴリ...> [--hours N] [--note ...]  カテゴリ: "
-            + ", ".join(state.DELEGATABLE)
-            + "  グループ: "
-            + ", ".join(state.DELEGATION_GROUPS)
-        )
-    who = state.human_check()
-    d = state.add_delegation(root, a.categories, hours=float(a.hours), note=a.note or "", who=who)
-    print(
-        f"委任しました: {d['id']}  {', '.join(d['categories'])}\n  期限={d['expires_at']}  取り消し: labkit delegate revoke {d['id']}"
-    )
-    print("  期間中、Claude はこの種類の操作を承認待ちに積まずに実行します（hooks が理由に委任 ID を残す）")
-    if who["claude_shell"]:
-        print("  注意: Claude Code のシェル環境から実行しました（記録に claude_shell=true）")
-    return 0
-
-
-def cmd_mode(a) -> int:
-    """lab.toml の [check] mode を切り替える（人間、または lab_toml の委任を受けた Claude。hooks が承認ゲートとして扱う）."""
-    from labkit.config import find_root
-
-    root = find_root()
-    p = root / "lab.toml"
-    text = p.read_text(encoding="utf-8")
-    if a.value is None:
-        m = re.search(r'^mode\s*=\s*"(warn|strict)"', text, re.M)
-        print(f"mode = {m.group(1) if m else '(未設定: 既定 strict)'}")
-        return 0
-    new, n = re.subn(r'^(mode\s*=\s*)"(?:warn|strict)"', rf'\g<1>"{a.value}"', text, count=1, flags=re.M)
-    if n != 1:
-        raise SystemExit('lab.toml に [check] の `mode = "..."` の行が 1 つ見つかりません（手で編集してください）')
-    p.write_text(new, encoding="utf-8", newline="\n")
-    print(f'lab.toml: [check] mode = "{a.value}"')
-    return 0
-
-
-def cmd_reject(a) -> int:
-    from labkit import state
-
-    root = _scope_root()
-    state.human_check()
-    it = state.reject(root, a.id, note=a.note or "")
-    print(f"却下しました: {it['id']}")
-    return 0
-
-
-def cmd_answer(a) -> int:
-    from labkit import state
-
-    root = _scope_root()
-    it = state.answer_question(root, a.id, a.text)
-    print(
-        f"回答を記録しました: {it['id']}（Claude は次のプロンプトで文脈に受け取り、取り込んだら `labkit queue done {it['id']}`）"
-    )
-    return 0
-
-
-def cmd_flow(a) -> int:
-    from labkit import flow
-    from labkit.config import find_root
-
-    try:
-        root = find_root()
-    except FileNotFoundError:
-        # migrate は lab.toml が無い段階（freeze / inventory）から始まる: git の最上位、なければ cwd を使う
-        import subprocess
-
-        r = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace"
-        )
-        root = Path(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip() else Path.cwd()
-    if a.action == "start":
-        if not a.name:
-            raise SystemExit(f"flow start <name>  （{', '.join(sorted(flow.definitions()))}）")
-        st = flow.start(root, a.name)
-        print(flow.describe(root, st))
-    elif a.action == "status":
-        flows = flow.active_flows(root)
-        if a.name:
-            st = flow.load_state(root, a.name)
-            flows = [st] if st else []
-        if not flows:
-            print("進行中の flow はありません（`labkit flow start migrate|improve-standards`）")
-        for st in flows:
-            print(flow.describe(root, st))
-    elif a.action == "advance":
-        names = [a.name] if a.name else [f["flow"] for f in flow.active_flows(root)]
-        if len(names) != 1:
-            raise SystemExit("flow advance <name>（進行中の flow が 1 つなら省略可）")
-        st, msg = flow.advance(root, names[0])
-        print(msg)
-        print(flow.describe(root, st))
-    elif a.action == "abort":
-        names = [a.name] if a.name else [f["flow"] for f in flow.active_flows(root)]
-        if len(names) != 1:
-            raise SystemExit("flow abort <name>")
-        flow.abort(root, names[0])
-        print(f"flow {names[0]} を中止しました")
-    return 0
-
-
-def cmd_cite(a) -> int:
-    from labkit.check import cite
-
-    print(cite(a.run_id, a.key, digits=a.digits, unit=a.unit or ""))
-    return 0
-
-
-def cmd_review(a) -> int:
-    """レビュー記録の frontmatter 雛形（現在の HEAD 入り）。lab-reviewer が docs/reviews/<date>_<flow>_<stage>.md に書く."""
-    from labkit import flow, reviews, state
-    from labkit.config import find_root
-
-    defs = flow.definitions()
-    if a.flow not in defs:
-        raise SystemExit(f"flow '{a.flow}' はありません。使える flow: {', '.join(sorted(defs))}")
-    stages = {s["name"]: s for s in defs[a.flow]["stage"]}
-    if a.stage not in stages:
-        raise SystemExit(f"flow '{a.flow}' に段階 '{a.stage}' はありません。段階: {', '.join(stages)}")
-    root = find_root()
-    # 完了条件 review が repo="standards" なら本体の HEAD に結び付く（advance が照合する HEAD と同じものを入れる）
-    conds = [c for c in stages[a.stage].get("done", []) if c.get("type") == "review" and c.get("repo") == "standards"]
-    target = root
-    if conds:
-        target = flow._standards_dev(root)
-        if target is None:
-            raise SystemExit(
-                "lab-standards 本体のチェックアウトが見つかりません（$LAB_STANDARDS_DEV か ~/dev/lab-standards）"
-            )
-    print(reviews.template(a.flow, a.stage, state.git_head(target) or ""), end="")
-    return 0
+    return 1 if errors and mode == "strict" else 0
 
 
 def cmd_fig(a) -> int:
@@ -317,16 +70,10 @@ def cmd_raw(a) -> int:
 
 
 def cmd_devlog(a) -> int:
-    from labkit.config import find_root, load_lab
+    from labkit.config import find_root
+    from labkit.devlog import update
 
-    root = find_root()
-    lab = load_lab(root)
-    date = a.date or _dt.date.today().isoformat()
-    p = root / lab["devlog"]["dir"] / f"{date}.md"
-    if not p.exists():
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(_tpl("devlog.md").replace("{{date}}", date), encoding="utf-8", newline="\n")
-    print(p)
+    print(update(find_root(), a.date))
     return 0
 
 
@@ -339,22 +86,21 @@ def cmd_adr(a) -> int:
     d.mkdir(parents=True, exist_ok=True)
     nums = [int(m.group(1)) for p in d.glob("*.md") if (m := re.match(r"^(\d{4})-", p.name))]
     num = f"{(max(nums) + 1) if nums else 1:04d}"
-    slug = a.slug or slugify(a.title)
-    p = d / f"{num}-{slug}.md"
-    p.write_text(
+    p = d / f"{num}-{a.slug or slugify(a.title)}.md"
+    text = (
         _tpl("adr.md")
         .replace("{{number}}", num)
         .replace("{{title}}", a.title)
-        .replace("{{date}}", _dt.date.today().isoformat()),
-        encoding="utf-8",
-        newline="\n",
+        .replace("{{date}}", _dt.date.today().isoformat())
     )
+    p.write_text(text, encoding="utf-8", newline="\n")
     print(p)
     return 0
 
 
 def cmd_lit(a) -> int:
     from labkit import literature as lit
+    from labkit._util import slugify
     from labkit.config import find_root, load_lab
 
     root = find_root()
@@ -365,9 +111,9 @@ def cmd_lit(a) -> int:
         lit.build_index(root, lab)
         print(f"{key}\n{note}")
     elif a.action == "survey":
+        if not a.question:
+            raise SystemExit("--question が必要です")
         date = _dt.date.today().isoformat()
-        from labkit._util import slugify
-
         p = lit.lit_dir(root, lab) / "surveys" / f"{date}_{a.slug or slugify(a.question)[:40]}.md"
         if p.exists():
             raise SystemExit(f"既に存在します: {p}")
@@ -378,47 +124,37 @@ def cmd_lit(a) -> int:
             newline="\n",
         )
         print(p)
-    elif a.action == "index":
+    else:
         print(lit.build_index(root, lab))
-    elif a.action == "key":
-        bib = Path(a.file).read_text(encoding="utf-8") if a.file else sys.stdin.read()
-        for _, f in lit.parse_bib(bib).items():
-            print(lit.make_citekey(f))
-    elif a.action == "check":
-        issues = lit.check_literature(root, lab)
-        for i in issues:
-            print("  ".join(i))
-        return 1 if issues else 0
     return 0
 
 
 def cmd_runs(a) -> int:
-    from labkit.runs import find_run, list_runs
+    from labkit.runs import find_run, list_runs, mark_run
 
     if a.action == "list":
         for m in list_runs():
             if a.status and m.get("status") != a.status:
                 continue
             dirty = "*" if (m.get("git") or {}).get("dirty") else ""
-            print(
-                f"{m.get('run_id')}  {m.get('status', '?'):11s} {m.get('language', '?'):6s} "
-                f"{m.get('duration_s') or '-':>8}s {dirty}"
-            )
-    else:
+            print(f"{m.get('run_id')}  {m.get('status', '?'):11s} {m.get('duration_s') or '-':>8}s {dirty}")
+    elif a.action == "show":
         d = find_run(a.run_id)
         print((d / "meta.json").read_text(encoding="utf-8"))
         if (d / "metrics.json").exists():
             print("metrics:", (d / "metrics.json").read_text(encoding="utf-8"))
+    else:
+        if not a.to:
+            raise SystemExit("runs mark <run_id> --to failed|interrupted|finished [--reason ...]")
+        m = mark_run(a.run_id, a.to, a.reason or "")
+        print(f"{m['run_id']}: status={m['status']}")
     return 0
 
 
-def cmd_mlflow(a) -> int:
-    from labkit import mlflow_sync
+def cmd_mirror(a) -> int:
+    from labkit import mirror
 
-    if a.action == "sync":
-        mlflow_sync.sync(force=a.force)
-    else:
-        mlflow_sync.ui(port=a.port)
+    (mirror.push if a.action == "push" else mirror.pull)(to=a.to, paths=a.paths, verify=a.verify)
     return 0
 
 
@@ -433,7 +169,7 @@ def cmd_standards(a) -> int:
         if not a.to:
             raise SystemExit("--to vX.Y.Z（戻す先のリリースタグ）が必要です")
         std.unlink(a.to, do_sync=not a.no_sync)
-    elif a.action == "template":
+    else:
         if not a.ref:
             raise SystemExit("--ref（タグ、または push 済みのブランチ名）が必要です")
         return std.template(a.ref)
@@ -445,8 +181,175 @@ def cmd_paths(a) -> int:
 
     print(f"LAB_ENV={env_name()}")
     for k, v in load_paths().items():
-        print(f"{k} = {v}")
+        print(f"{k} = {v if v is not None else '(未設定)'}")
     return 0
+
+
+# ---- ハーネス: キュー・承認・委任・手順・引用・レビュー・hook ----
+def _print_item(it: dict) -> None:
+    if it.get("kind") == "approval":
+        print(f"{it['id']}  [{it.get('status')}]  {it.get('category')}  {it.get('command')}")
+        print(
+            f"      branch={it.get('branch')} head={(it.get('head') or '')[:7]} created={it.get('created')}  直近: {it.get('log')}"
+        )
+    else:
+        print(f"{it['id']}  [{it.get('status')}]  質問: {it.get('question')}")
+        if it.get("options"):
+            print(f"      選択肢: {' / '.join(it['options'])}")
+        print(
+            f"      仮の判断: {it.get('assumed')}" + (f"（変更時の影響: {it['impact']}）" if it.get("impact") else "")
+        )
+        if it.get("answer"):
+            print(f"      回答: {it['answer']}")
+
+
+def cmd_queue(a) -> int:
+    from labkit import state
+
+    root = _scope_root()
+    if a.action == "list":
+        items = state.list_queue(root)
+        if not a.all:
+            items = [i for i in items if i.get("status") in ("pending", "approved", "open", "answered", "rejected")]
+        for it in items:
+            _print_item(it)
+        if not items:
+            print("キューは空です")
+    elif a.action == "ask":
+        if not a.text or not a.assumed:
+            raise SystemExit("queue ask <質問> --assumed <仮の判断> [--options A B ...] [--impact ...]")
+        it = state.ask_question(root, a.text, options=a.options or [], assumed=a.assumed, impact=a.impact or "")
+        print(
+            f'質問 #{it["id"]} を積みました。仮の判断（{a.assumed}）で先に進んでください。人間: `labkit answer {it["id"]} "..."`'
+        )
+    else:
+        if not a.text:
+            raise SystemExit("queue done <ID>")
+        print(f"{state.mark_done(root, a.text)['id']} を done にしました")
+    return 0
+
+
+def cmd_approve(a) -> int:
+    from labkit import state
+    from labkit.config import load_lab
+
+    root = _scope_root()
+    d = state.approve(root, a.id, ttl_hours=float(a.hours or load_lab(root)["gate"]["approval_ttl_hours"]))
+    print(f"承認しました: {a.id} → 委任 {state.describe_delegation(d)}")
+    return 0
+
+
+def cmd_reject(a) -> int:
+    from labkit import state
+
+    print(f"却下しました: {state.reject(_scope_root(), a.id, note=a.note or '')['id']}")
+    return 0
+
+
+def cmd_answer(a) -> int:
+    from labkit import state
+
+    it = state.answer_question(_scope_root(), a.id, a.text)
+    print(
+        f"回答を記録しました: {it['id']}（Claude は次のプロンプトで受け取り、取り込んだら `labkit queue done {it['id']}`）"
+    )
+    return 0
+
+
+def cmd_delegate(a) -> int:
+    from labkit import state
+
+    root = _scope_root()
+    if a.categories[:1] == ["list"]:
+        lines = [state.describe_delegation(d) for d in state.active_delegations(root)]
+        print("\n".join(lines) if lines else "有効な委任はありません")
+        return 0
+    if a.categories[:1] == ["revoke"]:
+        if len(a.categories) < 2:
+            raise SystemExit("delegate revoke <ID|all>")
+        for d in state.revoke_delegation(root, a.categories[1]):
+            print(f"取り消しました: {d['id']}  {', '.join(d['categories'])}")
+        return 0
+    if not a.categories:
+        raise SystemExit(
+            "delegate <カテゴリ...> [--hours N] [--branch B] [--note ...]  カテゴリ: "
+            + ", ".join(state.DELEGATABLE)
+            + "  グループ: "
+            + ", ".join(state.GROUPS)
+        )
+    d = state.add_delegation(root, a.categories, hours=a.hours, branch=a.branch, note=a.note or "")
+    print(f"委任しました: {state.describe_delegation(d)}\n  取り消し: labkit delegate revoke {d['id']}")
+    return 0
+
+
+def cmd_flow(a) -> int:
+    from labkit import flow
+    from labkit._util import git
+
+    try:
+        from labkit.config import find_root
+
+        root = find_root()
+    except FileNotFoundError:  # migrate は雛形適用前から始まる: git の最上位、なければ cwd
+        root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel") or Path.cwd())
+    if a.action == "start":
+        print(flow.describe(root, flow.start(root, a.name or "migrate")))
+    elif a.action == "status":
+        flows = flow.active_flows(root)
+        if not flows:
+            print("進行中の flow はありません（`labkit flow start migrate`）")
+        for st in flows:
+            print(flow.describe(root, st))
+    else:
+        names = [a.name] if a.name else [f["flow"] for f in flow.active_flows(root)]
+        if len(names) != 1:
+            raise SystemExit(f"flow {a.action} <name>")
+        if a.action == "advance":
+            st, msg = flow.advance(root, names[0])
+            print(msg)
+            print(flow.describe(root, st))
+        else:
+            flow.abort(root, names[0])
+            print(f"flow {names[0]} を中止しました")
+    return 0
+
+
+def cmd_cite(a) -> int:
+    from labkit.check import cite
+
+    print(cite(a.run_id, a.key, digits=a.digits, unit=a.unit or ""))
+    return 0
+
+
+def cmd_review(a) -> int:
+    from labkit import flow, reviews
+    from labkit._util import git
+
+    stages = (
+        {s["name"] for s in flow.definitions().get(a.flow, {"stage": []})["stage"]} if a.flow != "adhoc" else {a.stage}
+    )
+    if a.stage not in stages:
+        raise SystemExit(f"flow '{a.flow}' に段階 '{a.stage}' はありません（flow が無いレビューは `adhoc <stage>`）")
+    root = _scope_root()
+    print(reviews.template(a.flow, a.stage, git(root, "rev-parse", "HEAD") or ""), end="")
+    return 0
+
+
+def cmd_hook(a) -> int:
+    from labkit.hook import handle
+
+    try:
+        data = json.load(sys.stdin)
+    except (json.JSONDecodeError, ValueError):
+        data = {}
+    if a.plugin_version:
+        data["plugin_version"] = a.plugin_version
+    code, out, err = handle(a.event, data)
+    if out:
+        print(out)
+    if err:
+        print(err, file=sys.stderr)
+    return code
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -454,8 +357,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"labkit {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("check", help="規約チェック")
+    s = sub.add_parser("check", help="規約チェック（--claims で成果物の検証だけ）")
     s.add_argument("--full", action="store_true", help="data/raw の sha256 まで照合（遅い）")
+    s.add_argument("--claims", action="store_true", help="成果物の検証（raw・run・サイドカー・開発ログ・引用）だけ")
     s.add_argument("--warn", action="store_true", help="違反があっても終了コード 0")
     s.add_argument("--strict", action="store_true", help="lab.toml が warn でも失敗扱い")
     s.add_argument("--json", action="store_true")
@@ -464,7 +368,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("fig", help="図テンプレートで図を作る（`labkit fig list` で一覧）")
     s.add_argument("spec", help="figspecs/*.toml または list")
-    s.add_argument("--run", help="run ID（前方一致・部分一致可）")
+    s.add_argument("--run", help="run ID（部分一致可）")
     s.add_argument("--out-dir", help="出力先（既定: runs/<id>/figures、run 無しは scratch/figures）")
     s.set_defaults(func=cmd_fig)
 
@@ -474,52 +378,50 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--no-chmod", action="store_true")
     s.set_defaults(func=cmd_raw)
 
-    s = sub.add_parser("devlog", help="今日の開発ログを作成（既存ならパスを表示）")
+    s = sub.add_parser("devlog", help="今日の開発ログを作成し、変更ファイルと run の自動ブロックを更新する")
     s.add_argument("--date")
     s.set_defaults(func=cmd_devlog)
 
     s = sub.add_parser("adr", help="ADR を新規作成")
     s.add_argument("title")
-    s.add_argument("--slug", help="ファイル名用の英語スラッグ（日本語タイトル時に推奨）")
+    s.add_argument("--slug", help="ファイル名用の英語スラッグ")
     s.set_defaults(func=cmd_adr)
 
-    s = sub.add_parser("lit", help="文献管理")
-    s.add_argument("action", choices=["add", "survey", "index", "key", "check"])
+    s = sub.add_parser("lit", help="文献管理（add / survey / index）")
+    s.add_argument("action", choices=["add", "survey", "index"])
     s.add_argument("--file", help="BibTeX ファイル（省略時は標準入力）")
     s.add_argument("--pdf", help="add: 一緒に登録する PDF（literature/pdfs/<citekey>.pdf へ移動）")
     s.add_argument("--tags", nargs="*", default=[])
-    s.add_argument("--key", help="add: citekey を明示（重複回避など）")
+    s.add_argument("--key", help="add: citekey を明示")
     s.add_argument("--question", help="survey: 調査の問い")
     s.add_argument("--slug", help="survey: ファイル名スラッグ")
     s.set_defaults(func=cmd_lit)
 
-    s = sub.add_parser("runs", help="run の一覧・詳細")
-    s.add_argument("action", choices=["list", "show"])
+    s = sub.add_parser("runs", help="run の一覧・詳細・異常終了の記録（list / show / mark）")
+    s.add_argument("action", choices=["list", "show", "mark"])
     s.add_argument("run_id", nargs="?")
-    s.add_argument("--status")
+    s.add_argument("--status", help="list: 絞り込み")
+    s.add_argument("--to", choices=["failed", "interrupted", "finished"], help="mark: 記録する状態")
+    s.add_argument("--reason", help="mark: 理由")
     s.set_defaults(func=cmd_runs)
 
-    s = sub.add_parser("mlflow", help="runs/ をローカル MLflow に同期・閲覧")
-    s.add_argument("action", choices=["sync", "ui"])
-    s.add_argument("--force", action="store_true")
-    s.add_argument("--port", type=int, default=5000)
-    s.set_defaults(func=cmd_mlflow)
+    s = sub.add_parser("mirror", help="正本（data/ runs/）の写し（push / pull）")
+    s.add_argument("action", choices=["push", "pull"])
+    s.add_argument("--to", help="写し先（既定: configs/paths/<LAB_ENV>.toml の mirror_root）")
+    s.add_argument("--paths", nargs="*", help="対象ディレクトリ（既定: data runs）")
+    s.add_argument("--verify", action="store_true", help="sha256 で比較する（遅い）")
+    s.set_defaults(func=cmd_mirror)
 
     s = sub.add_parser("standards", help="lab-standards 本体との接続（status / link / unlink / template）")
     s.add_argument("action", choices=["status", "link", "unlink", "template"])
     s.add_argument("--path", help="link: 本体チェックアウト（既定: $LAB_STANDARDS_DEV か ~/dev/lab-standards）")
-    s.add_argument("--to", help="unlink: 戻す先のリリースタグ（例: v0.2.0）")
+    s.add_argument("--to", help="unlink: 戻す先のリリースタグ")
     s.add_argument("--ref", help="template: copier update に使うタグまたは push 済みブランチ")
-    s.add_argument("--no-sync", action="store_true", help="uv sync / Pkg.instantiate を実行しない")
+    s.add_argument("--no-sync", action="store_true", help="uv sync を実行しない")
     s.set_defaults(func=cmd_standards)
 
     s = sub.add_parser("paths", help="現在の LAB_ENV で解決されるパスを表示")
     s.set_defaults(func=cmd_paths)
-
-    # --- v0.3.0 ハーネス ---
-    s = sub.add_parser("presence", help="在席状態（here: 確認画面 / away: 拒否してキューへ。既定 away）")
-    s.add_argument("value", choices=["here", "away", "status"])
-    s.set_defaults(func=cmd_presence)
 
     s = sub.add_parser("queue", help="承認待ち・質問のキュー（list / ask / done）")
     s.add_argument("action", choices=["list", "ask", "done"])
@@ -527,30 +429,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--options", nargs="*", help="ask: 選択肢")
     s.add_argument("--assumed", help="ask: 仮に採用した判断とその理由")
     s.add_argument("--impact", help="ask: 後で変える場合の影響範囲")
-    s.add_argument("--all", action="store_true", help="list: 完了・却下済みも表示")
+    s.add_argument("--all", action="store_true", help="list: 完了済みも表示")
     s.set_defaults(func=cmd_queue)
 
-    s = sub.add_parser("approve", help="承認（人間のみ。Claude の Bash からは hooks が拒否する）")
+    s = sub.add_parser("approve", help="承認（人間のみ）: その種類の操作をそのブランチで期限まで許可する")
     s.add_argument("id")
+    s.add_argument("--hours", type=float, help="有効期間（既定: lab.toml の gate.approval_ttl_hours）")
     s.set_defaults(func=cmd_approve)
-
-    s = sub.add_parser(
-        "delegate",
-        help="委任（人間のみ）: この種類の操作をこの期間 Claude に任せる。`delegate list` / `delegate revoke <ID|all>`",
-    )
-    s.add_argument(
-        "categories", nargs="*", help="カテゴリ（git_push, raw_freeze, flow, raw_write, lab_toml, ...）か list / revoke"
-    )
-    s.add_argument("--hours", type=float, default=8.0, help="有効期間（既定 8 時間）")
-    s.add_argument("--note", help="目的（記録に残す）")
-    s.add_argument("--all", action="store_true", help="list: 期限切れ・取り消し済みも表示")
-    s.set_defaults(func=cmd_delegate, action=None)
-
-    s = sub.add_parser(
-        "mode", help="lab.toml の [check] mode を表示・切替（warn | strict）。Claude は lab_toml の委任があるときだけ"
-    )
-    s.add_argument("value", nargs="?", choices=["warn", "strict"])
-    s.set_defaults(func=cmd_mode)
 
     s = sub.add_parser("reject", help="却下（人間のみ）")
     s.add_argument("id")
@@ -562,9 +447,19 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("text")
     s.set_defaults(func=cmd_answer)
 
-    s = sub.add_parser("flow", help="手順の状態機械（start / status / advance / abort）")
+    s = sub.add_parser(
+        "delegate",
+        help="委任（人間のみ）: `delegate <カテゴリ...> --hours N` / `delegate list` / `delegate revoke <ID|all>`",
+    )
+    s.add_argument("categories", nargs="*")
+    s.add_argument("--hours", type=float, default=8.0, help="有効期間（既定 8 時間）")
+    s.add_argument("--branch", help="このブランチに限る")
+    s.add_argument("--note", help="目的（記録に残す）")
+    s.set_defaults(func=cmd_delegate)
+
+    s = sub.add_parser("flow", help="手順のチェックリスト（start / status / advance / abort）")
     s.add_argument("action", choices=["start", "status", "advance", "abort"])
-    s.add_argument("name", nargs="?", help="migrate | improve-standards")
+    s.add_argument("name", nargs="?", help="migrate")
     s.set_defaults(func=cmd_flow)
 
     s = sub.add_parser("cite", help="run の指標を検証可能な書式で出す: 12.3 dB [run:<id>:<key>]")
@@ -574,34 +469,32 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--unit", help="単位（例: dB）")
     s.set_defaults(func=cmd_cite)
 
-    s = sub.add_parser("review", help="レビュー記録の frontmatter 雛形を出す: labkit review template <flow> <stage>")
+    s = sub.add_parser("review", help="レビュー記録の frontmatter 雛形: labkit review template <flow|adhoc> <stage>")
     s.add_argument("action", choices=["template"])
     s.add_argument("flow")
     s.add_argument("stage")
     s.set_defaults(func=cmd_review)
+
+    s = sub.add_parser("hook", help="Claude Code hooks の判定（plugin が呼ぶ。stdin に hook 入力 JSON）")
+    s.add_argument("event", choices=["pretool", "session", "prompt", "stop"])
+    s.add_argument("--plugin-version")
+    s.set_defaults(func=cmd_hook)
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
-    # 出力は UTF-8 に固定（hooks と同じ）。Windows の既定はコンソールのコードページ（cp932 など）で、パイプ越し（Claude Code の
-    # Bash、Stop hook、Julia の cite）に渡る日本語のメッセージが文字化けする
-    for stream in (sys.stdout, sys.stderr):
+    for stream in (sys.stdin, sys.stdout, sys.stderr):  # Windows（cp932）でもパイプ越しの日本語を壊さない
         if hasattr(stream, "reconfigure"):
             try:
                 stream.reconfigure(encoding="utf-8", errors="replace")
             except (ValueError, OSError):
                 pass
     args = build_parser().parse_args(argv)
-    if args.cmd == "delegate" and args.categories and args.categories[0] in ("list", "revoke"):
-        args.action, args.categories = args.categories[0], args.categories[1:]
-    if args.cmd == "lit" and args.action == "survey" and not args.question:
-        raise SystemExit("--question が必要です")
-    if args.cmd == "runs" and args.action == "show" and not args.run_id:
+    if args.cmd == "runs" and args.action != "list" and not args.run_id:
         raise SystemExit("run_id が必要です")
     try:
         return int(args.func(args) or 0)
-    except (OSError, ValueError) as e:
-        # 利用者の誤り（無いファイル・run、不正な figspec/TOML、読み取り専用領域）は 1 行で伝える。traceback は内部エラーにだけ残す
+    except (OSError, ValueError) as e:  # 利用者の誤りは 1 行で伝える。traceback は内部エラーにだけ残す
         print(f"labkit: {e}", file=sys.stderr)
         return 1
 
