@@ -4,9 +4,9 @@ import json
 import subprocess
 
 import pytest
-from labkit.hook import handle
 
 from labkit import state
+from labkit.hook import handle
 
 from .conftest import git
 

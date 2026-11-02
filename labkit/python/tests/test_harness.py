@@ -3,9 +3,9 @@
 import json
 
 import pytest
-from labkit.devlog import section_bodies, update
 
 from labkit import Run, flow, mirror, state
+from labkit.devlog import section_bodies, update
 
 from .conftest import git
 
