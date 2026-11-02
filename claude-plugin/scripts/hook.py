@@ -51,9 +51,18 @@ def main() -> int:
         if event == "session":
             print("[lab-rules] labkit が見つからないため規約の検査は無効です。`uv sync` で環境を作ってください。")
         return 0
-    version = json.loads((Path(__file__).resolve().parents[1] / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
-    r = subprocess.run([*cmd, "hook", event, "--plugin-version", version], input=raw, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", cwd=root)
+    version = json.loads(
+        (Path(__file__).resolve().parents[1] / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )["version"]
+    r = subprocess.run(
+        [*cmd, "hook", event, "--plugin-version", version],
+        input=raw,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=root,
+    )
     sys.stdout.write(r.stdout)
     sys.stderr.write(r.stderr)
     return r.returncode

@@ -1,7 +1,6 @@
 """Bash コマンドの分類（承認ゲートの対象・禁止・レビュアーの許可リスト）."""
 
 import pytest
-
 from labkit.gate import classify, reviewer_allowed
 
 P = ["main", "master"]

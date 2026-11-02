@@ -9,9 +9,10 @@ import pytest
 h5py = pytest.importorskip("h5py")
 pytest.importorskip("pyarrow")
 
-from labkit import Run, datapath, load, load_meta, runpath, save, writer  # noqa: E402
 from labkit.check import run_check  # noqa: E402
 from labkit.io import ReadOnlyAreaError  # noqa: E402
+
+from labkit import Run, datapath, load, load_meta, runpath, save, writer  # noqa: E402
 
 
 def test_h5_roundtrip_and_sidecar(project):

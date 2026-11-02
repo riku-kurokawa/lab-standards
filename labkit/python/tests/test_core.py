@@ -5,12 +5,12 @@ import os
 import stat
 
 import pytest
-
-from labkit import Run, add_input, load_config, log_message, log_metric, runpath
 from labkit.check import run_check
 from labkit.config import load_lab
 from labkit.literature import add_entry, make_citekey, parse_bib
 from labkit.runs import list_runs, mark_run
+
+from labkit import Run, add_input, load_config, log_message, log_metric, runpath
 
 from .conftest import git
 
