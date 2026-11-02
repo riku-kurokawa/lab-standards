@@ -191,3 +191,18 @@ def _path_labkit(monkeypatch):
     from pathlib import Path
 
     monkeypatch.setenv("PATH", str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"])
+
+
+def test_plugin_entry_tolerates_old_labkit(capsys):
+    """plugin が新しく labkit が古い（`labkit hook` が無い）とき、すべての操作を止めてしまわない."""
+    import importlib.util
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[3] / "claude-plugin" / "scripts" / "hook.py"
+    spec = importlib.util.spec_from_file_location("plugin_hook", script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    err = "usage: labkit ... labkit: error: argument cmd: invalid choice: 'hook' (choose from check, fig)"
+    assert mod.relay("pretool", 2, "", err, "1.0.1") == 0
+    assert mod.relay("session", 2, "", err, "1.0.1") == 0 and "unlink --to v1.0.1" in capsys.readouterr().out
+    assert mod.relay("pretool", 2, "", "[lab-rules] 拒否", "1.0.1") == 2 and "拒否" in capsys.readouterr().err

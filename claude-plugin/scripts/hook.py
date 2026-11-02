@@ -63,9 +63,20 @@ def main() -> int:
         errors="replace",
         cwd=root,
     )
-    sys.stdout.write(r.stdout)
-    sys.stderr.write(r.stderr)
-    return r.returncode
+    return relay(event, r.returncode, r.stdout, r.stderr, version)
+
+
+def relay(event: str, code: int, out: str, err: str, version: str) -> int:
+    """labkit の判定をそのまま返す。labkit が古くて `hook` を知らないときは止めず、SessionStart で 1 行知らせる."""
+    if code == 2 and "invalid choice: 'hook'" in err:
+        if event == "session":
+            print(
+                f"[lab-rules] プロジェクトの labkit が古く hook 未対応のため規約の検査は無効です。`labkit standards unlink --to v{version}` で更新してください。"
+            )
+        return 0
+    sys.stdout.write(out)
+    sys.stderr.write(err)
+    return code
 
 
 if __name__ == "__main__":

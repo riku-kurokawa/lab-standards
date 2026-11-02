@@ -1,7 +1,6 @@
 # lab-standards 本体の操作の入口
 .PHONY: test check lint test-python test-template
 
-LINT_DIRS = labkit/python/src labkit/python/tests claude-plugin/scripts tools
 RUFF = uv run --project labkit/python --extra dev ruff
 
 test: check lint test-python test-template
@@ -9,9 +8,11 @@ test: check lint test-python test-template
 check:
 	python3 tools/release.py --check
 
+# labkit は自分の pyproject.toml の設定で（import の first-party 判定が cwd に依るので中で実行）、入口と tools は ruff.toml で
 lint:
-	$(RUFF) check $(LINT_DIRS)
-	$(RUFF) format --check $(LINT_DIRS)
+	cd labkit/python && uv run --extra dev ruff check src tests && uv run --extra dev ruff format --check src tests
+	$(RUFF) check claude-plugin/scripts tools
+	$(RUFF) format --check claude-plugin/scripts tools
 
 test-python:
 	cd labkit/python && uv run --extra dev pytest -q

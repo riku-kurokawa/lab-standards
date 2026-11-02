@@ -58,4 +58,4 @@ standards_repo:
 standards_ref:
   type: str
   help: 使う lab-standards のタグ（再現性のため固定）
-  default: "v1.0.0"
+  default: "v1.0.1"

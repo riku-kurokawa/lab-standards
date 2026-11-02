@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.1 — 2026-11-02
+
+### 修正
+- plugin の入口: プロジェクトの labkit が古く `labkit hook` を知らない（v0.x）とき、すべての操作を止めてしまわず、SessionStart で更新方法を 1 行知らせる
+  （plugin を先に更新し、プロジェクトの labkit を後から上げる順でも作業が止まらない）。
+
 ## v1.0.0 — 2026-11-02
 
 「統制を入力側から成果物側へ」。2 プロジェクトでの実運用の監査（`docs/audit-2026-11-02.md`、ADR `docs/decisions/0001-artifact-first.md`）に基づく全面改訂。
