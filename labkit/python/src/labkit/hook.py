@@ -3,6 +3,7 @@
     labkit hook pretool | session | prompt | stop      （stdin: Claude Code の hook 入力 JSON）
 
 PreToolUse(Bash):
+  0. 入力の無い `python -`（標準入力待ちで止まる）→ 拒否
   1. Claude が実行してはいけない操作（labkit approve/reject/answer/delegate）→ 拒否
   2. lab-reviewer（レビュー agent）は許可リストの読み取りコマンドだけ
   3. 承認ゲートの対象（保護ブランチへの push/merge、tag、gh release/merge、raw freeze）:
@@ -10,7 +11,8 @@ PreToolUse(Bash):
   4. 成果物の保護: data/raw・runs/・lab.toml・.lab/ を壊す操作
 PreToolUse(Write/Edit): .lab/ と規約ファイルの保護、docs/reviews/ は lab-reviewer だけ、置き場所、禁止 import
 SessionStart / UserPromptSubmit: 状態（承認待ち・回答・委任・flow・今日の開発ログ）を文脈に入れる
-Stop: 主張の検証（labkit check --claims）と、コードを変えた日の開発ログの判断欄が空でないこと
+Stop: 主張の検証（labkit check --claims）、コードを変えた日の開発ログの判断欄が空でないこと、
+      [autonomy] を設定したら backlog の未着手が min_open 件以上あること
 lab-standards 本体では 1〜3 と .lab/ の保護だけ。
 """
 
@@ -34,6 +36,8 @@ PROTECTED_FILES = {"lab.toml", ".copier-answers.yml", ".claude/settings.json"}
 CODE_PREFIXES = ("src/", "scripts/", "configs/", "figspecs/", "jobs/")
 DESTRUCTIVE = r"^\s*(?:sudo\s+)?(?:rm|mv|chmod|chown|chattr|truncate|shred|unlink|ln|dd)\b|\bsed\s+-i|\bfind\b.*-(?:delete|exec\s+rm)"
 DELETING = r"^\s*(?:sudo\s+)?(?:rm|shred|unlink|truncate)\b|\bfind\b.*-(?:delete|exec\s+rm)"
+# 入力の無い `python -`（行頭か ; && || & の直後。パイプの後ろは入力があるので対象外）
+STDIN_PYTHON = r"(?:^|[;&\n]|\|\|)\s*(?:\S*/)?(?:python[0-9.]*|py)(?:\.exe)?\s+-(?=\s|$)"
 
 
 class Block(Exception):
@@ -70,6 +74,11 @@ def pretool_bash(data: dict, root: Path, kind: str) -> dict | None:
     if not cmd:
         return None
     segs = gate.segments(cmd)
+    if re.search(STDIN_PYTHON, cmd) and "<<" not in cmd:
+        raise Block(
+            "`python -` は標準入力からスクリプトを読むので、入力が無いとその場で止まります（パイプも heredoc も無い）。"
+            "スクリプトはファイルに書いて `python path.py` で実行するか、`python - <<'EOF' ... EOF` で渡してください。"
+        )
     if _is_reviewer(data):
         for seg in segs:
             if not gate.reviewer_allowed(seg):
@@ -361,6 +370,16 @@ def stop(data: dict, root: Path, kind: str) -> dict | None:
                     + "。目的・判断と理由・未解決を書いてください。数値は `labkit cite` の書式で。"
                 )
                 keys.append(f"devlog {p.name} {empty}")
+    au = lab["autonomy"]
+    if au["backlog"] and int(au["min_open"]) > 0:
+        bp = root / au["backlog"]
+        n = len(re.findall(r"^\s*[-*] \[ \]", bp.read_text(encoding="utf-8"), re.M)) if bp.is_file() else 0
+        if n < int(au["min_open"]):
+            problems.append(
+                f"{au['backlog']} の未着手の項目（`- [ ] ...`）が {n} 件で、{au['min_open']} 件未満です。"
+                "目標に最も効く順に項目を補充し、先頭の項目に着手してから終了してください（計算の完了を待つだけの終了はしない）。"
+            )
+            keys.append(f"backlog {n}")
     cf = _counter(sid)
     st = read_json(cf) if cf.exists() else {"blocks": 0}
     if not problems:

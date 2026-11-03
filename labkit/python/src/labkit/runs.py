@@ -165,6 +165,11 @@ class Run:
         raise FileExistsError(f"run ディレクトリを作れません: {self.dir}")
 
     def __enter__(self) -> Run:
+        if self.lab["runs"].get("require_prediction") and not self.config.get("prediction"):
+            raise ValueError(
+                "lab.toml の runs.require_prediction が有効です。実行の前に、結果の予想（数値と根拠）を設定の "
+                "`prediction` に書いてください（予想に自信があり主張の証拠として要らないなら、計算せず導出で確定させる）"
+            )
         self._mkdir()
         self._t0 = time.time()
         # 入力の hash や環境の取得は遅い。その間に止められても meta.json の無い殻（L020）を残さないよう、
@@ -202,6 +207,7 @@ class Run:
             "git": self.git,
             "env": env_info(self.root),
             "seed": self.config.get("seed"),
+            "prediction": self.config.get("prediction"),
             "slurm": slurm_info(),
             "command": [sys.executable, *sys.argv],
             "cwd": os.getcwd(),

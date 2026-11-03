@@ -154,10 +154,27 @@ def approve(root: Path, qid: str, *, ttl_hours: float) -> dict:
         raise ValueError(
             f"{qid} は pending の承認待ちではありません（kind={it.get('kind')}, status={it.get('status')}）"
         )
-    d = add_delegation(root, [it["category"]], hours=ttl_hours, branch=it.get("branch"), note=f"approve {qid}")
-    it.update(status="approved", approved=_iso(_now()), delegation=d["id"])
+    category = it.get("category") or _infer_category(root, it)
+    d = add_delegation(root, [category], hours=ttl_hours, branch=it.get("branch"), note=f"approve {qid}")
+    it.update(status="approved", approved=_iso(_now()), delegation=d["id"], category=category)
     save_item(root, it)
     return d
+
+
+def _infer_category(root: Path, it: dict) -> str:
+    """v0.x の承認待ち（category が無い）は、記録されたコマンドから種類を引き直す."""
+    from labkit import gate
+    from labkit.config import load_lab
+
+    protected = load_lab(root)["gate"]["protected_branches"]
+    hits = [h for h in gate.classify(it.get("command", ""), protected, it.get("branch")) if h.category in gate.GATED]
+    if not hits:
+        raise ValueError(
+            f"{it['id']} の操作の種類をコマンドから判定できません: `{it.get('command', '')}`。"
+            f"`labkit reject {it['id']}` で閉じ、必要なら `labkit delegate <カテゴリ> --hours N` で委任してください"
+            f"（カテゴリ: {', '.join(gate.GATED)}）"
+        )
+    return hits[0].category
 
 
 def reject(root: Path, qid: str, note: str = "") -> dict:

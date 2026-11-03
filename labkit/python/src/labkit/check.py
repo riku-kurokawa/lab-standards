@@ -12,6 +12,7 @@
     L001 トップレベルの不許可ファイル   L004 衝突マーカー   L050 本体を link したまま
     L010 描画ライブラリの直接 import    L011 src → scripts の依存   L012 絶対パスの直書き
     L013 禁止形式（pickle など）        L016 np.save / np.savez / torch.save（labkit.save を使う。警告）
+    L017 src のモジュールがどこからも import されていない（警告）
     L014 図が runs/*/figures 以外にある  L015 データが data/・runs/ 以外にある
     L031 ADR の書式   L035 レビュー記録の書式   L040-L046 文献管理（literature.py）
 """
@@ -93,6 +94,7 @@ class Checker:
             self.conflict_markers,
             self.standards_link,
             self.code_rules,
+            self.dead_modules,
             self.stray_files,
             self.adr,
             self.reviews,
@@ -216,6 +218,36 @@ class Checker:
                     )
             for m in abs_re.finditer(text):
                 self.add("L012", at(m), "絶対パスの直書き。configs/paths/*.toml と labkit.datapath を使う")
+
+    def dead_modules(self) -> None:
+        """L017: src のモジュールがどこからも import されていない（警告。使われていないコードは消すか legacy へ）."""
+        src = self.root / "src"
+        if not src.is_dir():
+            return
+        texts: dict[Path, str] = {}
+        for p in [*self._code_files(), *(self.root / f for f in ("Makefile", "pyproject.toml"))]:
+            if p.is_file():
+                texts[p] = p.read_text(encoding="utf-8", errors="replace")
+        imp = re.compile(r"^\s*(?:from\s+\S+\s+import\s+(?:\([^)]*\)|.*)|import\s+.*)$", re.M)
+        for mod in sorted(src.rglob("*.py")):
+            if set(mod.parts) & SKIP_DIRS or mod.stem in ("__init__", "__main__", "conftest"):
+                continue
+            dotted = ".".join(mod.relative_to(src).with_suffix("").parts)
+            word = re.compile(rf"\b{re.escape(mod.stem)}\b")
+            used = False
+            for p, text in texts.items():
+                if p == mod:
+                    continue
+                if dotted in text or any(word.search(m.group(0)) for m in imp.finditer(text)):
+                    used = True
+                    break
+            if not used:
+                self.add(
+                    "L017",
+                    mod,
+                    "どこからも import されていません（src・scripts・tests・jobs）。使わないなら消すか legacy/ へ",
+                    "warn",
+                )
 
     def stray_files(self) -> None:
         c = self.lab["check"]

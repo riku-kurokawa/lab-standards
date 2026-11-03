@@ -96,9 +96,12 @@ DEFAULTS: dict = {
         "must_fill": ["目的", "判断と理由", "未解決・次の作業"],
     },
     "adr": {"dir": "docs/decisions", "required_headings": ["背景", "決定", "理由と検討した代替案", "影響"]},
-    "runs": {"hash_max_gb": 2.0},
+    # require_prediction: 正式な run の前に結果の予想を設定（config の prediction）に書かせ、meta.json に残す
+    "runs": {"hash_max_gb": 2.0, "require_prediction": False},
     "literature": {"dir": "literature", "pdf_dir": "literature/pdfs"},
     "claude": {"require_devlog": True, "max_stop_blocks": 3},
+    # 長い自律運用: backlog（"- [ ] ..." の行）に未着手の項目が min_open 件未満なら Stop hook が終了を止める。空文字で無効
+    "autonomy": {"backlog": "", "min_open": 0},
     "gate": {"enabled": True, "protected_branches": ["main", "master"], "approval_ttl_hours": 24},
 }
 

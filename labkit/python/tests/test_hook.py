@@ -215,3 +215,39 @@ def test_plugin_entry_tolerates_old_labkit(capsys):
     assert mod.relay("pretool", 2, "", err, "1.0.1") == 0
     assert mod.relay("session", 2, "", err, "1.0.1") == 0 and "unlink --to v1.0.1" in capsys.readouterr().out
     assert mod.relay("pretool", 2, "", "[lab-rules] 拒否", "1.0.1") == 2 and "拒否" in capsys.readouterr().err
+
+
+def test_python_stdin_without_input_is_blocked(git_project):
+    p = git_project
+    for cmd in ("python3 - 2>/dev/null; ls", "cd x && python -", "uv run true || py -"):
+        code, _, err = handle("pretool", bash(cmd, p))
+        assert code == 2 and "標準入力" in err, cmd
+    for cmd in ("python3 - <<'EOF'\nprint(1)\nEOF", "cat a.py | python -", "python -m pytest", "python a.py -"):
+        assert handle("pretool", bash(cmd, p))[0] == 0, cmd
+
+
+def test_stop_requires_backlog_when_autonomy_is_set(git_project):
+    p = git_project
+    with open(p / "lab.toml", "a", encoding="utf-8", newline="\n") as f:
+        f.write('[autonomy]\nbacklog = "docs/backlog.md"\nmin_open = 2\n')
+    code, _, err = handle("stop", {"cwd": str(p), "session_id": "s7"})
+    assert code == 2 and "0 件" in err
+    (p / "docs" / "backlog.md").write_text("- [x] done\n- [ ] a\n", encoding="utf-8", newline="\n")
+    assert handle("stop", {"cwd": str(p), "session_id": "s7"})[0] == 2
+    (p / "docs" / "backlog.md").write_text("- [ ] a\n- [ ] b\n", encoding="utf-8", newline="\n")
+    assert handle("stop", {"cwd": str(p), "session_id": "s7"}) == (0, "", "")
+
+
+def test_approve_legacy_item_without_category(git_project):
+    """v0.x が積んだ承認待ち（category が無い）も承認できる（KeyError で落ちていた）."""
+    p = git_project
+    it = state.request(p, "git_push", "git status; git push origin main 2>&1 | tail -3", cwd=p, reason="push")
+    del it["category"]
+    state.save_item(p, it)
+    d = state.approve(p, it["id"], ttl_hours=1)
+    assert d["categories"] == ["git_push"] and state.get_item(p, it["id"])["category"] == "git_push"
+    it2 = state.request(p, "git_push", "echo nothing", cwd=p, reason="x")
+    del it2["category"]
+    state.save_item(p, it2)
+    with pytest.raises(ValueError, match="判定できません"):
+        state.approve(p, it2["id"], ttl_hours=1)

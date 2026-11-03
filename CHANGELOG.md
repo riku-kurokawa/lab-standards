@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.3.0 — 2026-11-03
+
+長い自律運用（/goal）で観察された失敗への対策（nla-solver の 2 日間の運用から）。v1.2.0 の skill（計算する前に予測する、
+/loop で再注入）を機械的な検証で補う。対象: 計算の完了を待つだけで止まる、結果を計算する前に分かる結論を計算で確かめに行く、`python -` を入力なしで打って止まる、使われないコードが溜まる、
+v0.x が積んだ承認待ちを `labkit approve` できない。すべて既定では無効か警告で、既存プロジェクトの動作は変わらない。
+
+### 修正
+- `labkit approve` が v0.x の承認待ち（`category` が無い）で `KeyError: 'category'` になっていた。記録されたコマンドから種類を引き直して承認する。
+  判定できないときは、reject と delegate の手順を示すエラーにする。
+
+### 追加
+- PreToolUse: 入力の無い `python -`（行頭か `;` `&&` `||` の直後で、heredoc もパイプも無い）を止め、ファイルか heredoc を使うよう示す。
+- `[autonomy] backlog / min_open`（既定は無効）: backlog の未着手の項目（`- [ ] ...`）が `min_open` 件未満なら Stop hook が終了を止める。
+  計算待ちでターンを終えず、次の作業に移らせる。上限回数で人間に委ねる仕組み（`max_stop_blocks`）は同じ。
+- `[runs] require_prediction`（既定 false）: true なら `Run` は設定の `prediction`（結果の予想と根拠）が無いと始まらず、run ディレクトリも作らない。
+  予想は `meta.json` の `prediction` に残る（false でも設定にあれば残す）。
+- check L017（警告）: `src/` のモジュールが src・scripts・tests・jobs・Makefile・pyproject.toml のどこからも import されていない。
+- skill `new-experiment`: 予測を `prediction` に書く方法と `[autonomy]` の backlog を案内。
+- 雛形: CLAUDE.md に「長い自律運用」（考えてから計算する・待たない・当然の結論から逃げない・活動量で測らない・/goal は prompts のファイルを指す）、
+  `docs/backlog.md`、lab.toml に `[autonomy]` と `runs.require_prediction`、prompts/README に版の一覧と /goal の置き方。
+
+### 移行
+- `labkit standards unlink --to v1.3.0`、plugin は `/plugin marketplace update lab-standards`、雛形は `labkit standards template --ref v1.3.0`。
+- 使うなら lab.toml に `[autonomy]`（例: `backlog = "docs/backlog.md"`, `min_open = 10`）と `[runs] require_prediction = true` を足す（人間が編集）。
+
 ## v1.2.0 — 2026-11-03
 
 accelerated-diff-pat で丸 1 日、エージェントを自走させて分かった摩擦を直す。

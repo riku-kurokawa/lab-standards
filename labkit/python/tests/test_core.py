@@ -263,3 +263,28 @@ def test_shared_pdf_library_outside_project(project, tmp_path):
         f'[lab]\nproject = "t"\n[literature]\npdf_dir = "{lib.as_posix()}"\n', encoding="utf-8", newline="\n"
     )
     assert "L044" not in codes(project)
+
+
+def test_dead_module_warning(project):
+    pkg = project / "src" / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8", newline="\n")
+    for name in ("used", "multi", "dead"):
+        (pkg / f"{name}.py").write_text("X = 1\n", encoding="utf-8", newline="\n")
+    (project / "scripts" / "run.py").write_text(
+        "from pkg.used import X\nfrom pkg import (\n    multi,\n)\n", encoding="utf-8", newline="\n"
+    )
+    issues = [i for i in run_check(root=project)[0] if i.code == "L017"]
+    assert [i.where for i in issues] == ["src/pkg/dead.py"] and issues[0].severity == "warn"
+
+
+def test_run_requires_prediction_when_configured(project):
+    with open(project / "lab.toml", "a", encoding="utf-8", newline="\n") as f:
+        f.write("[runs]\nrequire_prediction = true\n")
+    with pytest.raises(ValueError, match="prediction"):
+        with Run("nopred", {"seed": 0}):
+            pass
+    assert not list_runs(project)  # 予想が無ければ run ディレクトリも作らない
+    with Run("pred", {"seed": 0, "prediction": "e1 は 0.02±0.01（V2-c の模型差から）"}) as run:
+        pass
+    assert json.loads((run.dir / "meta.json").read_text(encoding="utf-8"))["prediction"].startswith("e1")
