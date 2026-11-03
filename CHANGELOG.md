@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.1.0 — 2026-11-03
+
+開始直後に止めた run が `meta.json` の無い殻（L020）として残り、`runs/` は Claude が消せないので人間の回答を待つしかなく、
+Stop hook が無関係なセッションの終了まで止め続けた（accelerated-diff-pat で 1 日に十数件）。人手なしで片付くようにする。
+
+### 変更
+- `Run` は run ディレクトリを作った直後、入力の hash や環境の取得より先に、スキーマの必須項目だけの `meta.json`（status=running）を書く。
+  開始中に止められても殻にならず、L021 → `labkit runs mark` で片付く。`created` は開始直後の時刻のまま。
+- `labkit runs mark <id> --to interrupted|failed|finished --reason ...` が `meta.json` の無い殻にも効く。削除はせず、ディレクトリ名から
+  分かる最小の `meta.json`（git は null）を書いて記録として残す。Claude が実行してよい。
+- L020 の殻と L021 のメッセージに、実行できる `labkit runs mark` の書き方を示す（L021 の `failed --reason` は `--to failed` の誤記だった）。
+- Stop hook: `max_stop_blocks` 回で人間に委ねた違反を覚え、同じ違反だけなら以後そのセッションの終了を止めない（新しい違反が出たら止める）。
+  これまでは委ねた直後から数え直し、同じ違反で止め続けた。
+
+### 移行
+- `labkit standards unlink --to v1.1.0`、plugin は `/plugin marketplace update lab-standards`。既存の殻は `labkit runs mark <id> --to interrupted --reason ...`。
+
 ## v1.0.2 — 2026-11-02
 
 ### 修正

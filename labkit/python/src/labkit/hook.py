@@ -332,10 +332,12 @@ def stop(data: dict, root: Path, kind: str) -> dict | None:
             "systemMessage": f"[lab-rules] 承認待ち {ids} があるため終了を許可します。人間: `labkit queue list` → `labkit approve <ID>`"
         }
     problems: list[str] = []
+    keys: list[str] = []  # 違反 1 件ごとの識別（上限で委ねた違反を覚えるため）
     issues, mode = run_check(root=root, claims=True)
     errs = [str(i) for i in issues if i.severity == "error"]
     if errs and mode == "strict":
         problems.append("`labkit check --claims` の違反:\n" + "\n".join(errs)[-3500:])
+        keys += errs
     if lab["claude"]["require_devlog"]:
         status = git(root, "status", "--porcelain", "--untracked-files=all") or ""
         changed = [ln[3:] for ln in status.splitlines() if ln[3:].startswith(CODE_PREFIXES)]
@@ -357,17 +359,23 @@ def stop(data: dict, root: Path, kind: str) -> dict | None:
                     + ("（今作成した。変更ファイルと run は自動で埋めた）" if not existed else "")
                     + "。目的・判断と理由・未解決を書いてください。数値は `labkit cite` の書式で。"
                 )
+                keys.append(f"devlog {p.name} {empty}")
     cf = _counter(sid)
     st = read_json(cf) if cf.exists() else {"blocks": 0}
     if not problems:
         cf.unlink(missing_ok=True)
         return None
+    # 上限で人間に委ねた違反は覚えておき、同じ違反だけなら以後は止めない（新しい違反が出たら止める）。
+    # 覚えないと、委ねた直後の終了から数え直して同じ違反で止め続ける
+    released = set(st.get("released", []))
+    if released and set(keys) <= released:
+        return None
     if st["blocks"] >= int(lab["claude"]["max_stop_blocks"]):
-        cf.unlink(missing_ok=True)
+        write_json_atomic(cf, {"blocks": 0, "released": sorted(released | set(keys))})
         return {
-            "systemMessage": f"[lab-rules] 規約違反が {lab['claude']['max_stop_blocks']} 回の修正で解消しませんでした。人間の確認が必要です。"
+            "systemMessage": f"[lab-rules] 規約違反が {lab['claude']['max_stop_blocks']} 回の修正で解消しませんでした。人間の確認が必要です（同じ違反では以後このセッションの終了を止めません）。"
         }
-    write_json_atomic(cf, {"blocks": st["blocks"] + 1})
+    write_json_atomic(cf, {"blocks": st["blocks"] + 1, "released": sorted(released)})
     raise Block("作業完了の条件を満たしていません。以下を解消してから終了してください:\n\n" + "\n\n".join(problems))
 
 

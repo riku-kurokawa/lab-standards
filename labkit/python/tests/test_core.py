@@ -97,6 +97,38 @@ def test_run_failure_and_mark(project):
     assert len(list_runs(project)) == 2
 
 
+def test_run_killed_during_start_leaves_meta_not_shell(project, monkeypatch):
+    """入力の hash や環境の取得の最中に止められても、meta.json の無い殻（L020）を残さない."""
+    import labkit.runs as runs_mod
+
+    def killed(*a, **k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runs_mod, "env_info", killed)
+    r = Run("slow", {"seed": 0})
+    with pytest.raises(KeyboardInterrupt):
+        r.__enter__()
+    meta = json.loads((r.dir / "meta.json").read_text(encoding="utf-8"))
+    assert meta["status"] == "running" and meta["run_id"] == r.run_id
+    assert "L020" not in codes(project) and "L021" in codes(project)
+    assert mark_run(r.run_id, "interrupted", "killed")["status"] == "interrupted"
+    assert not {"L020", "L021"} & codes(project)
+
+
+def test_mark_shell_without_meta(project):
+    """古い版が残した殻（config だけで meta.json が無い）を、削除せずに記録として片付ける."""
+    d = project / "runs" / "20261103-061807_atlas-table_b5fbf37_deb6"
+    (d / "config").mkdir(parents=True)
+    (d / "config.json").write_text("{}", encoding="utf-8")
+    assert "L020" in codes(project)
+    m = mark_run(d.name, "interrupted", "開始直後に停止")
+    assert m["status"] == "interrupted" and m["name"] == "atlas-table" and "開始直後に停止" in m["error"]
+    assert {o["path"] for o in m["outputs"]} == {"config.json", "metrics.json"}
+    assert not {"L020", "L021"} & codes(project)
+    with pytest.raises(ValueError):
+        mark_run(d.name, "failed")
+
+
 def test_lineage_from_sidecar(project):
     pytest.importorskip("h5py")
     import numpy as np

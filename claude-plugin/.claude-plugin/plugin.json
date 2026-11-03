@@ -1,7 +1,7 @@
 {
   "name": "lab-rules",
   "displayName": "Lab Rules",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "lab-standards 規約の強制（承認ゲート・成果物の保護・独立レビュー・終了時の検証）と、実験・図・開発ログ・移行の手順 skills",
   "author": {
     "name": "lab-standards"

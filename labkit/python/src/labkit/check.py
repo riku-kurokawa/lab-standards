@@ -2,7 +2,7 @@
 
 成果物の検証（--claims。Stop hook が見る）:
     L002 data/raw が MANIFEST と一致しない      L003 data/raw が書き込み可能
-    L020 run の meta.json が無い/スキーマ違反   L021 run が running のまま（警告。`labkit runs mark`）
+    L020 run の meta.json が無い（殻は `labkit runs mark`）/スキーマ違反 L021 run が running のまま（警告。`labkit runs mark`）
     L022 data/interim・processed の派生ファイルにサイドカーが無い/スキーマ違反（data/cache は対象外）
     L030 開発ログの書式違反・必須欄（目的 / 判断と理由 / 未解決）が空
     L032 文書が引用する run ID が runs/ に無い。failed/link の run の引用は警告
@@ -253,7 +253,12 @@ class Checker:
                 continue
             mf = d / "meta.json"
             if not mf.is_file():
-                self.add("L020", d, "meta.json がありません（labkit の Run 以外で作られた？）")
+                self.add(
+                    "L020",
+                    d,
+                    "meta.json がありません（開始直後に止められた殻なら "
+                    f"`labkit runs mark {d.name} --to interrupted --reason ...` で記録する。Claude が実行してよい）",
+                )
                 continue
             try:
                 meta = read_json(mf)
@@ -272,7 +277,7 @@ class Checker:
                 self.add(
                     "L021",
                     d,
-                    f"status=running のまま（{age or '実行中か異常終了'}）。終わっているなら `labkit runs mark {d.name} failed --reason ...`",
+                    f"status=running のまま（{age or '実行中か異常終了'}）。終わっているなら `labkit runs mark {d.name} --to failed --reason ...`",
                     "warn",
                 )
 

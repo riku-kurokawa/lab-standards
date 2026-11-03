@@ -137,6 +137,12 @@ def test_stop_requires_judgment_in_devlog(git_project):
     (f).write_text(text.replace("書いた", ""), encoding="utf-8", newline="\n")
     results = [handle("stop", {"cwd": str(p), "session_id": "s9"})[0] for _ in range(4)]
     assert results == [2, 2, 2, 0]
+    # 委ねた同じ違反では以後止めない（止め続けると、関係のない作業のセッションが終われない）
+    assert handle("stop", {"cwd": str(p), "session_id": "s9"}) == (0, "", "")
+    # 新しい違反が出たら、また止める
+    (p / "runs" / "shell").mkdir()
+    code, _, err = handle("stop", {"cwd": str(p), "session_id": "s9"})
+    assert code == 2 and "L020" in err and "runs mark shell" in err
 
 
 def test_standards_repo_scope(tmp_path, monkeypatch):

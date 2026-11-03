@@ -166,8 +166,13 @@ class Run:
 
     def __enter__(self) -> Run:
         self._mkdir()
-        (self.dir / "figures").mkdir()
         self._t0 = time.time()
+        # 入力の hash や環境の取得は遅い。その間に止められても meta.json の無い殻（L020）を残さないよう、
+        # 最小の meta を先に書く（running のまま残れば L021 → `labkit runs mark` で片付く）
+        self.meta = minimal_meta(self.run_id, self.name, git=self.git, command=[sys.executable, *sys.argv])
+        write_json_atomic(self.dir / "meta.json", self.meta)
+        self._beat()
+        (self.dir / "figures").mkdir()
         files = self.config.pop("_files", [])
         overrides = self.config.pop("_overrides", [])
         if files:
@@ -187,7 +192,7 @@ class Run:
             "language_version": platform.python_version(),
             "labkit_version": __version__,
             "labkit_source": labkit_source(),
-            "created": now_iso(),
+            "created": self.meta["created"],
             "finished": None,
             "duration_s": None,
             "host": platform.node(),
@@ -258,12 +263,45 @@ def freeze_run(run_dir: Path, writable: bool = False) -> None:
         os.chmod(p, mode | (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH if p.is_dir() else 0))
 
 
+def minimal_meta(run_id: str, name: str, *, git: dict | None, command: list[str], created: str | None = None) -> dict:
+    """スキーマの必須項目だけの meta（Run の開始直後と、meta の無い殻の mark に使う）."""
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": run_id,
+        "name": name,
+        "status": "running",
+        "language": "python",
+        "labkit_version": __version__,
+        "created": created or now_iso(),
+        "finished": None,
+        "host": platform.node(),
+        "pid": os.getpid(),
+        "git": git,
+        "command": command,
+        "inputs": [],
+        "outputs": [],
+        "error": None,
+    }
+
+
+def _shell_meta(d: Path) -> dict:
+    """meta.json の無い run ディレクトリ（開始直後に止められた殻）の最小の meta。分かることだけを書く."""
+    created = _dt.datetime.fromtimestamp(d.stat().st_mtime).astimezone().isoformat(timespec="seconds")
+    parts = d.name.split("_")  # <日時>_<name>_<commit>_<乱数>（make_run_id）
+    name = "_".join(parts[1:-2]) if len(parts) >= 4 else d.name
+    meta = minimal_meta(d.name, name, git=None, command=[], created=created)
+    meta.pop("pid")
+    meta["host"] = ""
+    return meta
+
+
 def mark_run(run_id: str, status: str, reason: str = "", root: Path | None = None) -> dict:
-    """異常終了（OOM・kill・時間切れ）で running のまま残った run の状態を記録する。Claude が実行してよい."""
+    """異常終了（OOM・kill・時間切れ）で running のまま残った run、または meta.json の無い殻の状態を記録する。
+    Claude が実行してよい（削除はしない。殻は最小の meta を書いて記録として残す）."""
     if status not in STATUSES[1:]:
         raise ValueError(f"status は {STATUSES[1:]} のいずれか: {status!r}")
     d = find_run(run_id, root)
-    meta = read_json(d / "meta.json")
+    meta = read_json(d / "meta.json") if (d / "meta.json").is_file() else _shell_meta(d)
     if meta.get("status") != "running":
         raise ValueError(f"{d.name} は status={meta.get('status')}（running の run だけ mark できる）")
     freeze_run(d, writable=True)

@@ -101,7 +101,7 @@ Claude: 次のプロンプトで「承認済み #Q001」を受け取り、実行
 |---|---|
 | 成果物の検証（`--claims`。Stop hook が見る） | |
 | L002 / L003 | data/raw が MANIFEST と一致しない / 書き込み可能 |
-| L020 / L021 | run の meta.json 無し・スキーマ違反 / running のまま（警告。`labkit runs mark`） |
+| L020 / L021 | run の meta.json 無し・スキーマ違反（開始直後の殻は `labkit runs mark <id> --to interrupted`） / running のまま（警告。`labkit runs mark`） |
 | L022 | data/interim・processed の派生ファイルにサイドカーが無い（サブディレクトリも。data/cache は対象外） |
 | L030 | 開発ログの書式違反、目的・判断と理由・未解決 が空 |
 | L032 / L033 / L034 | 引用した run が無い / 数値が metrics.json と一致しない / 結果節の数値に引用が無い（警告） |
