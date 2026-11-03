@@ -360,6 +360,62 @@ def histogram(spec, ctx, ax):
 
 
 @template(
+    "boxplot",
+    ["file", "x", "y"],
+    "箱ひげ図（Parquet の長い形: x 列の群ごとの y の分布。hue で並べる。中央値を注記、options.logy）",
+    'data = {file = "errors.parquet", x = "model", y = "e1", hue = "solver"}',
+)
+def boxplot(spec, ctx, ax):
+    d = spec["data"]
+    df = ctx.load(d["file"])
+    cats = list(dict.fromkeys(df[d["x"]]))
+    groups = _groups(df, d.get("hue"))
+    width = 0.8 / max(len(groups), 1)
+    for i, (h, g) in enumerate(groups):
+        vals = [np.asarray(g.loc[g[d["x"]] == c, d["y"]], dtype=float) for c in cats]
+        vals = [v[np.isfinite(v)] for v in vals]
+        pos = np.arange(len(cats)) + (i - (len(groups) - 1) / 2) * width
+        keep = [k for k, v in enumerate(vals) if v.size]
+        bp = ax.boxplot([vals[k] for k in keep], positions=pos[keep], widths=width * 0.8, manage_ticks=False)
+        bp["boxes"][0].set_label(None if h is None else str(h))
+        for k in keep:
+            ax.annotate(f"{np.median(vals[k]):.3g}", (pos[k], np.median(vals[k])), fontsize=6, ha="center", va="bottom")
+    ax.set_xticks(np.arange(len(cats)), [str(c) for c in cats])
+    _labels(ax, spec, d["x"], d["y"])
+    _options(ax, spec)
+    _legend(ax, spec, len(groups))
+
+
+@template(
+    "convergence",
+    ["file", "x", "y"],
+    "収束図（両対数。x = 分解能や刻み、y = 誤差。hue の系列ごとに最小二乗の次数を凡例に。options.ref_order で基準勾配）",
+    'data = {file = "conv.parquet", x = "ppw", y = "err", hue = "scheme"}\noptions = {ref_order = [2, 5]}',
+)
+def convergence(spec, ctx, ax):
+    d = spec["data"]
+    df = ctx.load(d["file"])
+    for h, g in _groups(df, d.get("hue")):
+        x, y = np.asarray(g[d["x"]], dtype=float), np.asarray(g[d["y"]], dtype=float)
+        ok = (x > 0) & (y > 0)
+        x, y = x[ok], y[ok]
+        order = np.argsort(x)
+        slope = np.polyfit(np.log(x), np.log(y), 1)[0] if len(x) > 1 else float("nan")
+        name = "" if h is None else f"{h}: "
+        ax.loglog(x[order], y[order], "o-", label=f"{name}order {-slope:.2f}")
+    xs = np.asarray(df[d["x"]], dtype=float)
+    ys = np.asarray(df[d["y"]], dtype=float)
+    ok = (xs > 0) & (ys > 0)
+    if ok.any():
+        x0, x1, y0 = xs[ok].min(), xs[ok].max(), ys[ok][np.argmin(xs[ok])]
+        for p in _as_list(spec.get("options", {}).get("ref_order", [])):
+            ax.loglog([x0, x1], [y0, y0 * (x1 / x0) ** (-p)], "k--", linewidth=0.6, label=f"slope -{p}")
+    _labels(ax, spec, d["x"], d["y"])
+    _options(ax, spec)
+    ax.legend(loc=spec.get("options", {}).get("legend_loc", "best"))
+
+
+@template(
     "panels",
     [],
     "複数パネル。layout = [行, 列]、[[panel]] に各パネルの template / data / labels / options（(a)(b)… の見出しを付ける）",

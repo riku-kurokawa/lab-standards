@@ -20,4 +20,4 @@ test-python:
 # 雛形を HEAD から生成し、生成物が自分の規約（format・check）を満たすことを確かめる
 test-template:
 	rm -rf /tmp/lab-standards-ci && uvx copier copy --defaults --vcs-ref HEAD -d project_name="CI project" -d author=ci . /tmp/lab-standards-ci
-	cd /tmp/lab-standards-ci && uvx ruff@0.17 format --check --config pyproject.toml . && test -f lab.toml && test -f .gitattributes
+	cd /tmp/lab-standards-ci && uvx ruff@0.17 format --check --config pyproject.toml . && test -f lab.toml && test -f .gitattributes && test -f docs/state.md && test -f prompts/beat_v1.md

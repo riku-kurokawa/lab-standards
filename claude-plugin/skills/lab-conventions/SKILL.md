@@ -22,6 +22,7 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 | 設計判断 | `docs/decisions/NNNN-slug.md` | skill: write-adr |
 | 文献・サーベイ | `literature/` | skill: literature-survey |
 | HPC ジョブ | `jobs/` | skill: hpc-job |
+| 長い自律運用 | `prompts/`, `docs/state.md`, `docs/backlog.md` | skill: autonomous-run |
 | LLM プロンプト | `prompts/<用途>_v<N>.md` | 改訂時は版を上げる |
 | 試行錯誤 | `scratch/` | git 管理外。成果物の根拠にしない |
 

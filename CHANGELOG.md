@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.4.0 — 2026-11-04
+
+nla-solver で /goal・/loop を一晩回して効いたもの（記録を見ない点検、1 拍の指示書の再注入、予想の関門、撤回の記録）を、
+skill・agent・雛形として標準に入れる。合わない規則（HPC のジョブ投入は人間だけ）を直し、要望の多かった図テンプレートを足す。
+
+### 追加
+- skill `autonomous-run`: 長い自律運用の手順（失敗の型、目標・1 拍の指示書・状態・backlog の置き方、/goal と /loop の書き方と間隔、
+  1 拍の 5 手、予想の関門と事前登録の修正の順序、ぶっちゃけ点検、撤回と捨てる線、範囲を縮める判断は queue へ）。
+- agent `candor-check`: ぶっちゃけ点検。目標・前提・主張の要約だけを読み（開発ログ・commit 履歴・backlog は読まない）、
+  避けている当然の結論・捨てるべき線・最も大胆な一手を答える。道具は Read / Grep / Glob だけで、ファイルを書けない。
+- 図テンプレート `boxplot`（群ごとの分布、中央値の注記）と `convergence`（両対数、系列ごとの最小二乗の次数を凡例に、基準勾配の補助線）。
+- 雛形: `prompts/beat_v1.md`（1 拍の指示書）、`docs/state.md`（前提・点検・予想の当たり外れ・撤回・次の一手の表）。雛形の生成テストで存在を確かめる。
+
+### 変更
+- 雛形 CLAUDE.md の「長い自律運用」を、置き場所と 5 つの規則に縮め、詳細は skill に移した。
+- skill `new-experiment` の「長い run を待つあいだ」は skill `autonomous-run` を指すだけにした（重複の削除）。
+- skill `hpc-job`: PBS も対象と明記。運用で踏んだ罠（1 ノードあたりの GPU 数、PBS の作業ディレクトリ、手元の長い計算は setsid、
+  一時ファイルの溢れ、複数キューへの投入）を足した。「ジョブの投入は人間だけ」をやめ、人間が計算資源の使用を任せたときは Claude が投入してよいとした
+  （HPC 上の削除は引き続き人間）。
+- skill `make-figure` と README の図テンプレートの一覧（13 種）。
+
+### 移行
+- `labkit standards unlink --to v1.4.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`。
+- 雛形の新しいファイルは `labkit standards template --ref v1.4.0`。既存の `docs/state.md`・`prompts/` の版はそのまま使える（雛形の表は参考）。
+
 ## v1.3.0 — 2026-11-03
 
 長い自律運用（/goal）で観察された失敗への対策（nla-solver の 2 日間の運用から）。v1.2.0 の skill（計算する前に予測する、

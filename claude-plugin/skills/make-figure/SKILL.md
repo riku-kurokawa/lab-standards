@@ -8,7 +8,7 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
 図はすべて labkit の図テンプレートで作る。matplotlib などを直接使うコードは hooks がブロックする。
 
 1. **テンプレートを選ぶ**: `uv run labkit fig list` で一覧と必須キー・例を確認する。
-   timeseries, band（平均±帯）, spectrogram, psd, learning_curve, errorbar（類別または数値 x、log 軸可）, bar, scatter, heatmap, histogram, panels（複数パネル）
+   timeseries, band（平均±帯）, spectrogram, psd, learning_curve, errorbar（類別または数値 x、log 軸可）, bar, scatter, heatmap, histogram, boxplot（分布）, convergence（両対数の収束と次数）, panels（複数パネル）
 2. **データを用意する**: 図に必要な値は run の中に保存しておく（`save(runpath(run, "x.h5"), ...)`、表なら `.parquet`）。集計は src の関数で行いスクリプトで保存する（図テンプレートで計算しない）。
 3. **figspec を書く**: `figspecs/<name>.toml`
    ```toml

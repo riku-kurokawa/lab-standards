@@ -12,7 +12,7 @@
 lab-standards/
 ├── copier.yml, template/     ① プロジェクト雛形（ディレクトリ構造・lab.toml・CLAUDE.md・Makefile …）
 ├── labkit/python/            ② 共通ライブラリ + CLI（labkit）。hooks の判定もここ（labkit hook）
-├── claude-plugin/            ③ Claude Code plugin「lab-rules」（hooks の入口・skills・レビュー agent）
+├── claude-plugin/            ③ Claude Code plugin「lab-rules」（hooks の入口・skills・レビュー agent・ぶっちゃけ点検 agent）
 └── .claude-plugin/marketplace.json   この repo 自体が plugin の配布元
 ```
 
@@ -33,11 +33,12 @@ lab-standards/
 | Functional core, imperative shell | 計算は `src/`（純粋関数）、I/O は `scripts/`。check が依存の向きを検査 |
 | 設定とコードの分離 | `configs/experiments/*.toml`（extends 継承）、環境別パス `configs/paths/*.toml` |
 | 派生物は再生成可能 | `data/interim`・`processed`（サイドカー付き）・`data/cache`（サイドカー不要）・`runs` |
-| 図はテンプレートのみ | `figspecs/*.toml` + `labkit fig`（11 種、複数パネル可）。来歴は `.figmeta.json` |
+| 図はテンプレートのみ | `figspecs/*.toml` + `labkit fig`（13 種、複数パネル可）。来歴は `.figmeta.json` |
 | 形式の統一 | 配列は HDF5、表は Parquet。pickle は禁止、`np.save` は警告 |
 | 報告は実データと照合 | 開発ログの数値（`12.3 dB [run:<id>:<key>]`）を `labkit check` が runs/ と突き合わせる。判断欄が空の開発ログは記録ではない |
 | 取り返しのつかない操作だけ人間が承認 | 保護ブランチへの push/merge・tag・gh release/merge・raw freeze。承認は種類＋ブランチ＋期限に結び付く（commit しても無効にならない） |
 | レビューは独立 | `docs/reviews/` は lab-reviewer agent だけが書ける |
+| 長い自律運用は考えてから計算する | 目標と 1 拍の指示書は `prompts/`（/goal・/loop で再注入）、run の前の予想（`prediction`）、記録を見ない candor-check agent の点検（skill: autonomous-run） |
 
 ---
 

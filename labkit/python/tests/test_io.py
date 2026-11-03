@@ -100,13 +100,15 @@ def test_figure_templates(project):
         "eb.toml": 'template = "errorbar"\n[data]\nfile = "res.parquet"\nx = "method"\ny = "rmse"\nhue = "dev"\n',
         "ebn.toml": 'template = "errorbar"\n[data]\nfile = "res.parquet"\nx = "n"\ny = "rmse"\nxmode = "numeric"\n[options]\nlogx = true\n',
         "bar.toml": 'template = "bar"\n[data]\nfile = "res.parquet"\nx = "method"\ny = "rmse"\nhue = "dev"\nerr = "sd"\n',
+        "box.toml": 'template = "boxplot"\n[data]\nfile = "res.parquet"\nx = "method"\ny = "rmse"\nhue = "dev"\n[options]\nlogy = true\n',
+        "conv.toml": 'template = "convergence"\n[data]\nfile = "res.parquet"\nx = "n"\ny = "rmse"\nhue = "dev"\n[options]\nref_order = [1]\n',
         "pan.toml": (
             'template = "panels"\nlayout = [1, 2]\nsize = "double"\n'
             '[[panel]]\ntemplate = "timeseries"\ndata = {file = "s.h5", x = "t", y = "x"}\nlabels = {title = "signal"}\n'
             '[[panel]]\ntemplate = "psd"\ndata = {file = "s.h5", signal = "x", fs = 1000.0}\n'
         ),
     }
-    assert {s.split(".")[0] for s in specs} >= {"ts", "band", "bar", "pan"} and len(REGISTRY) == 11
+    assert {s.split(".")[0] for s in specs} >= {"ts", "band", "bar", "pan"} and len(REGISTRY) == 13
     for name, text in specs.items():
         (project / "figspecs" / name).write_text(text, encoding="utf-8", newline="\n")
         assert all(p.exists() for p in render(project / "figspecs" / name, run_id=run.run_id)), name
