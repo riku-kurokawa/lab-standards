@@ -62,6 +62,7 @@ DEFAULTS: dict = {
             "Makefile",
             ".gitignore",
             ".gitattributes",
+            ".claude/commands",
         ],
         "readonly": ["data/raw", "legacy"],
     },

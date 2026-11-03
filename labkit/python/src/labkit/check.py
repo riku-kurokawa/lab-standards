@@ -353,8 +353,13 @@ class Checker:
         from labkit.reviews import list_reviews
 
         for r in list_reviews(self.root):
-            for e in r.errors:
-                self.add("L035", r.path, e)
+            for i, e in enumerate(r.errors):
+                hint = (
+                    "（lab-reviewer の記録でなければ docs/reviews/ ではなく docs/reports/ などに置く）"
+                    if i == 0
+                    else ""
+                )
+                self.add("L035", r.path, e + hint)
 
     # ---- 報告と実データの照合 ----
     def _doc_files(self):

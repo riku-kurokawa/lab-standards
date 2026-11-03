@@ -78,7 +78,13 @@ def _replace(path: Path, new_line: str) -> None:
 
 
 def _sync(root: Path) -> None:
-    if shutil.which("uv"):
+    if os.name == "nt":
+        # Windows では実行中の labkit.exe を uv が置き換えられず、labkit が中身の無い状態で残る（dist-info だけ）。
+        # 自分自身を入れ替えないよう、同期は labkit の外で行ってもらう
+        print(
+            "Windows では labkit 自身の入れ替えができないため、続けて実行してください: uv sync --reinstall-package labkit"
+        )
+    elif shutil.which("uv"):
         subprocess.run(["uv", "sync"], cwd=root, check=True)
     else:
         print("uv が見つからないため環境の同期を省略しました（uv sync を実行してください）")

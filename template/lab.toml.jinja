@@ -20,6 +20,7 @@ allowed = [
 writable = [
   "src", "scripts", "configs", "tests", "figspecs", "jobs", "docs", "literature", "prompts", "scratch", "notebooks",
   "README.md", "CLAUDE.md", "pyproject.toml", "Makefile", ".gitignore", ".gitattributes",
+  ".claude/commands",  # プロジェクトのスラッシュコマンド（例: prompts/ のゴールを読む /goal）。settings.json は含めない
 ]
 # 誰も書き換えない場所
 readonly = ["data/raw", "legacy"]

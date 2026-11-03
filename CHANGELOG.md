@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.2.0 — 2026-11-03
+
+accelerated-diff-pat で丸 1 日、エージェントを自走させて分かった摩擦を直す。
+
+### 変更
+- 書き込み可能な場所（`layout.writable`）に `.claude/commands` を足した（既定と雛形）。プロジェクトのスラッシュコマンド
+  （例: `prompts/` のゴールを読む `/goal`）を Claude が作れる。`.claude/settings.json` は引き続き書けない。
+  writable の照合を前方一致にし、`a/b` のような複数段の項目が効くようにした（これまでは先頭の 1 段しか見ていなかった）。
+- 承認ゲートのメッセージに、承認・委任をどのプロジェクトで行うかを書く。ゲートはセッションのプロジェクトで判定するので、
+  別のリポジトリ（例: lab-standards 本体）を操作するときも、そのセッションのプロジェクトで `labkit approve` / `labkit delegate` する。
+- `labkit standards link` / `unlink` は Windows で環境を同期しない（実行中の labkit.exe を uv が置き換えられず、labkit が中身の無い
+  状態で残った）。代わりに `uv sync --reinstall-package labkit` を案内する。
+- L035: lab-reviewer の記録でないものの置き場（docs/reports/ など）を案内する。
+- skill `new-experiment`: 計算する前に結果を予測し、予測が確かな run は代表 1 本に絞る（第 0 段）。何時間も自走させるときは
+  `/loop` で 1 拍の指示書を再注入する（量ではなく「予想と違った結果」を拍の中心にする）。開始直後の殻の片付け方。
+
+### 移行
+- `labkit standards unlink --to v1.2.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`。
+- `lab.toml` で `layout.writable` を上書きしているプロジェクトは、`/goal` などを使うなら `".claude/commands"` を足す（人間が編集）。
+
 ## v1.1.0 — 2026-11-03
 
 開始直後に止めた run が `meta.json` の無い殻（L020）として残り、`runs/` は Claude が消せないので人間の回答を待つしかなく、

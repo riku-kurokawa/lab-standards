@@ -45,6 +45,7 @@ def test_gate_queue_approve_and_delegate(git_project):
     assert handle("pretool", bash("git push -u origin feat/x", p)) == (0, "", "")  # feat ブランチは自由
     code, out, err = handle("pretool", bash("git push origin main", p))
     assert code == 2 and "承認待ち #Q001" in err
+    assert str(p) in err  # どのプロジェクトで承認・委任するかを示す（別リポジトリを操作するときに迷わない）
     item = state.list_queue(p)[0]
     assert item["category"] == "git_push" and item["session_id"] == "s1" and item["branch"] == "feat/x"
     # 対話モードなら確認画面
@@ -103,6 +104,8 @@ def test_artifact_protection(git_project):
     assert handle("pretool", bash("rm data/raw/x.bin", p))[0] == 2  # 削除は委任しても拒否
     assert handle("pretool", write("data/raw/x.bin", p))[0] == 0
     assert handle("pretool", write("src/a.py", p))[0] == 0
+    assert handle("pretool", write(".claude/commands/goal.md", p))[0] == 0  # 複数段の writable（既定）
+    assert handle("pretool", write(".claude/settings.json", p))[0] == 2  # 同じ親でも settings は書けない
     assert "matplotlib" in handle("pretool", write("src/a.py", p, "import matplotlib.pyplot as plt\n"))[2]
     assert "pickle" in handle("pretool", write("src/a.py", p, "import pickle\n"))[2]
     assert handle("pretool", write("src/a.md", p, "import pickle\n"))[0] == 0  # .py 以外は見ない

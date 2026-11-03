@@ -110,8 +110,9 @@ def pretool_bash(data: dict, root: Path, kind: str) -> dict | None:
                 raise Block(
                     f"{h.description} は人間の承認が必要です。承認待ち #{item['id']} として記録しました。"
                     "この操作に依存しない作業を続け、終了時の報告に挙げてください。"
-                    f"人間が `labkit approve {item['id']}`（この種類・このブランチを 24 時間許可）か "
-                    f"`labkit delegate {h.category} --hours N` をすると通ります。"
+                    f"人間が {root} で `labkit approve {item['id']}`（この種類・このブランチを 24 時間許可）か "
+                    f"`labkit delegate {h.category} --hours N` をすると通ります"
+                    "（ゲートはこのセッションのプロジェクトで判定するので、別のリポジトリを操作するときもここで承認・委任する）。"
                 )
             reasons.append(f"委任 #{d['id']}（{h.category}）")
 
@@ -196,7 +197,7 @@ def pretool_write(data: dict, root: Path, kind: str) -> dict | None:
         raise Block(
             "data/ のファイルは手で書きません。scripts から labkit.save / labkit.writer 経由で生成してください。"
         )
-    if top not in layout["writable"] and r not in layout["writable"]:
+    if not any(r == w or r.startswith(w.rstrip("/") + "/") for w in layout["writable"]):
         raise Block(
             f"{r} は書き込み可能な場所ではありません。可能: {', '.join(layout['writable'])}。一時ファイルは scratch/ へ。"
         )
