@@ -49,6 +49,7 @@ pdf_dir = "literature/pdfs"   # 複数プロジェクトで共有するなら "~
 [claude]
 require_devlog = true      # コードを変更した日は開発ログの 目的・判断と理由・未解決 を書かないと終了できない
 max_stop_blocks = 3        # 終了時チェックで止める最大回数（無限ループ防止）
+allow_self_stop = false    # /loop を Claude が自分で止めること（CronDelete・ScheduleWakeup の stop）を許すか。止めるのは人間
 
 [autonomy]
 # 長い自律運用: backlog の未着手の項目（`- [ ] ...`）が min_open 件未満なら終了時チェックが止める（計算待ちで止まらない）

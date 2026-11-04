@@ -111,6 +111,19 @@ def test_artifact_protection(git_project):
     assert handle("pretool", write("src/a.md", p, "import pickle\n"))[0] == 0  # .py 以外は見ない
 
 
+def test_loop_self_stop_is_denied(git_project):
+    p = git_project
+    cron = {"tool_name": "CronDelete", "tool_input": {"id": "abc"}, "cwd": str(p), "session_id": "s1"}
+    code, _, err = handle("pretool", cron)
+    assert code == 2 and "人間だけ" in err
+    wake = {"tool_name": "ScheduleWakeup", "cwd": str(p), "session_id": "s1"}
+    assert handle("pretool", {**wake, "tool_input": {"stop": True}})[0] == 2
+    assert handle("pretool", {**wake, "tool_input": {"delaySeconds": 900, "prompt": "x"}}) == (0, "", "")
+    lab = (p / "lab.toml").read_text(encoding="utf-8")
+    (p / "lab.toml").write_text(lab + "\n[claude]\nallow_self_stop = true\n", encoding="utf-8")
+    assert handle("pretool", cron) == (0, "", "")
+
+
 def test_reviewer_rules(git_project):
     p = git_project
     rv = {"agent_type": "lab-rules:lab-reviewer"}

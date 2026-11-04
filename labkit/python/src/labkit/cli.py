@@ -220,7 +220,7 @@ def cmd_queue(a) -> int:
             raise SystemExit("queue ask <質問> --assumed <仮の判断> [--options A B ...] [--impact ...]")
         it = state.ask_question(root, a.text, options=a.options or [], assumed=a.assumed, impact=a.impact or "")
         print(
-            f'質問 #{it["id"]} を積みました。仮の判断（{a.assumed}）で先に進んでください。人間: `labkit answer {it["id"]} "..."`'
+            f'質問 #{it["id"]} を積みました。仮の判断（{a.assumed}）で今すぐ先に進んでください（答えを待って止まらない）。人間: `labkit answer {it["id"]} "..."`'
         )
     else:
         if not a.text:

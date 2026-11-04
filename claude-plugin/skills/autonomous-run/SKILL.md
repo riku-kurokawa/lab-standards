@@ -28,7 +28,7 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 ```
 - /goal の本文はファイルを指す短い文にする（本文を貼ると要約で消える）。/loop は毎回原文を渡し直す。
 - 間隔は、1 拍に新しい結果が 1 つ以上届く長さ（計算 1 本の所要時間の 1.5 倍程度）。短すぎると状態を取るだけで拍が終わる。
-- 規則（停止の条件・予想の関門）は CLAUDE.md に置く。CLAUDE.md は要約の後も読まれる。
+- 規則（予想の関門など）は CLAUDE.md に置く。ループを止めるのは人間だけ（`claude.allow_self_stop = false` の既定では hooks が CronDelete・ScheduleWakeup の stop を拒否する）。CLAUDE.md は要約の後も読まれる。
 
 ## 1 拍の 5 手
 1. 状態を取る（短く）: 資源の稼働、終わった run、queue の回答、backlog の先頭。

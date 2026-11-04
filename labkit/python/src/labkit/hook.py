@@ -339,7 +339,7 @@ def stop(data: dict, root: Path, kind: str) -> dict | None:
     if mine:
         ids = ", ".join(f"#{i['id']}" for i in mine)
         return {
-            "systemMessage": f"[lab-rules] 承認待ち {ids} があるため終了を許可します。人間: `labkit queue list` → `labkit approve <ID>`"
+            "systemMessage": f"[lab-rules] 承認待ち {ids} があるため終了時の検証を省きます（承認待ちは仕事を止める理由ではない: 依存しない仕事を続ける）。人間: `labkit queue list` → `labkit approve <ID>`"
         }
     problems: list[str] = []
     keys: list[str] = []  # 違反 1 件ごとの識別（上限で委ねた違反を覚えるため）
@@ -399,6 +399,25 @@ def stop(data: dict, root: Path, kind: str) -> dict | None:
     raise Block("作業完了の条件を満たしていません。以下を解消してから終了してください:\n\n" + "\n\n".join(problems))
 
 
+# ---- 自分でループを止めない ----
+LOOP_STOP_TOOLS = ("CronDelete", "ScheduleWakeup")
+
+
+def pretool_loop(data: dict, root: Path, kind: str) -> dict | None:
+    """/loop の停止（CronDelete、ScheduleWakeup の stop）は人間だけが行う（claude.allow_self_stop=false のとき）."""
+    if kind != "project" or load_lab(root)["claude"]["allow_self_stop"]:
+        return None
+    ti = data.get("tool_input") or {}
+    if data.get("tool_name") == "ScheduleWakeup" and not ti.get("stop"):
+        return None
+    raise Block(
+        "ループを自分で止めることはできません（lab.toml の claude.allow_self_stop = false。止めるのは人間だけ）。"
+        "人間の答え・承認・実機の作業を待つことは止まる理由になりません: それに依存しない仕事を進めるか、"
+        "人間なしで同じ問いに答える方法（計算・公開データ・独立実装による検証）に切り替えてください。"
+        "目標を達したなら、より大きい次の問いを立てて続けてください。"
+    )
+
+
 # ---- 入口 ----
 def handle(event: str, data: dict) -> tuple[int, str, str]:
     """(exit code, stdout, stderr)。exit 2 + stderr が「止める」."""
@@ -409,7 +428,12 @@ def handle(event: str, data: dict) -> tuple[int, str, str]:
     try:
         if event == "pretool":
             tool = data.get("tool_name", "")
-            out = pretool_bash(data, root, kind) if tool == "Bash" else pretool_write(data, root, kind)
+            if tool == "Bash":
+                out = pretool_bash(data, root, kind)
+            elif tool in LOOP_STOP_TOOLS:
+                out = pretool_loop(data, root, kind)
+            else:
+                out = pretool_write(data, root, kind)
         elif event == "session":
             return 0, session(data, root, kind), ""
         elif event == "prompt":

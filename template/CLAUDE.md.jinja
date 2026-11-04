@@ -48,6 +48,9 @@
   承認待ち `.lab/queue/<ID>` に記録する。feat ブランチへの push は自由。拒否されたら依存しない作業を続け、終了時に ID を報告する。
   人間の `labkit approve <ID>` はその種類の操作をそのブランチで 24 時間許可する（commit しても無効にならない）。
 - **質問**: 判断の分かれる問いは `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>"` で積み、仮の判断で進む。
+- **待って止まらない**: 人間の答え・承認・実機の作業を待つことは、止まる理由にならない。それに依存する仕事は、人間なしで同じ問いに
+  答える方法（計算、公開データ、独立実装による検証）に置き換えるか、依存しない仕事を進める。`/loop` を止めるのは人間だけ
+  （`claude.allow_self_stop = false` の既定では hooks が止める）。目標を達したら、より大きい次の問いを立てて続ける。
 - **委任**: 人間が `labkit delegate <カテゴリ> --hours N` で宣言した操作は待たずに実行してよい（`labkit delegate list`）。
 - `labkit approve / reject / answer / delegate` は人間専用（Claude は実行できない）。
 

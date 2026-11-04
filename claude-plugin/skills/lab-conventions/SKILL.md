@@ -53,6 +53,7 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
   対象の操作は拒否され、承認待ち `.lab/queue/<ID>` に記録される。その操作に依存しない作業を続け、終了時に ID を報告する。
   人間の `labkit approve <ID>` はその種類の操作をそのブランチで 24 時間許可する（commit しても無効にならない。同じ種類なら何度でも通る）。
 - 判断が分かれる問いは `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>" --impact "<変更時の影響>"` に積み、仮の判断で進む。
+- 人間の答え・承認・実機の作業を待つことは止まる理由にならない。人間なしで同じ問いに答える方法（計算・公開データ・独立実装）に置き換えるか、依存しない作業を進める。`/loop` を止めるのは人間だけ（hooks が CronDelete・ScheduleWakeup の stop を拒否する。`claude.allow_self_stop`）。
 - 人間が `labkit delegate <カテゴリ> --hours N` で委任した種類の操作（`labkit delegate list`）は、承認を待たずに実行してよい。
 - `labkit approve / reject / answer / delegate` は人間専用。レビュー記録 `docs/reviews/` は lab-reviewer agent だけが書く。
 

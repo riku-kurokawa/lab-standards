@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.5.0 — 2026-11-04
+
+エージェントが「人間の実機・回答を待つ」と判断して `/loop` を自分で止め、夜の間なにもしなかった（accelerated-diff-pat）。
+人間不在で走ることが前提なので、待つことを止まる理由にしない。
+
+### 変更
+- hooks: `/loop` の停止（`CronDelete`、`ScheduleWakeup` の `stop`）を拒否する。止めるのは人間だけ。`lab.toml` の
+  `[claude] allow_self_stop`（既定 `false`）で切り替える。拒否のメッセージは、依存しない仕事か、人間なしで同じ問いに答える方法
+  （計算・公開データ・独立実装による検証）への切り替え、目標を達したら次の問いを立てることを案内する。
+- 雛形 CLAUDE.md・skill `lab-conventions` に「待って止まらない」を明記。`labkit queue ask` の出力と、承認待ちがあるときの Stop hook の
+  メッセージも「待たずに進める」に改めた（承認待ちで終了時の検証を省く挙動は変えていない）。
+
+### 移行
+- `labkit standards unlink --to v1.5.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`
+  （hooks.json の matcher が変わるので plugin の更新が要る）。
+- 自分で止めてよいループを使うプロジェクトは `lab.toml` に `[claude] allow_self_stop = true`（人間が編集）。
+
 ## v1.4.0 — 2026-11-04
 
 nla-solver で /goal・/loop を一晩回して効いたもの（記録を見ない点検、1 拍の指示書の再注入、予想の関門、撤回の記録）を、
