@@ -30,7 +30,7 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 ```
 - /goal の本文はファイルを指す短い文にする（本文を貼ると要約で消える）。/loop は skill `beat` を毎回呼び直す。
 - 間隔は、1 拍に新しい結果が 1 つ以上届く長さ（計算 1 本の所要時間の 1.5 倍程度）。短すぎると状態を取るだけで拍が終わる。
-- 規則（停止の条件・予想の関門）は CLAUDE.md に置く。CLAUDE.md は要約の後も読まれる。
+- 規則（予想の関門など）は CLAUDE.md に置く。ループを止めるのは人間だけ（`claude.allow_self_stop = false` の既定では hooks が CronDelete・ScheduleWakeup の stop を拒否する）。CLAUDE.md は要約の後も読まれる。
 
 ## 1 拍の回し方（skill: beat）
 `labkit beat start`（現行の goal・beat の本文と状態が出る）→ beat ファイルの 5 手 → `labkit beat end --predicted --observed --decided [--runs]`。
