@@ -171,9 +171,10 @@ class Run:
                 "`prediction` に書いてください（予想に自信があり主張の証拠として要らないなら、計算せず導出で確定させる）"
             )
         if self.lab["runs"].get("require_clean") and self.git and self.git["dirty"]:
+            paths = ", ".join(self.git.get("dirty_paths", [])[:5])
             raise ValueError(
-                "lab.toml の runs.require_clean が有効です。未コミットの変更があります（dirty な run は結果として引用できない）。"
-                "commit してから実行するか、試行なら scratch/ で行ってください"
+                f"lab.toml の runs.require_clean が有効です。未コミットの変更があります: {paths}"
+                "（dirty な run は結果として引用できない）。commit してから実行するか、試行なら scratch/ で行ってください"
             )
         check_prediction(self.config.get("prediction"))
         check_pass(self.config.get("pass"))
