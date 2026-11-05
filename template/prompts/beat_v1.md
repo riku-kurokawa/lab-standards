@@ -8,7 +8,7 @@
 4. **進める**: backlog の先頭を 1 つ前進。確定した主張は `labkit claim add`、崩れた主張は `labkit claim retract`。独立な作業（一次文献・導出・執筆）はサブエージェントに並行で投げる。
 5. **記録する**: `labkit beat end --predicted "…" --observed "…" --decided "…" --runs <id>`（3 行。時刻は機械が入れる）。docs/state.md を上書き（H1 は 1 つ・150 行以内）、commit。
 
-4 拍に 1 回: candor-check agent を 3 回起動して採点の中央値を取り、答えを受け入れるか根拠つきで退ける。1 日 1 回（人間が読む前）: `labkit digest`。
+周期的な点検（candor-check）と `labkit digest` の頻度は CLAUDE.md と skill: autonomous-run に従う。
 
 禁止: 計算の完了を待つだけで拍を終える / 予想を書かずに run を投げる / 報告だけ書いて何も前進させずに終える / scratch のファイルを根拠にする。
 

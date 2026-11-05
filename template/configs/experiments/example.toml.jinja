@@ -7,8 +7,8 @@ noise_std = 0.8
 
 # 計算する前に結果を予想する（run の終了時に自動で判定され、meta.json の prediction_result に残る）
 [prediction]
-basis = "雑音 0.8、最終カットオフ 20 Hz。信号 5 Hz は通り雑音の約 96 % を落とすので SNR は 10 dB 台"
-expert_predictable = true   # 専門家なら計算せずに分かる結果か。true なら、なぜ計算が要るか（ここでは動作確認）を basis に書く
+basis = "雑音 0.8、最終カットオフ 20 Hz。信号 5 Hz は通り雑音の約 96 % を落とすので SNR は 10 dB 台。雑音の実現値で数 dB 動くので範囲で予想する"
+expert_predictable = false  # 専門家なら計算せずに分かる結果なら true にし、なぜ計算が要るかを basis に書く（true の run は DIGEST に数が出る）
 [[prediction.claims]]
 key = "snr_db"
 range = [8.0, 20.0]

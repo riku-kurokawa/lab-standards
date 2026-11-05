@@ -100,8 +100,23 @@ def git(cwd: Path, *args: str) -> str | None:
         return None
 
 
-# 計算結果に影響しない場所。ここだけの未コミットは dirty に数えない（文書を書くたびに run が dirty になるのを防ぐ）
-DIRTY_IGNORE = ("docs/", "literature/", "prompts/", "scratch/", "notebooks/", ".lab/", "README.md", "CLAUDE.md")
+# 計算結果に影響しない場所。ここだけの未コミットは dirty に数えない（文書を書くたびに run が dirty になるのを防ぐ）。
+# notebooks/ はコード（check.code_dirs）なので数える
+DIRTY_IGNORE = ("docs/", "literature/", "prompts/", "scratch/", ".lab/", "README.md", "CLAUDE.md")
+
+
+def git_status(root: Path) -> list[tuple[str, str]]:
+    """`git status --porcelain -z` を [(XY, path)] で返す。-z なら空白・非 ASCII のパスも引用符で囲まれない."""
+    out = git(root, "status", "--porcelain", "-z", "--untracked-files=all")
+    if not out:
+        return []
+    items, entries = [e for e in out.split("\0") if e], []
+    i = 0
+    while i < len(items):
+        xy, path = items[i][:2], items[i][3:]
+        entries.append((xy, path))
+        i += 2 if xy[0] in "RC" else 1  # rename/copy は次の要素が旧パス
+    return entries
 
 
 def git_info(root: Path) -> dict | None:
@@ -110,8 +125,7 @@ def git_info(root: Path) -> dict | None:
     commit = git(root, "rev-parse", "HEAD")
     if commit is None:
         return None
-    status = git(root, "status", "--porcelain", "--untracked-files=all") or ""
-    paths = [ln[3:] for ln in status.splitlines() if ln[3:] and not ln[3:].startswith(DIRTY_IGNORE)]
+    paths = [p for _, p in git_status(root) if p and not p.startswith(DIRTY_IGNORE)]
     info = {"commit": commit, "branch": git(root, "rev-parse", "--abbrev-ref", "HEAD") or "", "dirty": bool(paths)}
     if paths:
         info["dirty_paths"] = paths[:20]

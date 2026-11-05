@@ -20,9 +20,10 @@ def write(p, text):
 
 
 def review(p, name, verdict, extra=""):
+    stage = name.split("_")[2].split(".")[0]  # ファイル名の stage と揃える
     write(
         p / "docs" / "reviews" / name,
-        f"---\nreviewer: lab-reviewer\nflow: adhoc\nstage: review\ncommit: {'a' * 40}\nverdict: {verdict}\n{extra}"
+        f"---\nreviewer: lab-reviewer\nflow: adhoc\nstage: {stage}\ncommit: {'a' * 40}\nverdict: {verdict}\n{extra}"
         + ('findings:\n  - "must: a.py:1 x"\n  - "should: b.py:2 y"\n' if verdict != "pass" else "findings: []\n")
         + "---\n",
     )
@@ -37,13 +38,15 @@ def test_reviews_summary_resolves_and_open_list(project):
         "changes-requested",
         "summary: 草稿の下限に格子の不確かさが無い\nresolves: docs/reviews/2026-11-01_adhoc_review.md\n",
     )
-    review(p, "2026-11-03_adhoc_review_2.md", "pass", "summary: " + "長" * 121 + "\nresolves: docs/reviews/nope.md\n")
-    review(p, "2026-11-04_adhoc_review.md", "pass", 'summary: ""\n')  # 新しい雛形で summary が空 → 警告
+    review(p, "2026-11-03_adhoc_plan.md", "pass", "summary: " + "長" * 121 + "\nresolves: docs/reviews/nope.md\n")
+    review(
+        p, "2026-11-04_adhoc_plan_2.md", "pass", 'summary: ""\n'
+    )  # summary が空 → 警告（stage が違うので 11-02 は閉じない）
     got = [i for i in run_check(root=p)[0] if i.code == "L035"]
     assert sorted((i.severity, i.where) for i in got) == [  # 11-01 は summary のキーが無い古い記録なので警告しない
-        ("error", "docs/reviews/2026-11-03_adhoc_review_2.md"),
-        ("warn", "docs/reviews/2026-11-03_adhoc_review_2.md"),
-        ("warn", "docs/reviews/2026-11-04_adhoc_review.md"),
+        ("error", "docs/reviews/2026-11-03_adhoc_plan.md"),
+        ("warn", "docs/reviews/2026-11-03_adhoc_plan.md"),
+        ("warn", "docs/reviews/2026-11-04_adhoc_plan_2.md"),
     ]
     assert [r.path.name for r in open_reviews(p)] == ["2026-11-02_adhoc_review.md"]  # 11-01 は 11-02 が resolves
     r = load_review(p / "docs" / "reviews" / "2026-11-02_adhoc_review.md")
@@ -142,7 +145,7 @@ def test_code_volume_line(git_project):
     git(p, "commit", "-q", "-m", "a")
     write(p / "src" / "a.py", "x = 1\n\ny = 2\nz = 3\n")
     text = update(p).read_text(encoding="utf-8")
-    assert "- コード量: src 3 行（+4、1 ファイル）" in text and "300 行超 0 本" in text
+    assert "- コード量: src 3 行（+3、1 ファイル）" in text and "300 行超 0 本" in text  # その日の増分（空行を除く）
 
 
 def test_empty_project_digest_does_not_fail(project):

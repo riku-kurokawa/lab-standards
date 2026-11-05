@@ -31,13 +31,17 @@ def _since(root: Path, since: str | None) -> tuple[str, str]:
     return since, base
 
 
-def staleness(root: Path) -> str | None:
-    """SessionStart の 1 行: DIGEST が古ければ知らせる（無ければ案内）."""
+def staleness(root: Path, *, announce_missing: bool = True) -> str | None:
+    """SessionStart の 1 行: DIGEST が古ければ知らせる（無ければ案内）。日付は DIGEST の 1 行目（生成時刻）から読む."""
     lab = load_lab(root)
     p = root / lab["digest"]["file"]
     if not p.is_file():
+        if not announce_missing:
+            return None
         return f"- 人間の入口 {lab['digest']['file']} がまだ無い（1 日 1 回、人間が読む前に `labkit digest`）"
-    when = (git(root, "log", "-1", "--format=%cI", "--", lab["digest"]["file"]) or "")[:10]
+    with open(p, encoding="utf-8", errors="replace") as f:
+        m = re.match(r"# DIGEST（(\d{4}-\d{2}-\d{2})", f.readline())
+    when = m.group(1) if m else (git(root, "log", "-1", "--format=%cI", "--", lab["digest"]["file"]) or "")[:10]
     today = _dt.date.today().isoformat()
     return (
         None if when == today else f"- {lab['digest']['file']} は {when or '未 commit'} 版。今日の分は `labkit digest`"
@@ -53,15 +57,18 @@ def _runs_since(root: Path, since: str) -> list[dict]:
 def _figures(root: Path, since: str, lab: dict) -> list[str]:
     from labkit.paths import runs_root
 
-    out, n = [], 0
+    out, n, seen = [], 0, set()
     assets = root / lab["digest"]["assets"]
+    shutil.rmtree(assets, ignore_errors=True)  # 前回の写しは消す（原本は run に、過去の写しは git の履歴にある）
     for fm in sorted(runs_root(root).glob("*/figures/*.figmeta.json"), key=lambda p: p.stat().st_mtime, reverse=True):
         try:
             meta = read_json(fm)
+            run_meta = read_json(fm.parent.parent / "meta.json")
         except Exception:
             continue
-        if str(meta.get("created", "")) < since:
-            continue
+        if str(meta.get("created", "")) < since or run_meta.get("archived") or fm.name in seen:
+            continue  # 退避した run の図と、同じ図の古い版（同名は最新の run だけ）は載せない
+        seen.add(fm.name)
         png = fm.with_name(fm.name.replace(".figmeta.json", ".png"))
         if not png.is_file():
             continue
@@ -77,8 +84,8 @@ def _figures(root: Path, since: str, lab: dict) -> list[str]:
             shutil.copy2(png, dst)
             rel = dst.relative_to(root).as_posix()
             out.append(f"![{title}]({rel})\n*{title}* — run `{rid}`" + (f"。{desc}" if desc else ""))
-        else:
-            out.append(f"- {title} — `{png.relative_to(root).as_posix()}`")
+    if n > int(lab["digest"]["max_figures"]):
+        out.append(f"- …ほか {n - int(lab['digest']['max_figures'])} 枚（runs/*/figures。digest.max_figures）")
     return out
 
 
@@ -111,10 +118,12 @@ def build(root: Path, since: str | None = None) -> Path:
     L = [f"# DIGEST（{_dt.datetime.now().strftime('%Y-%m-%d %H:%M')}、{day} 以降、HEAD {head}）", ""]
     L += ["> `labkit digest` が台帳と run から生成。手で編集しない。詳細は各ファイルへ。", ""]
 
+    issues, mode = run_check(root=root)  # 1 回だけ走らせ、主張の節と check の節で使う
+
     # 主張
     claims = list_claims(root)
     new = [c for c in claims if c["date"] >= day]
-    broken = [i for i in run_check(root=root, claims=True)[0] if i.code == "L036"]
+    broken = [i for i in issues if i.code == "L036"]
     if claims:
         L += [
             f"## 主張（open {sum(c['status'] == 'open' for c in claims)} / 撤回 {sum(c['status'] == 'retracted' for c in claims)}）",
@@ -186,21 +195,23 @@ def build(root: Path, since: str | None = None) -> Path:
     # レビュー
     opens = open_reviews(root)
     if opens:
-        L += ["## 未解消のレビュー", ""] + [f"- {ln}" for ln in format_reviews(root, opens).splitlines()] + [""]
+        L += ["## 未解消のレビュー", ""] + [f"- {ln}" for ln in format_reviews(root, opens[:8]).splitlines()]
+        L += ([f"- …ほか {len(opens) - 8} 件（`labkit review list --open`）"] if len(opens) > 8 else []) + [""]
 
     # queue
     s = state.pending_summary(root)
     items = s["pending"] + s["open_questions"]
     if items:
         L += ["## 人間を待っているもの", ""]
-        L += [f"- #{it['id']} 承認待ち: `{it.get('command')}`" for it in s["pending"]]
+        L += [f"- #{it['id']} 承認待ち: `{str(it.get('command'))[:100]}`" for it in s["pending"][:8]]
         L += [
-            f"- #{it['id']} 質問: {it.get('question')}（仮の判断: {it.get('assumed')}）" for it in s["open_questions"]
+            f"- #{it['id']} 質問: {str(it.get('question'))[:120]}（仮の判断: {str(it.get('assumed'))[:60]}）"
+            for it in s["open_questions"][:8]
         ]
+        L += [f"- …ほか {len(items) - 16} 件（`labkit queue list`）"] if len(items) > 16 else []
         L.append("")
 
     # check
-    issues, mode = run_check(root=root)
     if issues:
         cnt: dict[str, int] = {}
         for i in issues:

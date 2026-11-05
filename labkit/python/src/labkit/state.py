@@ -18,7 +18,9 @@ from pathlib import Path
 from labkit._util import git, read_json, write_json_atomic
 
 LAB_DIR = ".lab"
-GITIGNORE = "# labkit が生成。queue と delegations は手元だけの状態（flows/ は git 管理）\nqueue/\ndelegations.json\n"
+GITIGNORE = (
+    "# labkit が生成。queue と delegations は手元だけの状態（flows/ と beats/ は git 管理）\nqueue/\ndelegations.json\n"
+)
 DELEGATABLE = {
     "git_push": "保護ブランチへの push・force push・リモートの削除",
     "git_tag": "git tag の作成・削除",

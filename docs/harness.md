@@ -67,7 +67,7 @@ Windows ネイティブでは sandbox が無効で、chmod は読み取り専用
 
 ## 4. 独立レビュー
 
-`lab-reviewer` agent がレビューし、`docs/reviews/YYYY-MM-DD_<flow>_<段階>.md` に frontmatter（reviewer, flow, stage, commit, verdict, findings）付きで保存する。
+`lab-reviewer` agent がレビューし、`docs/reviews/YYYY-MM-DD_<flow>_<段階>.md` に frontmatter（reviewer, flow, stage, commit, verdict, summary, findings[, resolves]。summary は人間向け 1 行で無いと L035 の警告、resolves の先が無いと違反）付きで保存する。
 `docs/reviews/` は hook 入力の `agent_type` が lab-reviewer のときだけ書ける（自己採点の防止）。lab-reviewer の Bash は読み取りの許可リストだけ。
 migrate の reproduce 段階は、現在の HEAD に対する verdict=pass の記録が無いと進めない。
 

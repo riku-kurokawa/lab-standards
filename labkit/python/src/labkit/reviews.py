@@ -28,6 +28,7 @@ NAME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_([a-z0-9-]+)_([a-z0-9-]+)(?:_(\d+))?
 VERDICTS = ("pass", "changes-requested")
 REQUIRED = ("reviewer", "flow", "stage", "commit", "verdict", "findings")
 SUMMARY_MAX = 120
+SUMMARY_SINCE = "2026-11-05"  # これより前の記録に summary の警告は出さない（v1.5.0 で導入）
 
 
 @dataclass
@@ -96,8 +97,8 @@ def load_review(path: Path) -> Review:
         r.errors.append("changes-requested には findings が必要です")
     r.summary = str(fm.get("summary") or "").strip()
     r.resolves = str(fm.get("resolves") or "").strip()
-    if "summary" in fm and not r.summary:
-        r.warnings.append(f"summary（人間向けの 1 行、{SUMMARY_MAX} 字以内）が空です")
+    if not r.summary and ("summary" in fm or r.date >= SUMMARY_SINCE):  # 古い記録（キーも無い）は責めない
+        r.warnings.append(f"summary（人間向けの 1 行、{SUMMARY_MAX} 字以内）がありません")
     elif len(r.summary) > SUMMARY_MAX:
         r.warnings.append(f"summary が {len(r.summary)} 字（{SUMMARY_MAX} 字以内）")
     if r.resolves and not (path.parent.parent.parent / r.resolves).is_file():
@@ -114,10 +115,17 @@ def list_reviews(root: Path, flow: str | None = None, stage: str | None = None) 
 
 
 def open_reviews(root: Path) -> list[Review]:
-    """未解消の changes-requested: 後続の記録に resolves で指されていないもの."""
+    """未解消の changes-requested: 後続の記録に resolves で指されておらず、同じ flow/stage の後続に pass も無いもの."""
     rs = list_reviews(root)
     resolved = {r.resolves for r in rs if r.resolves}
-    return [r for r in rs if r.verdict == "changes-requested" and r.path.relative_to(root).as_posix() not in resolved]
+    out = []
+    for i, r in enumerate(rs):
+        if r.verdict != "changes-requested" or r.path.relative_to(root).as_posix() in resolved:
+            continue
+        if any(s.verdict == "pass" and (s.flow, s.stage) == (r.flow, r.stage) for s in rs[i + 1 :]):
+            continue
+        out.append(r)
+    return out
 
 
 def format_reviews(root: Path, rs: list[Review]) -> str:

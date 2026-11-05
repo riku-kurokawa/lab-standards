@@ -59,8 +59,8 @@ plugin は `lab.toml` があるプロジェクトと本体でだけ動く。判�
 ```bash
 copier copy gh:riku-kurokawa/lab-standards ~/research/myproj
 cd ~/research/myproj
-git init && git add -A && git commit -m "init from lab-standards"
-uv sync && uv run pre-commit install
+uv sync && uv run pre-commit install                   # uv.lock も環境の来歴なので commit に含める
+git init && git add -A && git commit -m "init from lab-standards"   # 雛形は require_clean = true（未コミットでは run が始まらない）
 make check && make example                              # 動作確認（合成信号 → run → 図）
 ```
 

@@ -90,7 +90,7 @@ DEFAULTS: dict = {
         "skip": [],
         # 引用（run ID・`値 [run:<id>:<key>]`）を照合する文書（ルート基準の glob）。自動ブロックと DIGEST は除く
         "claim_docs": ["docs/**/*.md", "literature/surveys/*.md"],
-        "dirty_citation": "warn",  # dirty な run を結果として引用したとき: "warn" | "error"（claims.md は常に error）
+        "dirty_citation": "warn",  # dirty な run を結果として引用したとき: "warn" | "error" | "off"（claims.md は常に error）
         # L018: src・scripts のファイルの行数（空行を除く）の上限。人間が一度に読める大きさ。0 で無効
         "max_file_lines": 300,
         "long_file": "warn",

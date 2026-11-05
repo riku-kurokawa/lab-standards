@@ -9,7 +9,7 @@ PreToolUse(Bash):
   3. 承認ゲートの対象（保護ブランチへの push/merge、tag、gh release/merge、raw freeze）:
        委任あり → 許可 / 確認画面が出る permission mode → ask / それ以外 → 拒否して .lab/queue に積む
   4. 成果物の保護: data/raw・runs/・lab.toml・.lab/ を壊す操作
-PreToolUse(Write/Edit): .lab/ と規約ファイルの保護、docs/reviews/ は lab-reviewer だけ、置き場所、禁止 import
+PreToolUse(Write/Edit): .lab/ と規約ファイルの保護、docs/reviews/ は lab-reviewer だけ、docs/claims.md と DIGEST.md は labkit だけ、置き場所、禁止 import
 SessionStart / UserPromptSubmit: 状態（承認待ち・回答・委任・flow・今日の開発ログ）を文脈に入れる
 Stop: 主張の検証（labkit check --claims）、コードを変えた日の開発ログの判断欄が空でないこと、
       [autonomy] を設定したら backlog の未着手が min_open 件以上あること
@@ -38,6 +38,8 @@ DESTRUCTIVE = r"^\s*(?:sudo\s+)?(?:rm|mv|chmod|chown|chattr|truncate|shred|unlin
 DELETING = r"^\s*(?:sudo\s+)?(?:rm|shred|unlink|truncate)\b|\bfind\b.*-(?:delete|exec\s+rm)"
 # 入力の無い `python -`（行頭か ; && || & の直後。パイプの後ろは入力があるので対象外）
 STDIN_PYTHON = r"(?:^|[;&\n]|\|\|)\s*(?:\S*/)?(?:python[0-9.]*|py)(?:\.exe)?\s+-(?=\s|$)"
+WRITE_OPS = r">{1,2}|\btee\b|\bsed\s+-i|\b(?:rm|mv|cp|touch|truncate|python[0-9.]*\s+-c|perl|node\s+-e)\b"
+GENERATED = {"docs/claims.md": "`labkit claim add / retract`", "docs/DIGEST.md": "`labkit digest`"}
 
 
 class Block(Exception):
@@ -84,11 +86,13 @@ def pretool_bash(data: dict, root: Path, kind: str) -> dict | None:
             if not gate.reviewer_allowed(seg):
                 raise Block(f"許可されていないコマンドです: `{seg[:80]}`。{gate.reviewer_allowed_summary()}")
     for seg in segs:
-        if re.search(r"\.lab/(?:queue|flows|delegations)", seg) and re.search(
-            r">{1,2}|\btee\b|\bsed\s+-i|\b(?:rm|mv|cp|touch|truncate|python[0-9.]*\s+-c|perl|node\s+-e)\b", seg
-        ):
+        if re.search(r"\.lab/(?:queue|flows|delegations|beats)", seg) and re.search(WRITE_OPS, seg):
             raise Block(
-                ".lab/ は直接書き換えません（labkit queue / flow を使う）。承認・却下・回答・委任は人間だけが行います。"
+                ".lab/ は直接書き換えません（labkit queue / flow / beat を使う）。承認・却下・回答・委任は人間だけが行います。"
+            )
+        if kind == "project" and re.search(r"docs/(?:claims|DIGEST)\.md", seg) and re.search(WRITE_OPS, seg):
+            raise Block(
+                "docs/claims.md と docs/DIGEST.md は手で書きません（`labkit claim add / retract`、`labkit digest`）。"
             )
 
     lab = load_lab(root)
@@ -182,6 +186,8 @@ def pretool_write(data: dict, root: Path, kind: str) -> dict | None:
         raise Block(f"{r} はレビュー記録です。独立した lab-reviewer agent だけが書けます（Agent ツールで起動する）。")
     if kind != "project":
         return None
+    if r in GENERATED:
+        raise Block(f"{r} は labkit が書く台帳・生成物です（{GENERATED[r]}）。手で編集しません。")
     lab = load_lab(root)
     layout = lab["layout"]
     top = r.split("/", 1)[0]
@@ -241,7 +247,7 @@ def pretool_write(data: dict, root: Path, kind: str) -> dict | None:
 def _queue_delta(root: Path) -> list[str]:
     s = state.pending_summary(root)
     lines = [
-        f"- 承認済み #{it['id']}: {it['category']}（ブランチ {it.get('branch')}）は委任 {it.get('delegation')} の期限まで実行してよい。"
+        f"- 承認済み #{it['id']}: {it.get('category') or '?'}（ブランチ {it.get('branch')}）は委任 {it.get('delegation')} の期限まで実行してよい。"
         f"実行したら `labkit queue done {it['id']}`"
         for it in s["approved"]
     ]
@@ -251,7 +257,7 @@ def _queue_delta(root: Path) -> list[str]:
         for it in s["answered"]
     ]
     lines += [
-        f"- 却下 #{it['id']}: `{it['command']}`"
+        f"- 却下 #{it['id']}: `{it.get('command', '')}`"
         + (f"（理由: {it['note']}）" if it.get("note") else "")
         + f" → 実行しない。確認したら `labkit queue done {it['id']}`"
         for it in s["rejected"]
@@ -289,16 +295,22 @@ def session(data: dict, root: Path, kind: str) -> str:
             f"- 注意: plugin lab-rules は {pv}、labkit は {__version__}。版を揃える（`/plugin marketplace update lab-standards` / pyproject のタグ）。"
         )
     if kind == "project":
-        from labkit.beat import session_lines
+        from labkit.beat import CURRENT, session_lines
         from labkit.digest import staleness
 
-        lab = load_lab(root)
-        off = [k for k in ("require_prediction", "require_clean") if not lab["runs"].get(k)]
-        if off:
-            lines.append(f"- 無効のままの関門: runs.{' / runs.'.join(off)}（lab.toml で人間が有効にする。既定 false）")
-        lines += session_lines(root, compact=data.get("source") == "compact")
-        if st := staleness(root):
-            lines.append(st)
+        try:  # current.toml や拍の記録が壊れていても、他の案内は届ける
+            autonomous = (root / CURRENT).is_file()
+            lab = load_lab(root)
+            off = [k for k in ("require_prediction", "require_clean") if not lab["runs"].get(k)]
+            if off and autonomous and data.get("source") != "compact":
+                lines.append(
+                    f"- 無効のままの関門: runs.{' / runs.'.join(off)}（lab.toml で人間が有効にする。既定 false）"
+                )
+            lines += session_lines(root, compact=data.get("source") == "compact")
+            if st := staleness(root, announce_missing=autonomous):
+                lines.append(st)
+        except Exception as e:
+            lines.append(f"- 注意: {CURRENT} か .lab/beats を読めません（`labkit check`）: {type(e).__name__}: {e}")
     lines += [
         f"- 委任中 {state.describe_delegation(d)}: 承認を待たずに実行してよい" for d in state.active_delegations(root)
     ]
@@ -340,7 +352,7 @@ def _counter(session_id: str) -> Path:
 def stop(data: dict, root: Path, kind: str) -> dict | None:
     if kind != "project":
         return None
-    from labkit._util import git
+    from labkit._util import git, git_status
     from labkit.check import run_check
     from labkit.devlog import devlog_path, section_bodies, update
 
@@ -360,8 +372,7 @@ def stop(data: dict, root: Path, kind: str) -> dict | None:
         problems.append("`labkit check --claims` の違反:\n" + "\n".join(errs)[-3500:])
         keys += errs
     if lab["claude"]["require_devlog"]:
-        status = git(root, "status", "--porcelain", "--untracked-files=all") or ""
-        changed = [ln[3:] for ln in status.splitlines() if ln[3:].startswith(CODE_PREFIXES)]
+        changed = [p for _, p in git_status(root) if p.startswith(CODE_PREFIXES)]
         today = _dt.date.today().isoformat()
         committed = git(root, "log", "--name-only", "--format=", f"--since={today} 00:00") or ""
         changed += [f for f in committed.splitlines() if f.startswith(CODE_PREFIXES)]

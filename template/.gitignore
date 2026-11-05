@@ -8,7 +8,7 @@
 /scratch/*
 !/scratch/.gitkeep
 
-# --- ハーネスの手元だけの状態（flows/ は git 管理） ---
+# --- ハーネスの手元だけの状態（flows/ と beats/ は git 管理） ---
 /.lab/queue/
 /.lab/delegations.json
 /.lab/mirror.json

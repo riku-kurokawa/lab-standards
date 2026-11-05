@@ -172,9 +172,12 @@ def cmd_runs(a) -> int:
         ids = [a.run_id] if a.run_id else []
         if a.status or a.uncited:
             statuses = tuple(a.status.split(",")) if a.status else ()
+            older = (7.0 if a.uncited else 0.0) if a.older_than is None else a.older_than  # 引用前の新しい run を守る
             ids += [
                 m["run_id"]
-                for m in archive_candidates(statuses=statuses, uncited=a.uncited, older_than_days=a.older_than or 0)
+                for m in archive_candidates(
+                    statuses=statuses, uncited=a.uncited, older_than_days=older, archived=a.undo
+                )
             ]
         if not ids:
             raise SystemExit(
@@ -195,10 +198,19 @@ def cmd_runs(a) -> int:
         )
     else:
         df = runs_table(a.run_id or "", file=a.file or "results.parquet", include_all=a.all)
-        print(df.to_markdown(index=False) if a.md and hasattr(df, "to_markdown") else df.to_string(index=False))
+        print(_markdown(df) if a.md else df.to_string(index=False))
         for rid, why in df.attrs.get("excluded", []):
             print(f"# 除外: {rid} ({why})", file=sys.stderr)
     return 0
+
+
+def _markdown(df) -> str:
+    """DataFrame を Markdown の表に（tabulate に依存しない）."""
+    cols = [str(c) for c in df.columns]
+    rows = [[str(v) for v in r] for r in df.astype(str).itertuples(index=False)]
+    return "\n".join(
+        ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols), *("| " + " | ".join(r) + " |" for r in rows)]
+    )
 
 
 def cmd_run(a) -> int:
@@ -529,7 +541,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument(
         "--uncited", action="store_true", help="archive: 文書に引用されず他の run の入力でもない finished を候補に"
     )
-    s.add_argument("--older-than", type=float, help="archive: この日数より古い run だけ")
+    s.add_argument("--older-than", type=float, help="archive: この日数より古い run だけ（--uncited の既定は 7）")
     s.add_argument("--dry-run", action="store_true", help="archive: 候補を表示するだけ")
     s.add_argument("--undo", action="store_true", help="archive: 退避を取り消す")
     s.add_argument("--say", choices=["hit", "miss", "partial"], help="verdict: 自由記述の予想の自己申告")

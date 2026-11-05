@@ -11,8 +11,8 @@
   未解消のレビュー、承認待ち・質問、check の集計、文献の追加と読書キュー、変更された文書とコード量）。SessionStart が古さを知らせる。DIGEST は引用照合の対象外。
 - 主張の台帳 `docs/claims.md`: `labkit claim add "<1 文>" --evidence <run>:<key>[:<unit>][:<digits>]` / `claim retract <ID> --reason` / `claim list`。
   状態は open / retracted の 2 値。L036 が書式・撤回の理由・open な主張の根拠（run が無い・failed・dirty・退避済み）を error で知らせる。
-- レビュー記録に `summary`（人間向け 1 行、120 字以内。無いと L035 の警告）と `resolves`（前回の記録）、findings の接頭辞 `must:` / `should:`。
-  `labkit review list [--open]`（未解消の changes-requested を 1 行/件）、`labkit review template ... --resolves <前回>` が前回の指摘の対応表を差し込む。
+- レビュー記録に `summary`（人間向け 1 行、120 字以内。2026-11-05 以降の記録で無いと L035 の警告）と `resolves`（前回の記録）、findings の接頭辞 `must:` / `should:`。
+  `labkit review list [--open]`（未解消 = 後続に resolves も同じ flow/stage の pass も無い changes-requested）、`labkit review template ... --resolves <前回>` が前回の指摘の対応表を差し込む。
 - 開発ログの自動ブロックに「コード量」の 1 行（src/scripts/tests の行数（空行を除く）、その日の増減、300 行超の本数）と「拍（自動）」。
 
 ### 追加（実験の共通の入口と予想の関門）
@@ -23,12 +23,13 @@
 - 予想の表 `[prediction] basis confidence expert_predictable` + `[[prediction.claims]] key range|point+tol`: 終了時に自動判定し `prediction_result`（hit / miss / partial / undeterminable）。
   自由記述の予想は `labkit runs verdict <id> --say hit|miss|partial --note`（self_reported が残る）。L024（警告）: 予想のある finished run に判定が無い。
 - `[runs] require_clean`（既定 false、雛形 true）: 未コミットの変更がある状態では run を始めない。`git.dirty` は計算に影響しない場所（docs/ literature/ prompts/ scratch/
-  notebooks/ .lab/ README/CLAUDE.md）だけの変更を数えなくなり、何が dirty だったかは `git.dirty_paths` に残る。
+  .lab/ README/CLAUDE.md）だけの変更を数えなくなり、何が dirty だったかは `git.dirty_paths` に残す（`git status -z` で読むので空白・非 ASCII のパスも正しく扱う）。
 - `labkit runs table <name> [--file] [--all] [--md]`: 複数 run の同じ表を連結する（clean な finished だけ、除外を表示、実行中の run の入力に記録）。集計スクリプトを毎回書かない。
 
 ### 追加（視界から消す・読める大きさに保つ）
-- `labkit runs archive <id> | --status failed,interrupted | --uncited [--older-than N] [--dry-run] [--undo]`: 削除せず `meta.json` に `archived` を書く。
-  `runs list` と DIGEST は既定で隠す（`--all`）。引用すると L032 の警告。Claude が実行してよい。
+- `labkit runs archive <id> | --status failed,interrupted | --uncited [--older-than N（--uncited の既定 7）] [--dry-run] [--undo]`: 削除せず `meta.json` に `archived` を書く。
+  `runs list` と DIGEST は既定で隠す（`--all`。開発ログの自動ブロックには archived の印つきで残る）。引用すると L032 の警告。Claude が実行してよい。
+  `docs/claims.md`・`docs/DIGEST.md`・`.lab/beats/` は hooks が手書きを止める（labkit のコマンドだけが書く）。
 - L018（警告）: src・scripts のファイルが `check.max_file_lines`（既定 300、空行を除く）を超える。`max_lines_allowed` で例外。雛形の ruff に C90 / PLR0915。
 - L011 は scripts → scripts の import も警告。L037: `docs/state.md` は H1 1 つ・同じ H2 は 1 回（error）、`[state] max_lines`（150）超は警告（積み上げない）。
 - L038（警告）: 結果・主張の節が `scratch/` のファイルを根拠にしている。L023（警告）: run を実行した labkit の版がプロジェクトの固定版と違う（環境の同期漏れ）。
@@ -60,9 +61,17 @@
 ### 移行
 - `labkit standards unlink --to v1.5.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`、
   雛形は `labkit standards template --ref v1.5.0`（`docs/claims.md`・`prompts/current.toml`・`goal_v1.md` が増える。`scripts/run_example.py` は消してよい）。
-- 既存プロジェクトで新たに error になり得るのは L036（claims.md を使い始めたとき）と L037（state.md に H1 が複数・同じ H2 が複数）だけ。
-  state.md は古い節を消す（履歴は git にある）。他はすべて警告か opt-in。`require_prediction` / `require_clean` は人間が lab.toml で有効にする。
-- docs/** 全体が照合の対象になったので、docs/papers や docs/prereg の引用に L032/L033 が出ることがある（これまで見えていなかった不一致）。
+- 既存プロジェクトで新たに error になり得るもの: L037（state.md に H1 が複数・同じ H2 が複数。古い節を消す。履歴は git にある）、
+  L036（claims.md を使い始めたとき）、そして docs/** 全体が照合の対象になったことによる L033（docs/papers・reports・prereg・math の引用で、
+  数値が `値 [単位] [run:<id>:<key>]` の書式どおりに cite の直前に無い、または metrics と合わない）。strict なら Stop hook が止まるので、
+  `unlink` の前に新しい labkit で `labkit check --claims` を流し、文書を `labkit cite` の出力に直すか、`check.claim_docs` を狭める。
+  他はすべて警告か opt-in。`require_prediction` / `require_clean` は人間が lab.toml で有効にする。
+- `labkit standards template --ref v1.5.0` で lab.toml が雛形の既定（`require_prediction = true`・`require_clean = true`）に変わる
+  （変わったときは template が 1 行知らせる）。使わないなら false に戻す。v1.4.0 以前の run は文書だけの変更でも dirty と記録されているので、
+  結果として使う run は clean に再実行する。dirty の引用の警告が多すぎるなら `check.dirty_citation = "off"`。
+- `configs/experiments/example.toml` は既存なら更新されない（`_skip_if_exists`）。`make example` を使うなら `entry = "<pkg>.experiments.example:run"` と
+  `[prediction]`・`[[pass]]` を足す（雛形の example.toml.jinja を参照）。使わないなら `src/<pkg>/experiments/example.py` と `__init__.py` を消す
+  （残すと L017 の警告）。`scripts/run_example.py` は消してよい。
 
 ## v1.4.0 — 2026-11-04
 

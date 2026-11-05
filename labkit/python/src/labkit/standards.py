@@ -22,7 +22,7 @@ from pathlib import Path
 import yaml
 
 from labkit._util import git
-from labkit.config import find_root
+from labkit.config import find_root, load_lab
 
 PY_LINE = re.compile(r"^labkit\s*=\s*\{.*\}[ \t]*$", re.M)
 TAG_RE = re.compile(r"^v\d+\.\d+\.\d+([.-][0-9A-Za-z.]+)?$")
@@ -136,6 +136,7 @@ def template(ref: str, root: Path | None = None) -> int:
         *(["--data", f"standards_ref={ref}"] if TAG_RE.match(ref) else []),
     ]
     print("$ " + " ".join(cmd))
+    before = load_lab(root)["runs"]
     rc = subprocess.run(cmd, cwd=root, check=False).returncode
     if rc == 0:
         from labkit.check import Checker
@@ -143,6 +144,15 @@ def template(ref: str, root: Path | None = None) -> int:
         ch = Checker(root)
         ch.conflict_markers()
         conflicted = sorted({i.where.split(":")[0] for i in ch.issues if i.code == "L004"})
+        if "lab.toml" not in conflicted:  # 雛形の既定（関門 true）で lab.toml が変わったら知らせる
+            after = load_lab(root)["runs"]
+            changed = [k for k in ("require_prediction", "require_clean") if before.get(k) != after.get(k)]
+            if changed:
+                print(
+                    "lab.toml: "
+                    + ", ".join(f"runs.{k} {before.get(k)} → {after.get(k)}" for k in changed)
+                    + "（使わないなら lab.toml で false に戻す。予想・clean の無い run は始まらない）"
+                )
         print(
             "差分を確認し（git diff）、衝突があれば解消してから commit してください（残った衝突マーカーは `labkit check` L004 が検出）。"
         )

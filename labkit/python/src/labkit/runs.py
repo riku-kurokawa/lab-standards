@@ -176,6 +176,7 @@ class Run:
                 "commit してから実行するか、試行なら scratch/ で行ってください"
             )
         check_prediction(self.config.get("prediction"))
+        check_pass(self.config.get("pass"))
         self._mkdir()
         self._t0 = time.time()
         # 入力の hash や環境の取得は遅い。その間に止められても meta.json の無い殻（L020）を残さないよう、
@@ -232,6 +233,13 @@ class Run:
             self.log("警告: 未コミットの変更がある状態で実行（git.dirty=true。差分は dirty.patch）")
         if self.meta["seed"] is None:
             self.log("警告: 設定に seed がありません（乱数を使うなら seed を設定に入れる）")
+        pred = self.meta["prediction"]
+        if isinstance(pred, dict) and pred.get("expert_predictable"):
+            self.log(
+                "注意: expert_predictable=true（専門家なら計算せずに分かる結果）。なぜ計算が要るかは basis に書いてあること"
+            )
+        elif pred is not None and not isinstance(pred, str | dict):
+            self.log("注意: prediction が表でも文字列でもないので自動判定しない（[prediction] の表に書く）")
         if self.meta["labkit_source"]["mode"] == "link":
             self.log("注意: labkit は手元の lab-standards を参照中（link）。この run は正式版の結果ではありません")
         return self
@@ -242,15 +250,28 @@ class Run:
         self.meta["duration_s"] = round(time.time() - self._t0, 3)
         if exc_type is None:
             self.meta["status"] = "finished"
-            for i, crit in enumerate(self.config.get("pass") or [], 1):  # 事前に書いた合否（[[pass]]）
-                ok = evaluate_pass(crit, self._last, self.dir)
+            # 事前に書いた合否（[[pass]]）と予想の判定。判定が失敗しても run は finished にする（結果は失われない）
+            for i, crit in enumerate(self.config.get("pass") or [], 1):
+                try:
+                    ok = evaluate_pass(crit, self._last, self.dir)
+                except Exception as e:  # 列名の誤りなど。不合格として残し、理由をログに
+                    ok = False
+                    self.log(f"pass_{i} を評価できない（不合格として記録）: {type(e).__name__}: {e}")
                 self.log_metric(f"pass_{i}", float(ok))
             if self.config.get("pass"):
                 self.log_metric(
                     "pass_all", float(all(self._last[f"pass_{i}"] for i in range(1, len(self.config["pass"]) + 1)))
                 )
             if isinstance(self.meta.get("prediction"), dict):
-                self.meta["prediction_result"] = judge_prediction(self.meta["prediction"], self._last)
+                try:
+                    self.meta["prediction_result"] = judge_prediction(self.meta["prediction"], self._last)
+                except Exception as e:
+                    self.meta["prediction_result"] = {
+                        "verdict": "undeterminable",
+                        "hit": 0,
+                        "total": 0,
+                        "error": str(e),
+                    }
                 self.log(f"予想の判定: {self.meta['prediction_result']['verdict']}")
         elif exc_type is KeyboardInterrupt:
             self.meta["status"] = "interrupted"
@@ -265,15 +286,42 @@ class Run:
 
 
 # ---- 予想の関門と事前の合否 ----
+def _num(x) -> bool:
+    return isinstance(x, int | float) and not isinstance(x, bool)
+
+
 def check_prediction(pred) -> None:
-    """prediction は文字列（自由記述）か表 {basis, confidence?, expert_predictable?, claims=[{key, range|point+tol}]}."""
-    if pred is None or isinstance(pred, str):
+    """prediction は文字列（自由記述）か表 {basis, confidence?, expert_predictable?, claims=[{key, range|point+tol}]}。
+    表のときだけ構造を検証する（run を作る前に止める。判定の最中に落ちると run が running のまま残るため）."""
+    if not isinstance(pred, dict):
         return
-    if not isinstance(pred, dict) or not str(pred.get("basis", "")).strip():
+    if not str(pred.get("basis", "")).strip():
         raise ValueError('prediction の表には basis（根拠）が必要です: [prediction] basis = "..."')
     for c in pred.get("claims") or []:
-        if "key" not in c or not (c.get("range") or ("point" in c and "tol" in c)):
-            raise ValueError("[[prediction.claims]] には key と、range = [lo, hi] か point + tol が必要です")
+        rng = c.get("range") if isinstance(c, dict) else None
+        ok_range = isinstance(rng, list | tuple) and len(rng) == 2 and all(_num(v) for v in rng)
+        ok_point = isinstance(c, dict) and _num(c.get("point")) and _num(c.get("tol"))
+        if not isinstance(c, dict) or not isinstance(c.get("key"), str) or not (ok_range or ok_point):
+            raise ValueError(
+                "[[prediction.claims]] には key（文字列）と、range = [lo, hi]（数値）か point + tol（数値）が必要です"
+            )
+
+
+def check_pass(criteria) -> None:
+    """[[pass]] の構造を run を作る前に検証する（key は文字列、min/max は数値、table は文字列、where は表）."""
+    for i, c in enumerate(criteria or [], 1):
+        bad = (
+            not isinstance(c, dict)
+            or not isinstance(c.get("key"), str)
+            or not ("min" in c or "max" in c)
+            or any(k in c and not _num(c[k]) for k in ("min", "max"))
+            or ("table" in c and not isinstance(c["table"], str))
+            or ("where" in c and not isinstance(c["where"], dict))
+        )
+        if bad:
+            raise ValueError(
+                f'[[pass]] #{i}: key = "<metrics か列名>" と min / max（数値）が必要です（table は文字列、where は表）'
+            )
 
 
 def judge_prediction(pred: dict, metrics: dict) -> dict:
@@ -466,14 +514,20 @@ def archive_runs(run_ids: list[str], reason: str, *, undo: bool = False, root: P
 
 
 def archive_candidates(
-    *, statuses: tuple[str, ...] = (), uncited: bool = False, older_than_days: float = 0, root: Path | None = None
+    *,
+    statuses: tuple[str, ...] = (),
+    uncited: bool = False,
+    older_than_days: float = 0,
+    archived: bool = False,
+    root: Path | None = None,
 ) -> list[dict]:
-    """退避の候補: status が statuses のもの、または（uncited）文書に引用されず他の run の入力にもなっていない finished."""
+    """退避の候補: status が statuses のもの、または（uncited）文書・拍の記録に引用されず他の run の入力にもなっていない finished。
+    archived=True なら退避済みの中から（--undo 用）."""
     from labkit.check import cited_run_ids
     from labkit.config import find_root
 
     r = root or find_root()
-    runs = list_runs(r)
+    runs = [m for m in list_runs(r, include_archived=True) if bool(m.get("archived")) == archived]
     cited = set(cited_run_ids(r)) if uncited else set()
     lineage = {i.get("run_id") for m in runs for i in m.get("inputs") or [] if i.get("run_id")}
     cutoff = (_dt.datetime.now() - _dt.timedelta(days=older_than_days)).isoformat() if older_than_days else None

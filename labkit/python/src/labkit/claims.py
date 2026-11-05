@@ -48,17 +48,38 @@ def list_claims(root: Path, status: str | None = None) -> list[dict]:
     return out
 
 
-def _evidence(root: Path, spec: str) -> str:
-    """ "<run>:<key>[:<unit>][:<digits>]" → `値 単位 [run:<id>:<key>]`（labkit cite）."""
-    from labkit.check import cite
+def run_problem(meta: dict | None) -> str:
+    """根拠にできない理由（空なら使える）: runs/ に無い / status / 退避済み / dirty。add_claim と L036 が同じ基準を使う."""
+    if meta is None or meta.get("status") is None:
+        return "runs/ に無い"
+    if meta.get("status") != "finished":
+        return f"status={meta['status']}"
+    if meta.get("archived"):
+        return "退避済み"
+    if (meta.get("git") or {}).get("dirty"):
+        return "dirty"
+    return ""
 
-    parts = spec.split(":")
-    if len(parts) < 2:
+
+def _evidence(root: Path, spec: str, runs: dict) -> str:
+    """ "<run>:<key>[:<unit>][:<digits>]" → `値 単位 [run:<id>:<key>]`（labkit cite）。位置で読む（単位を省くなら `::<digits>`）."""
+    from labkit.check import cite
+    from labkit.runs import find_run
+
+    parts = spec.split(":", 3)
+    if len(parts) < 2 or not parts[0] or not parts[1]:
         raise ValueError(f"根拠は <run_id>:<key>[:<unit>][:<digits>] の形: {spec!r}")
     run_id, key, *rest = parts
-    digits = next((int(x) for x in rest if x.isdigit()), None)
-    unit = next((x for x in rest if x and not x.isdigit()), "")
-    return cite(run_id, key, digits=digits, unit=unit, root=root)
+    unit = rest[0] if rest else ""
+    if len(rest) > 1 and rest[1] and not rest[1].isdigit():
+        raise ValueError(f"桁数は整数: {spec!r}（単位を省くなら <run>:<key>::<digits>）")
+    digits = int(rest[1]) if len(rest) > 1 and rest[1] else None
+    rid = find_run(run_id, root).name
+    if bad := run_problem(runs.get(rid)):
+        raise ValueError(
+            f"根拠 run {rid} は {bad}。clean に再実行してから主張にする（dirty・failed・退避済みの結果は主張にしない）"
+        )
+    return cite(rid, key, digits=digits, unit=unit, root=root)
 
 
 def add_claim(root: Path, text: str, evidence: list[str], *, note: str = "") -> dict:
@@ -66,7 +87,10 @@ def add_claim(root: Path, text: str, evidence: list[str], *, note: str = "") -> 
         raise ValueError("主張の文が空です")
     if not evidence:
         raise ValueError("根拠（--evidence <run_id>:<key>）を 1 つ以上付ける。run に無い量は主張にしない")
-    cells = "; ".join(_evidence(root, e) for e in evidence)
+    from labkit.check import run_index
+
+    runs = run_index(root)
+    cells = "; ".join(_evidence(root, e, runs) for e in evidence)
     rows = list_claims(root)
     cid = f"C{(max((int(r['id'][1:]) for r in rows), default=0) + 1):03d}"
     p = _path(root)
@@ -129,19 +153,7 @@ def check_claims(root: Path, lab: dict) -> list[tuple[str, str, str, str]]:
             issues.append(("L036", where, f"{cid} の根拠が `値 [run:<id>:<key>]` の書式ではありません", "error"))
         runs = run_index(root) if runs is None else runs
         for rid in set(RUN_ID_RE.findall(evidence)):
-            meta = runs.get(rid)
-            bad = (
-                "runs/ に無い"
-                if meta is None or meta.get("status") is None
-                else f"status={meta['status']}"
-                if meta.get("status") != "finished"
-                else "退避済み"
-                if meta.get("archived")
-                else "dirty"
-                if (meta.get("git") or {}).get("dirty")
-                else ""
-            )
-            if bad:
+            if bad := run_problem(runs.get(rid)):
                 issues.append(
                     (
                         "L036",

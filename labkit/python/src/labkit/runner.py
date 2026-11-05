@@ -14,6 +14,7 @@ step 付きの記録（学習曲線）が要るなら fn(cfg, run) で run.log_m
 
 from __future__ import annotations
 
+import copy
 import importlib
 import inspect
 import itertools
@@ -98,11 +99,17 @@ def run_config(config_path: str, overrides: list[str] | None = None, root: Path 
     cfg = load_config(config_path, overrides)
     entry = cfg.get("entry")
     if not entry:
-        raise ValueError(f'{config_path}: entry（例: entry = "pkg.experiments.x:run"）がありません')
+        raise ValueError(
+            f'{config_path}: entry（例: entry = "pkg.experiments.x:run"）がありません'
+            '（旧雛形の scripts/run_example.py から移るなら entry = "<pkg>.experiments.example:run" を設定に足す）'
+        )
     fn = resolve_entry(entry, root)
     takes_run = len(inspect.signature(fn).parameters) >= 2
     inputs = [_resolve_input(r, root) for r in cfg.get("inputs") or []]
     sweep = dict(cfg.get("sweep") or {})
+    for k, v in sweep.items():
+        if not isinstance(v, list | tuple) or isinstance(v, str):
+            raise ValueError(f'[sweep] の値はリスト: {k} = [...]（入れ子の表は "a.b" = [...] と書く）')
     name = cfg.get("name") or Path(config_path).stem
     with Run(
         name, cfg, inputs=inputs, tags={"entry": entry, **({"sweep": sorted(sweep)} if sweep else {})}, root=root
@@ -115,7 +122,7 @@ def run_config(config_path: str, overrides: list[str] | None = None, root: Path 
             keys, grids = zip(*sweep.items(), strict=True)
             rows = []
             for i, combo in enumerate(itertools.product(*grids)):
-                sub = {k: v for k, v in run.config.items() if k not in ("sweep", "pass")}
+                sub = copy.deepcopy({k: v for k, v in run.config.items() if k not in ("sweep", "pass")})
                 for k, v in zip(keys, combo, strict=True):
                     _set(sub, k, v)
                 run.log(f"sweep {i + 1}: " + ", ".join(f"{k}={v}" for k, v in zip(keys, combo, strict=True)))

@@ -16,14 +16,14 @@
 - `make check`（= `labkit check` + テスト + lint）が通るまで作業は完了ではない。
 - コードを変えた日は `docs/devlog/YYYY-MM-DD.md` の 目的・判断と理由・未解決 を書く（`labkit devlog` が変更ファイルと run を自動で埋める）。
   run の数値は `labkit cite <run_id> <key> --unit <単位>` の出力（`12.3 dB [run:<run_id>:snr_db]`）を貼る。
-- 正式な run は commit してから実行する（dirty な run は `dirty.patch` 付きで記録されるが、結果としては引用しない）。
+- 正式な run は commit してから実行する（未コミットの変更があると run は始まらない: `runs.require_clean`。試行は scratch/ で）。
 
 ## 人間のレビューを軽くする（人間が読むのはこれだけ。載らないものは人間に見えていない）
 
-- **実験の入口は共通**: `configs/experiments/*.toml` に `entry`・`[prediction]`・`[[pass]]` を書き `labkit run`。scripts/ を書くなら、entry で書けない理由を 1 行残す。
+- **実験の入口は共通**: `configs/experiments/*.toml` に `entry`・`[prediction]`・`[[pass]]` を書き `labkit run`。scripts/ は entry で書けないものだけ。
 - **引用できる run は clean で finished で退避されていないものだけ**。scratch/ のファイルは根拠にしない（L038）。failed/interrupted は `labkit runs archive --status failed,interrupted`（削除はしない）。
 - **主張は台帳**: 確定したら `labkit claim add "<1 文>" --evidence <run>:<key>`、崩れたら `labkit claim retract <ID> --reason`。`docs/state.md` は H1 1 つ・150 行以内で上書きする。
-- **予想は表で書き、外れは外れと残す**: `[prediction] basis` と `[[prediction.claims]]`（終了時に自動判定）。自由記述なら `labkit runs verdict <id> --say hit|miss`。
+- **予想は表で書き、外れは外れと残す**: `[prediction] basis` と `[[prediction.claims]]`（終了時に自動判定）。自由記述なら `labkit runs verdict <id> --say hit|miss|partial`。
 - **コードは読める大きさ**: ファイルは 300 行（空行を除く）以内（L018）。使っていないものは消す（L017）。
 - **人間の入口**: 1 日 1 回 `labkit digest`（docs/DIGEST.md）。`labkit claim list`・`labkit review list --open`・`labkit lit queue` が人間向けの一覧。
 
@@ -41,7 +41,7 @@
 | 作るもの | 置き場所 | 方法 |
 |---|---|---|
 | 再利用する関数（純粋関数） | `src/{{ package_name }}/` | テストを `tests/` に書く |
-| 実験の入口 | `src/{{ package_name }}/experiments/<name>.py` の `run(cfg) -> dict` | 設定の `entry` から `labkit run` が呼ぶ。≤ 80 行 |
+| 実験の入口 | `src/{{ package_name }}/experiments/<name>.py` の `run(cfg) -> dict` | 設定の `entry` から `labkit run` が呼ぶ。小さく保つ（L018） |
 | パラメータ・予想・合否 | `configs/experiments/*.toml` | `extends = "../base.toml"`。seed・`[prediction]`・`[[pass]]` を持つ |
 | 実験結果 | `runs/<run_id>/` | `labkit.Run` 経由でのみ生成。異常終了は `labkit runs mark` |
 | 派生データ | `data/interim`, `data/processed` | `labkit.save` / `writer` 経由（サイドカー付き）。再生成できる中間物は `data/cache` |

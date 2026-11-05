@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
-from labkit._util import read_json
+from labkit._util import read_json, rel_or_abs
 from labkit.config import find_root, load_lab
 
 SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "node_modules", ".ipynb_checkpoints"}
@@ -58,13 +58,14 @@ DATA_EXT = {
     ".ckpt",
 }
 RUN_ID_RE = re.compile(r"\b(\d{8}-\d{6}_[a-z0-9-]+_(?:[0-9a-f]{7}|nogit)_[0-9a-f]{4})\b")
-# 引用: 数値 [単位] [run:<id>:<key>]。単位は数字で始まらず括弧・読点を含まない 1 語（m/s^2 可。無次元は "1"）。数値は cite の直前にあること
+# 引用: 数値 [単位] [run:<id>:<key>]。単位は数字で始まらず括弧・読点を含まない 1 語（m/s^2 可。無次元は "1"）。数値は cite の直前にあること。
+# 符号は Unicode のマイナス（−）も受ける（文書に残りやすい）
 CITE_RE = re.compile(
-    r"(?P<num>[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*(?P<unit>1|[^\s\[\]\d()（）、・,;:][^\s\[\]()（）、・,;:]{0,11})?\s*"
+    r"(?P<num>[-+−]?\d+(?:\.\d+)?(?:[eE][-+−]?\d+)?)\s*(?P<unit>1|[^\s\[\]\d()（）、・,;:][^\s\[\]()（）、・,;:]{0,11})?\s*"
     r"\[run:(?P<run>[^:\]\s]+):(?P<key>[^\]\s]+)\]"
 )
 # 測定値らしい数値: 小数または指数表記（整数の個数・番号は対象にしない）
-MEASURE_RE = re.compile(r"(?<![\w./:-])[-+]?\d+(?:\.\d+(?:[eE][-+]?\d+)?|[eE][-+]?\d+)(?![\w./:-])")
+MEASURE_RE = re.compile(r"(?<![\w./:−-])[-+−]?\d+(?:\.\d+(?:[eE][-+−]?\d+)?|[eE][-+−]?\d+)(?![\w./:-])")
 RESULTS_HEADING = "結果・観察"
 
 
@@ -93,7 +94,7 @@ class Checker:
     def add(self, code: str, where: Path | str, msg: str, severity: str = "error") -> None:
         if code in self.skip:
             return
-        w = where.relative_to(self.root).as_posix() if isinstance(where, Path) and where.is_absolute() else str(where)
+        w = rel_or_abs(where, self.root) if isinstance(where, Path) and where.is_absolute() else str(where)
         self.issues.append(Issue(code, w, msg, severity))
 
     def run(self) -> list[Issue]:
@@ -359,7 +360,7 @@ class Checker:
             self.add(
                 "L024",
                 d,
-                f"予想を書いた run の判定がありません。`labkit runs verdict {d.name} --say hit|miss --note ...`"
+                f"予想を書いた run の判定がありません。`labkit runs verdict {d.name} --say hit|miss|partial --note ...`"
                 "（表形式の予想は run の終了時に自動で判定される）",
                 "warn",
             )
@@ -481,11 +482,15 @@ class Checker:
                     cache[rid] = {}
             return cache[rid]
 
-        # 同じ文書が同じ run を何十回も引用するので、状態の指摘は (文書, run, 種類) ごとに 1 件にまとめる（最初の行番号と件数）
-        agg: dict[tuple[str, str, str], list] = {}
+        # 同じ文書が多数の run を何十回も引用するので、状態の指摘は (文書, 種類) ごとに 1 件にまとめる（最初の行、run 数、箇所数）
+        agg: dict[tuple[str, str], list] = {}
 
         def note(doc: str, rid: str, kind: str, n: int, msg: str, sev: str) -> None:
-            agg.setdefault((doc, rid, kind), [n, 0, msg, sev])[1] += 1
+            if sev == "off":
+                return
+            a = agg.setdefault((doc, kind), [n, set(), 0, msg, sev])
+            a[1].add(rid)
+            a[2] += 1
 
         for p, n, line, section in doc_lines(self.root, self.lab):
             is_devlog = p.parent == devlog_dir
@@ -534,7 +539,7 @@ class Checker:
                     self.add("L033", where, f"run {rid} の metrics.json に {key} がありません")
                 elif not num_matches(num, vals[key]) and not (
                     m.group("unit") == "%" and num_matches(num, vals[key] * 100)
-                ):
+                ):  # % は 100 倍の表示を許す
                     self.add(
                         "L033", where, f"{num} は run {rid} の {key}={vals[key]} と一致しません（表示桁で丸めて比較）"
                     )
@@ -556,8 +561,9 @@ class Checker:
                     "scratch/ のファイルは検証できません。根拠にするなら src に entry を書いて commit し `labkit run` の run を引用する",
                     "warn",
                 )
-        for (doc, _, _), (first, count, msg, sev) in agg.items():
-            self.add("L032", f"{doc}:{first}", msg + (f"（この文書で {count} 箇所）" if count > 1 else ""), sev)
+        for (doc, _), (first, rids, count, msg, sev) in agg.items():
+            more = f"（この文書で {len(rids)} run・{count} 箇所）" if count > 1 else ""
+            self.add("L032", f"{doc}:{first}", msg + more, sev)
 
     def claims_ledger(self) -> None:
         from labkit.claims import check_claims
@@ -572,8 +578,9 @@ class Checker:
         if not p.is_file():
             return
         text = p.read_text(encoding="utf-8", errors="replace")
-        h1 = re.findall(r"^#\s+\S", text, re.M)
-        h2 = [m.group(1).strip() for m in re.finditer(r"^##\s+(.+?)\s*$", text, re.M)]
+        body = strip_fences(text)  # コードブロック内の # はコメント
+        h1 = re.findall(r"^#\s+\S", body, re.M)
+        h2 = [m.group(1).strip() for m in re.finditer(r"^##\s+(.+?)\s*$", body, re.M)]
         dup = sorted({h for h in h2 if h2.count(h) > 1})
         hint = "（古い節は消す。履歴は `git log -p` と prompts/goal_v<N>.md にある）"
         if len(h1) > 1:
@@ -659,17 +666,38 @@ def doc_lines(root: Path, lab: dict):
 
 
 def cited_run_ids(root: Path, lab: dict | None = None) -> dict[str, list[str]]:
-    """文書が引用している run ID → 引用箇所（path:line）。退避の候補（--uncited）と DIGEST が使う."""
+    """文書と拍の記録が引用している run ID → 引用箇所（path:line）。退避の候補（--uncited）と DIGEST が使う."""
+    from labkit.beat import BEATS_DIR
+
     lab = lab or load_lab(root)
     out: dict[str, list[str]] = {}
     for p, n, line, _ in doc_lines(root, lab):
         for rid in set(RUN_ID_RE.findall(line)):
             out.setdefault(rid, []).append(f"{p.relative_to(root).as_posix()}:{n}")
+    for p in sorted((root / BEATS_DIR).glob("*.jsonl")) if (root / BEATS_DIR).is_dir() else []:
+        for n, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            for rid in set(RUN_ID_RE.findall(line)):
+                out.setdefault(rid, []).append(f"{p.relative_to(root).as_posix()}:{n}")
     return out
 
 
+def strip_fences(text: str) -> str:
+    """Markdown のコードブロック（``` / ~~~）の中身を除く（見出しの数え上げ用）."""
+    out, fence = [], None
+    for ln in text.splitlines():
+        s = ln.lstrip()
+        if fence is None and s.startswith(("```", "~~~")):
+            fence = s[:3]
+        elif fence is not None and s.startswith(fence):
+            fence = None
+        elif fence is None:
+            out.append(ln)
+    return "\n".join(out)
+
+
 def num_matches(text: str, value) -> bool:
-    """表示されている桁数で丸めて一致するか（"12.3" と 12.34 → True、"12.30" と 12.34 → False）."""
+    """表示されている桁数で丸めて一致するか（"12.3" と 12.34 → True、"12.30" と 12.34 → False）。Unicode のマイナスも受ける."""
+    text = text.replace("−", "-")
     try:
         shown, v = float(text), float(value)
     except (TypeError, ValueError):

@@ -65,7 +65,20 @@ def _beats_file(root: Path, date: str | None = None) -> Path:
 
 def read_beats(root: Path, date: str | None = None) -> list[dict]:
     p = _beats_file(root, date)
-    return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()] if p.is_file() else []
+    out = []
+    for ln in p.read_text(encoding="utf-8").splitlines() if p.is_file() else []:
+        try:
+            out.append(json.loads(ln))
+        except ValueError:  # 壊れた行は飛ばす（SessionStart 全体を落とさない）
+            continue
+    return out
+
+
+def _open_beat(beats: list[dict]) -> int | None:
+    """start されて end の無い拍の番号（無ければ None）."""
+    starts = [b.get("beat") for b in beats if b.get("event") == "start"]
+    ends = {b.get("beat") for b in beats if b.get("event") == "end"}
+    return next((n for n in reversed(starts) if n not in ends), None)
 
 
 def _append(root: Path, rec: dict) -> None:
@@ -104,6 +117,7 @@ def start(root: Path) -> str:
     beats = read_beats(root)
     n = len([b for b in beats if b.get("event") == "start"]) + 1
     last = next((b for b in reversed(beats) if b.get("event") == "end"), None)
+    unclosed = _open_beat(beats)
     parts = []
     for key in ("goal", "beat"):
         p = root / "prompts" / str(cur.get(key, ""))
@@ -115,8 +129,11 @@ def start(root: Path) -> str:
         f"# 拍 {n}（{_dt.datetime.now().strftime('%H:%M')}）: "
         + " / ".join(f"{k} {p.name} {sha256_file(p)[:7]}" for k, p in parts)
     ]
+    if unclosed is not None:
+        out.append(f"- 拍 {unclosed} は閉じていない（その作業を続け、`labkit beat end` で閉じてからこの拍に入る）")
     if last:
         out.append(f"- 前の拍 {last.get('beat')} の判断: {last.get('decided') or '（未記入）'}")
+    out.append(f"- 再注入: `/loop {cur.get('interval', '20m')} /lab-rules:beat`")
     out += status_lines(root)
     for k, p in parts:
         out += ["", f"## {k}: prompts/{p.name}", "", p.read_text(encoding="utf-8").rstrip()]
@@ -126,8 +143,12 @@ def start(root: Path) -> str:
 def end(
     root: Path, *, predicted: str = "", observed: str = "", decided: str = "", runs: list[str] | None = None
 ) -> dict:
+    if not decided.strip():
+        raise ValueError("--decided（この拍の判断）は必須です。人間が読むのはこの 1 行")
     beats = read_beats(root)
-    n = max((b.get("beat", 0) for b in beats), default=0) or 1
+    n = _open_beat(beats)
+    if n is None:
+        raise ValueError("閉じる拍がありません（`labkit beat start` で始めた拍だけ閉じられる。二重の end も不可）")
     rec = {"event": "end", "beat": n, "time": now_iso(), "predicted": predicted, "observed": observed}
     rec.update(decided=decided, runs=runs or [])
     _append(root, rec)
@@ -139,8 +160,10 @@ def end(
 
 def beats_block(root: Path, date: str) -> list[str]:
     """開発ログの自動ブロックに入れる「拍（自動）」: 1 拍 3 行."""
-    ends = [b for b in read_beats(root, date) if b.get("event") == "end"]
-    if not ends:
+    beats = read_beats(root, date)
+    ends = [b for b in beats if b.get("event") == "end"]
+    unclosed = _open_beat(beats)
+    if not ends and unclosed is None:
         return []
     lines = ["## 拍（自動。`labkit beat end` の記録）", ""]
     for b in ends:
@@ -150,6 +173,8 @@ def beats_block(root: Path, date: str) -> list[str]:
         )
         if b.get("runs"):
             lines.append("  run: " + ", ".join(b["runs"]))
+    if unclosed is not None:
+        lines.append(f"- 拍 {unclosed}（未完。`labkit beat end` が無い）")
     return lines + [""]
 
 
@@ -174,8 +199,9 @@ def session_lines(root: Path, *, compact: bool = False) -> list[str]:
         )
     if compact and goal.is_file():
         text = goal.read_text(encoding="utf-8")
-        m = re.search(r"^##\s.+?$(.*?)(?=^##\s|\Z)", text, re.M | re.S)
-        body = (m.group(0) if m else text).strip().splitlines()[:20]
+        secs = list(re.finditer(r"^##\s(.+?)$(.*?)(?=^##\s|\Z)", text, re.M | re.S))
+        pick = next((m for m in secs if "目標" in m.group(1)), secs[0] if secs else None)  # 「目標」の節を優先
+        body = (pick.group(0) if pick else text).strip().splitlines()[:20]
         lines.append("- 目標の冒頭（要約で消えないよう原文）:\n  " + "\n  ".join(body))
     return lines
 
