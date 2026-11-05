@@ -341,7 +341,7 @@ class Checker:
             except (json.JSONDecodeError, jsonschema.ValidationError) as e:
                 self.add("L020", mf, f"スキーマ違反: {getattr(e, 'message', e)}")
                 continue
-            if pinned and meta.get("labkit_version") != pinned[0] and str(meta.get("created", "")) >= pinned[1]:
+            if pinned and meta.get("labkit_version") != pinned[0] and after(meta.get("created"), pinned[1]):
                 key = (str(meta.get("labkit_version")), (meta.get("command") or ["?"])[0] or "?")
                 stale.setdefault(key, [0, d.name])[0] += 1
             self._l024(d, meta)
@@ -609,6 +609,16 @@ class Checker:
 def count_code_lines(path: Path) -> int:
     """空行を除いた行数（L018 と開発ログのコード量の行で使う）."""
     return sum(1 for ln in path.read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip())
+
+
+def after(t: str | None, ref: str) -> bool:
+    """ISO 8601 の時刻 t が ref 以降か（時差が違っても比べられるよう datetime で比較。読めなければ False）."""
+    import datetime as _dt
+
+    try:
+        return _dt.datetime.fromisoformat(str(t)) >= _dt.datetime.fromisoformat(ref)
+    except (TypeError, ValueError):
+        return False
 
 
 def pinned_version(root: Path) -> tuple[str, str] | None:
