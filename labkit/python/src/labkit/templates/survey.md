@@ -10,6 +10,8 @@ search:
   exclusion: ""           # 除外基準
 tags: []
 status: draft             # draft | done
+verdict: ""             # novel | known | partly | inconclusive（問いへの答え）
+n_opened: 0             # 一次情報を実際に開いた件数
 ---
 
 # {{question}}

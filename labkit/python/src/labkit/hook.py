@@ -288,6 +288,17 @@ def session(data: dict, root: Path, kind: str) -> str:
         lines.append(
             f"- 注意: plugin lab-rules は {pv}、labkit は {__version__}。版を揃える（`/plugin marketplace update lab-standards` / pyproject のタグ）。"
         )
+    if kind == "project":
+        from labkit.beat import session_lines
+        from labkit.digest import staleness
+
+        lab = load_lab(root)
+        off = [k for k in ("require_prediction", "require_clean") if not lab["runs"].get(k)]
+        if off:
+            lines.append(f"- 無効のままの関門: runs.{' / runs.'.join(off)}（lab.toml で人間が有効にする。既定 false）")
+        lines += session_lines(root, compact=data.get("source") == "compact")
+        if st := staleness(root):
+            lines.append(st)
     lines += [
         f"- 委任中 {state.describe_delegation(d)}: 承認を待たずに実行してよい" for d in state.active_delegations(root)
     ]

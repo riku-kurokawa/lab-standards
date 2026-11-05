@@ -106,10 +106,22 @@ def cmd_lit(a) -> int:
     root = find_root()
     lab = load_lab(root)
     if a.action == "add":
-        bib = Path(a.file).read_text(encoding="utf-8") if a.file else sys.stdin.read()
+        if a.doi or a.arxiv:
+            bib = lit.fetch_bibtex(doi=a.doi, arxiv=a.arxiv)  # 一次情報から取る（記憶から書誌を作らない）
+        else:
+            bib = Path(a.file).read_text(encoding="utf-8") if a.file else sys.stdin.read()
         key, note = lit.add_entry(root, lab, bib, tags=a.tags, pdf=Path(a.pdf) if a.pdf else None, key=a.key)
         lit.build_index(root, lab)
         print(f"{key}\n{note}")
+    elif a.action == "read":
+        if not a.key_or_citekey or not a.by:
+            raise SystemExit("lit read <citekey> --by agent|human [--scope none|abstract|sections|full] [--status ...]")
+        print(lit.mark_read(root, lab, a.key_or_citekey, by=a.by, scope=a.scope, status=a.status))
+        lit.build_index(root, lab)
+    elif a.action == "queue":
+        print(lit.format_queue(lit.reading_queue(root, lab, min_relevance=a.min_relevance or 1)))
+    elif a.action == "surveys":
+        print(lit.format_surveys(lit.list_surveys(root, lab)))
     elif a.action == "survey":
         if not a.question:
             raise SystemExit("--question が必要です")
@@ -130,24 +142,110 @@ def cmd_lit(a) -> int:
 
 
 def cmd_runs(a) -> int:
-    from labkit.runs import find_run, list_runs, mark_run
+    from labkit.runs import archive_candidates, archive_runs, find_run, list_runs, mark_run, runs_table, verdict_run
 
     if a.action == "list":
-        for m in list_runs():
+        for m in list_runs(include_archived=a.all):
             if a.status and m.get("status") != a.status:
                 continue
-            dirty = "*" if (m.get("git") or {}).get("dirty") else ""
-            print(f"{m.get('run_id')}  {m.get('status', '?'):11s} {m.get('duration_s') or '-':>8}s {dirty}")
+            flags = " ".join(
+                f
+                for f, on in (
+                    ("dirty", (m.get("git") or {}).get("dirty")),
+                    ("archived", m.get("archived")),
+                    (f"予想:{(m.get('prediction_result') or {}).get('verdict', '')}", m.get("prediction_result")),
+                )
+                if on
+            )
+            print(f"{m.get('run_id')}  {m.get('status', '?'):11s} {m.get('duration_s') or '-':>8}s  {flags}")
     elif a.action == "show":
         d = find_run(a.run_id)
         print((d / "meta.json").read_text(encoding="utf-8"))
         if (d / "metrics.json").exists():
             print("metrics:", (d / "metrics.json").read_text(encoding="utf-8"))
-    else:
+    elif a.action == "mark":
         if not a.to:
             raise SystemExit("runs mark <run_id> --to failed|interrupted|finished [--reason ...]")
         m = mark_run(a.run_id, a.to, a.reason or "")
         print(f"{m['run_id']}: status={m['status']}")
+    elif a.action == "archive":
+        ids = [a.run_id] if a.run_id else []
+        if a.status or a.uncited:
+            statuses = tuple(a.status.split(",")) if a.status else ()
+            ids += [
+                m["run_id"]
+                for m in archive_candidates(statuses=statuses, uncited=a.uncited, older_than_days=a.older_than or 0)
+            ]
+        if not ids:
+            raise SystemExit(
+                "runs archive <run_id> | --status failed,interrupted | --uncited [--older-than N] [--dry-run] [--undo]"
+            )
+        if a.dry_run:
+            print("\n".join(ids) or "候補はありません")
+            return 0
+        done = archive_runs(ids, a.reason or "", undo=a.undo)
+        print(
+            f"{'退避を取り消し' if a.undo else '退避'}: {len(done)} 件（削除はしていない。一覧は `labkit runs list --all`）"
+        )
+    elif a.action == "verdict":
+        r = verdict_run(a.run_id, say=a.say, note=a.note or "")
+        print(
+            f"{a.run_id}: 予想の判定 {r['verdict']}"
+            + ("（自己申告）" if r.get("self_reported") else f" {r.get('hit')}/{r.get('total')}")
+        )
+    else:
+        df = runs_table(a.run_id or "", file=a.file or "results.parquet", include_all=a.all)
+        print(df.to_markdown(index=False) if a.md and hasattr(df, "to_markdown") else df.to_string(index=False))
+        for rid, why in df.attrs.get("excluded", []):
+            print(f"# 除外: {rid} ({why})", file=sys.stderr)
+    return 0
+
+
+def cmd_run(a) -> int:
+    from labkit.runner import run_config
+
+    run_config(a.config, a.overrides)
+    return 0
+
+
+def cmd_claim(a) -> int:
+    from labkit import claims
+    from labkit.config import find_root
+
+    root = find_root()
+    if a.action == "add":
+        if not a.text:
+            raise SystemExit('claim add "<主張 1 文>" --evidence <run_id>:<key>[:<unit>][:<digits>] ... [--note ...]')
+        c = claims.add_claim(root, a.text, a.evidence or [], note=a.note or "")
+        print(f"{c['id']}  {c['text']}  ← {c['evidence']}")
+    elif a.action == "retract":
+        c = claims.retract_claim(root, a.text or "", a.reason or "")
+        print(f"{c['id']} を撤回しました: {c['note']}")
+    else:
+        print(claims.format_claims(claims.list_claims(root, a.status)))
+    return 0
+
+
+def cmd_digest(a) -> int:
+    from labkit.config import find_root
+    from labkit.digest import build
+
+    print(build(find_root(), a.since))
+    return 0
+
+
+def cmd_beat(a) -> int:
+    from labkit import beat
+    from labkit.config import find_root
+
+    root = find_root()
+    if a.action == "start":
+        print(beat.start(root))
+    elif a.action == "end":
+        r = beat.end(root, predicted=a.predicted or "", observed=a.observed or "", decided=a.decided or "", runs=a.runs)
+        print(f"拍 {r['beat']} を記録しました（{r['time'][11:16]}）。開発ログの自動ブロックに写した")
+    else:
+        print(beat.log(root, a.date))
     return 0
 
 
@@ -325,13 +423,22 @@ def cmd_review(a) -> int:
     from labkit import flow, reviews
     from labkit._util import git
 
+    root = _scope_root()
+    if a.action == "list":
+        rs = reviews.open_reviews(root) if a.open else reviews.list_reviews(root)
+        print(reviews.format_reviews(root, rs))
+        return 0
+    if not a.flow or not a.stage:
+        raise SystemExit("review template <flow|adhoc> <stage> [--resolves docs/reviews/<前回>.md]")
     stages = (
         {s["name"] for s in flow.definitions().get(a.flow, {"stage": []})["stage"]} if a.flow != "adhoc" else {a.stage}
     )
     if a.stage not in stages:
         raise SystemExit(f"flow '{a.flow}' に段階 '{a.stage}' はありません（flow が無いレビューは `adhoc <stage>`）")
-    root = _scope_root()
-    print(reviews.template(a.flow, a.stage, git(root, "rev-parse", "HEAD") or ""), end="")
+    prev = reviews.load_review(root / a.resolves) if a.resolves else None
+    if prev is not None:
+        prev.path = Path(a.resolves)
+    print(reviews.template(a.flow, a.stage, git(root, "rev-parse", "HEAD") or "", resolves=prev), end="")
     return 0
 
 
@@ -387,23 +494,71 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--slug", help="ファイル名用の英語スラッグ")
     s.set_defaults(func=cmd_adr)
 
-    s = sub.add_parser("lit", help="文献管理（add / survey / index）")
-    s.add_argument("action", choices=["add", "survey", "index"])
-    s.add_argument("--file", help="BibTeX ファイル（省略時は標準入力）")
+    s = sub.add_parser("lit", help="文献管理（add / read / queue / survey / surveys / index）")
+    s.add_argument("action", choices=["add", "read", "queue", "survey", "surveys", "index"])
+    s.add_argument("key_or_citekey", nargs="?", help="read: citekey")
+    s.add_argument("--file", help="add: BibTeX ファイル（省略時は標準入力）")
+    s.add_argument("--doi", help="add: DOI から書誌を取得する（doi.org。source が記録される）")
+    s.add_argument("--arxiv", help="add: arXiv ID から書誌を取得する")
     s.add_argument("--pdf", help="add: 一緒に登録する PDF（literature/pdfs/<citekey>.pdf へ移動）")
     s.add_argument("--tags", nargs="*", default=[])
     s.add_argument("--key", help="add: citekey を明示")
+    s.add_argument("--by", choices=["agent", "human"], help="read: 誰が読んだか")
+    s.add_argument("--scope", choices=["none", "abstract", "sections", "full"], help="read: 読んだ範囲")
+    s.add_argument("--status", help="read: status を更新（unread/skimmed/read/key）")
+    s.add_argument("--min-relevance", type=int, help="queue: この relevance 以上だけ")
     s.add_argument("--question", help="survey: 調査の問い")
     s.add_argument("--slug", help="survey: ファイル名スラッグ")
     s.set_defaults(func=cmd_lit)
 
-    s = sub.add_parser("runs", help="run の一覧・詳細・異常終了の記録（list / show / mark）")
-    s.add_argument("action", choices=["list", "show", "mark"])
-    s.add_argument("run_id", nargs="?")
-    s.add_argument("--status", help="list: 絞り込み")
+    s = sub.add_parser("run", help="設定の entry を実行して run を作る（scripts/run_*.py を書かない共通の入口）")
+    s.add_argument("config", help='configs/experiments/<name>.toml（entry = "pkg.module:func" を持つ）')
+    s.add_argument("overrides", nargs="*", help="key=value の上書き")
+    s.set_defaults(func=cmd_run)
+
+    s = sub.add_parser(
+        "runs",
+        help="run の一覧・詳細・記録・退避・予想の判定・表の連結（list / show / mark / archive / verdict / table）",
+    )
+    s.add_argument("action", choices=["list", "show", "mark", "archive", "verdict", "table"])
+    s.add_argument("run_id", nargs="?", help="table: run の name か ID の部分文字列")
+    s.add_argument("--status", help="list: 絞り込み / archive: 退避する状態（failed,interrupted）")
+    s.add_argument("--all", action="store_true", help="list/table: 退避済み（table は dirty・未完了も）を含める")
     s.add_argument("--to", choices=["failed", "interrupted", "finished"], help="mark: 記録する状態")
-    s.add_argument("--reason", help="mark: 理由")
+    s.add_argument("--reason", help="mark/archive: 理由")
+    s.add_argument(
+        "--uncited", action="store_true", help="archive: 文書に引用されず他の run の入力でもない finished を候補に"
+    )
+    s.add_argument("--older-than", type=float, help="archive: この日数より古い run だけ")
+    s.add_argument("--dry-run", action="store_true", help="archive: 候補を表示するだけ")
+    s.add_argument("--undo", action="store_true", help="archive: 退避を取り消す")
+    s.add_argument("--say", choices=["hit", "miss", "partial"], help="verdict: 自由記述の予想の自己申告")
+    s.add_argument("--note", help="verdict: 判定の理由")
+    s.add_argument("--file", help="table: 連結するファイル名（既定 results.parquet）")
+    s.add_argument("--md", action="store_true", help="table: Markdown で出す")
     s.set_defaults(func=cmd_runs)
+
+    s = sub.add_parser("claim", help="主張の台帳 docs/claims.md（add / retract / list）")
+    s.add_argument("action", choices=["add", "retract", "list"])
+    s.add_argument("text", nargs="?", help="add: 主張 1 文 / retract: ID")
+    s.add_argument("--evidence", nargs="*", help="add: <run_id>:<key>[:<unit>][:<digits>]")
+    s.add_argument("--note", help="add: 備考（prereg:<slug> など）")
+    s.add_argument("--reason", help="retract: 撤回の理由")
+    s.add_argument("--status", choices=["open", "retracted"], help="list: 絞り込み")
+    s.set_defaults(func=cmd_claim)
+
+    s = sub.add_parser("digest", help="人間の入口 docs/DIGEST.md を台帳と run から生成する（1 日 1 回）")
+    s.add_argument("--since", help="この日付（YYYY-MM-DD）か commit 以降。既定: DIGEST を最後に commit した時点")
+    s.set_defaults(func=cmd_digest)
+
+    s = sub.add_parser("beat", help="長い自律運用の 1 拍（start / end / log）。prompts/current.toml が現行の版を指す")
+    s.add_argument("action", choices=["start", "end", "log"])
+    s.add_argument("--predicted", help="end: この拍の予想")
+    s.add_argument("--observed", help="end: 結果")
+    s.add_argument("--decided", help="end: 判断")
+    s.add_argument("--runs", nargs="*", help="end: この拍の run ID")
+    s.add_argument("--date", help="log: 日付（既定 今日）")
+    s.set_defaults(func=cmd_beat)
 
     s = sub.add_parser("mirror", help="正本（data/ runs/）の写し（push / pull）")
     s.add_argument("action", choices=["push", "pull"])
@@ -469,10 +624,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--unit", help="単位（例: dB）")
     s.set_defaults(func=cmd_cite)
 
-    s = sub.add_parser("review", help="レビュー記録の frontmatter 雛形: labkit review template <flow|adhoc> <stage>")
-    s.add_argument("action", choices=["template"])
-    s.add_argument("flow")
-    s.add_argument("stage")
+    s = sub.add_parser("review", help="レビュー記録: template <flow|adhoc> <stage> [--resolves 前回] / list [--open]")
+    s.add_argument("action", choices=["template", "list"])
+    s.add_argument("flow", nargs="?")
+    s.add_argument("stage", nargs="?")
+    s.add_argument("--resolves", help="template: 再レビューする前回の記録（前回の指摘の対応表を差し込む）")
+    s.add_argument("--open", action="store_true", help="list: 未解消の changes-requested だけ")
     s.set_defaults(func=cmd_review)
 
     s = sub.add_parser("hook", help="Claude Code hooks の判定（plugin が呼ぶ。stdin に hook 入力 JSON）")
@@ -490,7 +647,7 @@ def main(argv: list[str] | None = None) -> int:
             except (ValueError, OSError):
                 pass
     args = build_parser().parse_args(argv)
-    if args.cmd == "runs" and args.action != "list" and not args.run_id:
+    if args.cmd == "runs" and args.action in ("show", "mark", "verdict") and not args.run_id:
         raise SystemExit("run_id が必要です")
     try:
         return int(args.func(args) or 0)

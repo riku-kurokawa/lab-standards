@@ -170,6 +170,12 @@ class Run:
                 "lab.toml の runs.require_prediction が有効です。実行の前に、結果の予想（数値と根拠）を設定の "
                 "`prediction` に書いてください（予想に自信があり主張の証拠として要らないなら、計算せず導出で確定させる）"
             )
+        if self.lab["runs"].get("require_clean") and self.git and self.git["dirty"]:
+            raise ValueError(
+                "lab.toml の runs.require_clean が有効です。未コミットの変更があります（dirty な run は結果として引用できない）。"
+                "commit してから実行するか、試行なら scratch/ で行ってください"
+            )
+        check_prediction(self.config.get("prediction"))
         self._mkdir()
         self._t0 = time.time()
         # 入力の hash や環境の取得は遅い。その間に止められても meta.json の無い殻（L020）を残さないよう、
@@ -236,6 +242,16 @@ class Run:
         self.meta["duration_s"] = round(time.time() - self._t0, 3)
         if exc_type is None:
             self.meta["status"] = "finished"
+            for i, crit in enumerate(self.config.get("pass") or [], 1):  # 事前に書いた合否（[[pass]]）
+                ok = evaluate_pass(crit, self._last, self.dir)
+                self.log_metric(f"pass_{i}", float(ok))
+            if self.config.get("pass"):
+                self.log_metric(
+                    "pass_all", float(all(self._last[f"pass_{i}"] for i in range(1, len(self.config["pass"]) + 1)))
+                )
+            if isinstance(self.meta.get("prediction"), dict):
+                self.meta["prediction_result"] = judge_prediction(self.meta["prediction"], self._last)
+                self.log(f"予想の判定: {self.meta['prediction_result']['verdict']}")
         elif exc_type is KeyboardInterrupt:
             self.meta["status"] = "interrupted"
         else:
@@ -246,6 +262,53 @@ class Run:
         write_json_atomic(self.dir / "meta.json", self.meta)
         freeze_run(self.dir)
         return False
+
+
+# ---- 予想の関門と事前の合否 ----
+def check_prediction(pred) -> None:
+    """prediction は文字列（自由記述）か表 {basis, confidence?, expert_predictable?, claims=[{key, range|point+tol}]}."""
+    if pred is None or isinstance(pred, str):
+        return
+    if not isinstance(pred, dict) or not str(pred.get("basis", "")).strip():
+        raise ValueError('prediction の表には basis（根拠）が必要です: [prediction] basis = "..."')
+    for c in pred.get("claims") or []:
+        if "key" not in c or not (c.get("range") or ("point" in c and "tol" in c)):
+            raise ValueError("[[prediction.claims]] には key と、range = [lo, hi] か point + tol が必要です")
+
+
+def judge_prediction(pred: dict, metrics: dict) -> dict:
+    """表形式の予想を metrics と照合する。key が無い主張は undeterminable（当たりにも外れにも数えない）."""
+    rows = []
+    for c in pred.get("claims") or []:
+        v = metrics.get(c["key"])
+        if v is None:
+            rows.append({"key": c["key"], "value": None, "hit": None})
+            continue
+        lo, hi = c["range"] if c.get("range") else (c["point"] - c["tol"], c["point"] + c["tol"])
+        rows.append({"key": c["key"], "value": v, "hit": bool(lo <= v <= hi)})
+    hits = sum(1 for r in rows if r["hit"] is True)
+    judged = [r for r in rows if r["hit"] is not None]
+    verdict = "undeterminable" if not judged else "hit" if hits == len(judged) else "miss" if hits == 0 else "partial"
+    return {"verdict": verdict, "hit": hits, "total": len(judged), "undeterminable": len(rows) - len(judged)}
+
+
+def evaluate_pass(crit: dict, metrics: dict, run_dir: Path) -> bool:
+    """[[pass]] key="e1" max=0.02 [min=] [table="results.parquet" where={wall="char"}]。
+    table があれば Parquet の列、無ければ metrics。該当する値がすべて範囲内なら合格。値が無ければ不合格."""
+    lo, hi = crit.get("min", float("-inf")), crit.get("max", float("inf"))
+    if crit.get("table"):
+        import pandas as pd
+
+        f = run_dir / crit["table"]
+        if not f.is_file():
+            return False
+        df = pd.read_parquet(f)
+        for k, v in (crit.get("where") or {}).items():
+            df = df[df[k] == v]
+        vals = df[crit["key"]].tolist() if crit["key"] in df else []
+    else:
+        vals = [metrics[crit["key"]]] if crit.get("key") in metrics else []
+    return bool(vals) and all(lo <= float(v) <= hi for v in vals)
 
 
 def _outputs(run_dir: Path, max_bytes: float) -> list[dict]:
@@ -356,7 +419,8 @@ def find_run(run_id: str, root: Path | None = None) -> Path:
     raise ValueError(f"run ID が曖昧です（{len(matches)} 件一致）: {run_id}")
 
 
-def list_runs(root: Path | None = None) -> list[dict]:
+def list_runs(root: Path | None = None, *, include_archived: bool = False) -> list[dict]:
+    """runs/ の meta を作成順に。退避済み（archived）は既定で隠す（人間が見る一覧を根拠になり得る run だけにする）."""
     base = runs_root(root)
     out = []
     if not base.is_dir():
@@ -365,7 +429,118 @@ def list_runs(root: Path | None = None) -> list[dict]:
         mf = d / "meta.json"
         if mf.is_file():
             try:
-                out.append(read_json(mf))
+                m = read_json(mf)
             except json.JSONDecodeError:
-                out.append({"run_id": d.name, "status": "broken-meta"})
+                m = {"run_id": d.name, "status": "broken-meta"}
+            if include_archived or not m.get("archived"):
+                out.append(m)
+    return out
+
+
+def _rewrite_meta(d: Path, update: dict) -> dict:
+    meta = read_json(d / "meta.json")
+    freeze_run(d, writable=True)
+    meta.update(update)
+    write_json_atomic(d / "meta.json", meta)
+    freeze_run(d)
+    return meta
+
+
+def archive_runs(run_ids: list[str], reason: str, *, undo: bool = False, root: Path | None = None) -> list[str]:
+    """run を退避する: 削除せず meta.json に archived を書き、一覧と DIGEST から隠す。引用されると L032 が知らせる。
+    Claude が実行してよい（running の run は対象外。取り消しは undo）."""
+    done = []
+    for rid in run_ids:
+        d = find_run(rid, root)
+        if not (d / "meta.json").is_file():
+            raise ValueError(f"{d.name} に meta.json がありません（先に `labkit runs mark`）")
+        meta = read_json(d / "meta.json")
+        if meta.get("status") == "running":
+            raise ValueError(f"{d.name} は running です（終わっていれば先に `labkit runs mark`）")
+        if undo:
+            _rewrite_meta(d, {"archived": None})
+        elif not meta.get("archived"):
+            _rewrite_meta(d, {"archived": {"when": now_iso(), "reason": reason}})
+        done.append(d.name)
+    return done
+
+
+def archive_candidates(
+    *, statuses: tuple[str, ...] = (), uncited: bool = False, older_than_days: float = 0, root: Path | None = None
+) -> list[dict]:
+    """退避の候補: status が statuses のもの、または（uncited）文書に引用されず他の run の入力にもなっていない finished."""
+    from labkit.check import cited_run_ids
+    from labkit.config import find_root
+
+    r = root or find_root()
+    runs = list_runs(r)
+    cited = set(cited_run_ids(r)) if uncited else set()
+    lineage = {i.get("run_id") for m in runs for i in m.get("inputs") or [] if i.get("run_id")}
+    cutoff = (_dt.datetime.now() - _dt.timedelta(days=older_than_days)).isoformat() if older_than_days else None
+    out = []
+    for m in runs:
+        if m.get("status") == "running":
+            continue
+        if cutoff and str(m.get("created", "")) > cutoff:
+            continue
+        by_status = m.get("status") in statuses
+        by_uncited = uncited and m.get("status") == "finished" and m["run_id"] not in cited | lineage
+        if by_status or by_uncited:
+            out.append(m)
+    return out
+
+
+def verdict_run(run_id: str, *, say: str | None = None, note: str = "", root: Path | None = None) -> dict:
+    """予想の判定を meta.json の prediction_result に書く。表形式の予想は metrics から判定し直す。
+    自由記述の予想は --say hit|miss|partial の自己申告（self_reported=true が残る）."""
+    d = find_run(run_id, root)
+    meta = read_json(d / "meta.json")
+    if meta.get("status") != "finished":
+        raise ValueError(f"{d.name} は status={meta.get('status')}（finished の run だけ判定する）")
+    pred = meta.get("prediction")
+    if not pred:
+        raise ValueError(f"{d.name} に予想（prediction）がありません")
+    mf = d / "metrics.json"
+    metrics = read_json(mf) if mf.is_file() else {}
+    if isinstance(pred, dict):
+        result = judge_prediction(pred, metrics)
+    elif say in ("hit", "miss", "partial"):
+        result = {"verdict": say, "self_reported": True, "note": note}
+    else:
+        raise ValueError("自由記述の予想は --say hit|miss|partial --note '理由' で自己申告する（表形式なら自動）")
+    result["when"] = now_iso()
+    return _rewrite_meta(d, {"prediction_result": result})["prediction_result"]
+
+
+def runs_table(pattern: str, file: str = "results.parquet", *, include_all: bool = False, root: Path | None = None):
+    """複数 run の同じ表を縦に連結する（集計スクリプトを毎回書かないため）。
+    pattern は run の name か run_id の部分文字列。既定では clean な finished で退避されていない run だけ。
+    除外した run は df.attrs["excluded"] に残し、実行中の run があれば入力として来歴に記録する."""
+    import pandas as pd
+
+    frames, excluded = [], []
+    for m in list_runs(root, include_archived=include_all):
+        if pattern not in m.get("name", "") and pattern not in m["run_id"]:
+            continue
+        d = runs_root(root) / m["run_id"]
+        why = (
+            f"status={m.get('status')}"
+            if m.get("status") != "finished"
+            else "dirty"
+            if (m.get("git") or {}).get("dirty")
+            else "archived"
+            if m.get("archived")
+            else ""
+        )
+        if why and not include_all or not (d / file).is_file():
+            excluded.append((m["run_id"], why or f"{file} なし"))
+            continue
+        df = pd.read_parquet(d / file)
+        df.insert(0, "run_id", m["run_id"])
+        df.insert(1, "commit", (m.get("git") or {}).get("commit", "")[:7])
+        frames.append(df)
+        if (run := current_run()) is not None:
+            run.add_input(d / file)
+    out = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    out.attrs["excluded"] = excluded
     return out

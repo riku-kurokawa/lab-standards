@@ -88,7 +88,16 @@ DEFAULTS: dict = {
         "figure_ok_dirs": ["docs/assets", "literature/pdfs", "literature/inbox", "scratch"],
         "data_ok_dirs": ["tests/fixtures", "scratch"],
         "skip": [],
+        # 引用（run ID・`値 [run:<id>:<key>]`）を照合する文書（ルート基準の glob）。自動ブロックと DIGEST は除く
+        "claim_docs": ["docs/**/*.md", "literature/surveys/*.md"],
+        "dirty_citation": "warn",  # dirty な run を結果として引用したとき: "warn" | "error"（claims.md は常に error）
+        # L018: src・scripts のファイルの行数（空行を除く）の上限。人間が一度に読める大きさ。0 で無効
+        "max_file_lines": 300,
+        "long_file": "warn",
+        "max_lines_allowed": [],
     },
+    # L037: 状態ファイルは「今」だけを持つ（H1 は 1 つ、同じ H2 は 1 回、max_lines 以内）。履歴は git
+    "state": {"file": "docs/state.md", "max_lines": 150},
     "devlog": {
         "dir": "docs/devlog",
         "required_headings": ["目的", "結果・観察", "判断と理由", "未解決・次の作業"],
@@ -97,8 +106,12 @@ DEFAULTS: dict = {
     },
     "adr": {"dir": "docs/decisions", "required_headings": ["背景", "決定", "理由と検討した代替案", "影響"]},
     # require_prediction: 正式な run の前に結果の予想を設定（config の prediction）に書かせ、meta.json に残す
-    "runs": {"hash_max_gb": 2.0, "require_prediction": False},
-    "literature": {"dir": "literature", "pdf_dir": "literature/pdfs"},
+    # require_clean: 未コミットの変更がある状態（git.dirty）では run を始めない（dirty な run は結果として引用できない）
+    "runs": {"hash_max_gb": 2.0, "require_prediction": False, "require_clean": False},
+    # note_body: L047（status が read/key なのに claims が空）、survey_verdict: L048（done なのに verdict/n_opened が無い）
+    "literature": {"dir": "literature", "pdf_dir": "literature/pdfs", "note_body": "warn", "survey_verdict": "warn"},
+    # 人間の入口（labkit digest）: 図は assets に写す（git で見える）。max_figures を超える分はリンクだけ
+    "digest": {"file": "docs/DIGEST.md", "assets": "docs/assets/digest", "max_figures": 12},
     "claude": {"require_devlog": True, "max_stop_blocks": 3},
     # 長い自律運用: backlog（"- [ ] ..." の行）に未着手の項目が min_open 件未満なら Stop hook が終了を止める。空文字で無効
     "autonomy": {"backlog": "", "min_open": 0},

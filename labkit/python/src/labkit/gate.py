@@ -245,14 +245,20 @@ LABKIT_READ = {
     ("check",),
     ("runs", "list"),
     ("runs", "show"),
+    ("runs", "table"),
     ("cite",),
+    ("claim", "list"),
     ("review", "template"),
+    ("review", "list"),
     ("paths",),
     ("fig", "list"),
     ("queue", "list"),
     ("delegate", "list"),
     ("flow", "status"),
     ("standards", "status"),
+    ("beat", "log"),
+    ("lit", "queue"),
+    ("lit", "surveys"),
 }
 
 

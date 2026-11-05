@@ -6,10 +6,13 @@ frontmatter:
     stage: reproduce
     commit: <レビュー対象の HEAD（完全な sha）>
     verdict: pass | changes-requested
+    summary: <人間向けの 1 行（120 字以内）。無いと L035 の警告>
+    resolves: docs/reviews/2026-11-04_adhoc_review.md   # 前回の記録への再レビューなら（任意）
     findings:
-      - "src/x.py:12 ..."
+      - "must: src/x.py:12 ..."      # must:（要修正）/ should:（確認推奨）。接頭辞が無ければ must 扱い
 
 書き込みは hooks が agent_type=lab-reviewer のときだけ許可する（メインのエージェントは書けない）。
+`labkit review list [--open]` が 1 件 1 行で出す（--open は後続の pass が無い changes-requested だけ）。
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ REVIEW_DIR = "docs/reviews"
 NAME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_([a-z0-9-]+)_([a-z0-9-]+)(?:_(\d+))?\.md$")
 VERDICTS = ("pass", "changes-requested")
 REQUIRED = ("reviewer", "flow", "stage", "commit", "verdict", "findings")
+SUMMARY_MAX = 120
 
 
 @dataclass
@@ -34,8 +38,22 @@ class Review:
     stage: str = ""
     commit: str = ""
     verdict: str = ""
+    summary: str = ""
+    resolves: str = ""
     findings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    @property
+    def date(self) -> str:
+        m = NAME_RE.match(self.path.name)
+        return m.group(1) if m else ""
+
+    @property
+    def counts(self) -> tuple[int, int]:
+        """(must, should)。接頭辞の無い指摘は must."""
+        should = sum(1 for f in self.findings if f.lower().startswith("should:"))
+        return len(self.findings) - should, should
 
 
 def parse_frontmatter(text: str) -> dict | None:
@@ -76,6 +94,14 @@ def load_review(path: Path) -> Review:
         r.errors.append("ファイル名の flow/stage と frontmatter が一致しません")
     if r.verdict == "changes-requested" and not r.findings:
         r.errors.append("changes-requested には findings が必要です")
+    r.summary = str(fm.get("summary") or "").strip()
+    r.resolves = str(fm.get("resolves") or "").strip()
+    if not r.summary:
+        r.warnings.append(f"summary（人間向けの 1 行、{SUMMARY_MAX} 字以内）がありません")
+    elif len(r.summary) > SUMMARY_MAX:
+        r.warnings.append(f"summary が {len(r.summary)} 字（{SUMMARY_MAX} 字以内）")
+    if r.resolves and not (path.parent.parent.parent / r.resolves).is_file():
+        r.errors.append(f"resolves が指す記録 {r.resolves} がありません")
     return r
 
 
@@ -87,6 +113,25 @@ def list_reviews(root: Path, flow: str | None = None, stage: str | None = None) 
     return [r for r in out if (flow is None or r.flow == flow) and (stage is None or r.stage == stage)]
 
 
+def open_reviews(root: Path) -> list[Review]:
+    """未解消の changes-requested: 後続の記録に resolves で指されていないもの."""
+    rs = list_reviews(root)
+    resolved = {r.resolves for r in rs if r.resolves}
+    return [r for r in rs if r.verdict == "changes-requested" and r.path.relative_to(root).as_posix() not in resolved]
+
+
+def format_reviews(root: Path, rs: list[Review]) -> str:
+    rows = []
+    for r in rs:
+        must, should = r.counts
+        rows.append(
+            f"{r.date}  {r.flow}/{r.stage:10s} {r.verdict:17s} must {must} should {should}  {r.summary or '（summary なし）'}"
+            + (f"  ← {r.resolves}" if r.resolves else "")
+            + f"  [{r.path.relative_to(root).as_posix()}]"
+        )
+    return "\n".join(rows) or "レビュー記録はありません"
+
+
 def latest_pass(root: Path, flow: str, stage: str, head: str | None) -> Review | None:
     """現在の HEAD に対する verdict=pass のレビュー記録（最新）."""
     for r in reversed(list_reviews(root, flow, stage)):
@@ -95,7 +140,12 @@ def latest_pass(root: Path, flow: str, stage: str, head: str | None) -> Review |
     return None
 
 
-def template(flow: str, stage: str, commit: str) -> str:
+def template(flow: str, stage: str, commit: str, resolves: Review | None = None) -> str:
+    prev = ""
+    if resolves is not None:
+        prev = "\n## 前回の指摘への対応\n\n| # | 前回の指摘 | 対応 |\n|---|---|---|\n" + "".join(
+            f"| {i} | {f.replace('|', '/')} | |\n" for i, f in enumerate(resolves.findings, 1)
+        )
     return (
         "---\n"
         "reviewer: lab-reviewer\n"
@@ -103,9 +153,14 @@ def template(flow: str, stage: str, commit: str) -> str:
         f"stage: {stage}\n"
         f"commit: {commit}\n"
         "verdict: changes-requested   # pass | changes-requested\n"
-        "findings:\n"
-        '  - "<path>:<line> 指摘（根拠）"\n'
+        'summary: ""                   # 人間向けの 1 行（120 字以内）: 何を見て、何が主な問題か\n'
+        + (f"resolves: {resolves.path.as_posix()}\n" if resolves is not None else "")
+        + "findings:\n"
+        '  - "must: <path>:<line> 要修正の指摘（根拠）"\n'
+        '  - "should: <path>:<line> 確認推奨（人間の判断）"\n'
         "---\n\n"
         f"# レビュー: {flow} / {stage}\n\n"
-        "## 概要\n\n## labkit check\n\n## 要修正\n\n## 確認推奨\n\n## 問題なし\n"
+        "## 概要\n\n## labkit check\n\n（`labkit check --claims` の出力をそのまま貼る）\n"
+        + prev
+        + "\n## 要修正\n\n## 確認推奨\n\n## 問題なし\n"
     )
