@@ -1,11 +1,10 @@
 # Changelog
 
-## v1.5.0 — 2026-11-05
+## v1.6.0 — 2026-11-05
 
 ボトルネックは人間のレビュー時間である。nla-solver・accelerated-diff-pat の 5 日間の自律運用で、人間が読まされていたもの
 （1 日 300〜600 行の開発ログ、積み上がる state.md、100 行のレビュー記録、1000 行超のスクリプト、failed 66 本が混じる run 一覧、
 見出しだけの文献ノート）を、機械が同じコードで作る短い生成物と台帳に置き換える。新しい規則は既定で警告か opt-in。
-エージェントが「人間の実機・回答を待つ」と判断して `/loop` を自分で止め、夜の間なにもしなかった（accelerated-diff-pat）ので、待つことを止まる理由にしない（hooks で拒否）。
 
 ### 追加（人間の入口と台帳）
 - `labkit digest [--since]`: 人間が 15 分で読む 1 枚 `docs/DIGEST.md`（主張の変化、予想と結果、run の収支、新しい図を `docs/assets/digest/` に写してリンク、
@@ -50,11 +49,6 @@
   INDEX.md の先頭に要点（relevance ≥ 4）、表に 読んだ・使用 の列。
 
 ### 変更
-- hooks: `/loop` の停止（`CronDelete`、`ScheduleWakeup` の `stop`）を拒否する。止めるのは人間だけ。`lab.toml` の
-  `[claude] allow_self_stop`（既定 `false`）で切り替える。拒否のメッセージは、依存しない仕事か、人間なしで同じ問いに答える方法
-  （計算・公開データ・独立実装による検証）への切り替え、目標を達したら次の問いを立てることを案内する。
-- 雛形 CLAUDE.md・skill `lab-conventions` に「待って止まらない」を明記。`labkit queue ask` の出力と、承認待ちがあるときの Stop hook の
-  メッセージも「待たずに進める」に改めた（承認待ちで終了時の検証を省く挙動は変えていない）。
 - 引用の照合（L032/L033/L034）は `check.claim_docs`（既定 `docs/**/*.md` と `literature/surveys/*.md`）の全文書を見る。自動ブロックと DIGEST は見ない。
   dirty な run の引用は `check.dirty_citation`（既定 warn。claims.md は常に error）、退避済みは警告。L034 は引用を含む行を対象外にした（条件ラベルの数字の偽陽性）。
 - `labkit runs list` は退避済みを隠し、dirty / archived / 予想の判定を列で出す。
@@ -65,22 +59,36 @@
 - 修正: `git status --porcelain` の 1 行目が " M" で始まるとき先頭 1 文字が欠けていた（開発ログの「未コミット: ocs/…」）。
 
 ### 移行
-- `labkit standards unlink --to v1.5.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`
-  （hooks.json の matcher が変わるので plugin の更新が要る）、
-  雛形は `labkit standards template --ref v1.5.0`（`docs/claims.md`・`prompts/current.toml`・`goal_v1.md` が増える。`scripts/run_example.py` は消してよい）。
+- `labkit standards unlink --to v1.6.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`、
+  雛形は `labkit standards template --ref v1.6.0`（`docs/claims.md`・`prompts/current.toml`・`goal_v1.md` が増える。`scripts/run_example.py` は消してよい）。
 - 既存プロジェクトで新たに error になり得るもの: L037（state.md に H1 が複数・同じ H2 が複数。古い節を消す。履歴は git にある）、
   L036（claims.md を使い始めたとき）、そして docs/** 全体が照合の対象になったことによる L033（docs/papers・reports・prereg・math の引用で、
   数値が `値 [単位] [run:<id>:<key>]` の書式どおりに cite の直前に無い、または metrics と合わない）。strict なら Stop hook が止まるので、
   `unlink` の前に新しい labkit で `labkit check --claims` を流し、文書を `labkit cite` の出力に直すか、`check.claim_docs` を狭める。
   他はすべて警告か opt-in。`require_prediction` / `require_clean` は人間が lab.toml で有効にする。
-- `labkit standards template --ref v1.5.0` で lab.toml が雛形の既定（`require_prediction = true`・`require_clean = true`）に変わる
+- `labkit standards template --ref v1.6.0` で lab.toml が雛形の既定（`require_prediction = true`・`require_clean = true`）に変わる
   （変わったときは template が 1 行知らせる）。使わないなら false に戻す。v1.4.0 以前の run は文書だけの変更でも dirty と記録されているので、
   結果として使う run は clean に再実行する。dirty の引用の警告が多すぎるなら `check.dirty_citation = "off"`。
 - `configs/experiments/example.toml` は既存なら更新されない（`_skip_if_exists`）。`make example` を使うなら `entry = "<pkg>.experiments.example:run"` と
   `[prediction]`・`[[pass]]` を足す（雛形の example.toml.jinja を参照）。使わないなら `src/<pkg>/experiments/example.py` と `__init__.py` を消す
   （残すと L017 の警告）。`scripts/run_example.py` は消してよい。
-- 自分で止めてよいループを使うプロジェクトは `lab.toml` に `[claude] allow_self_stop = true`（人間が編集）。
 
+## v1.5.0 — 2026-11-04
+
+エージェントが「人間の実機・回答を待つ」と判断して `/loop` を自分で止め、夜の間なにもしなかった（accelerated-diff-pat）。
+人間不在で走ることが前提なので、待つことを止まる理由にしない。
+
+### 変更
+- hooks: `/loop` の停止（`CronDelete`、`ScheduleWakeup` の `stop`）を拒否する。止めるのは人間だけ。`lab.toml` の
+  `[claude] allow_self_stop`（既定 `false`）で切り替える。拒否のメッセージは、依存しない仕事か、人間なしで同じ問いに答える方法
+  （計算・公開データ・独立実装による検証）への切り替え、目標を達したら次の問いを立てることを案内する。
+- 雛形 CLAUDE.md・skill `lab-conventions` に「待って止まらない」を明記。`labkit queue ask` の出力と、承認待ちがあるときの Stop hook の
+  メッセージも「待たずに進める」に改めた（承認待ちで終了時の検証を省く挙動は変えていない）。
+
+### 移行
+- `labkit standards unlink --to v1.5.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`
+  （hooks.json の matcher が変わるので plugin の更新が要る）。
+- 自分で止めてよいループを使うプロジェクトは `lab.toml` に `[claude] allow_self_stop = true`（人間が編集）。
 
 ## v1.4.0 — 2026-11-04
 

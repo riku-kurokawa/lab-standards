@@ -28,7 +28,7 @@ NAME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_([a-z0-9-]+)_([a-z0-9-]+)(?:_(\d+))?
 VERDICTS = ("pass", "changes-requested")
 REQUIRED = ("reviewer", "flow", "stage", "commit", "verdict", "findings")
 SUMMARY_MAX = 120
-SUMMARY_SINCE = "2026-11-05"  # これより前の記録に summary の警告は出さない（v1.5.0 で導入）
+SUMMARY_SINCE = "2026-11-05"  # これより前の記録に summary の警告は出さない（v1.6.0 で導入）
 
 
 @dataclass
