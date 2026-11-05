@@ -512,7 +512,8 @@ def check_literature(root: Path, lab: dict) -> list[tuple[str, Path, str] | tupl
             for req in ("date", "question", "search"):
                 if req not in fm:
                     issues.append(("L045", s, f"frontmatter に {req} がありません"))
-            if fm.get("status") == "done":  # 判定: 問いに答え、一次情報を実際に開いたか
+            # 判定: 問いに答え、一次情報を実際に開いたか（キーの無い古いサーベイは対象外）
+            if fm.get("status") == "done" and ("verdict" in fm or "n_opened" in fm):
                 if fm.get("verdict") not in VERDICT:
                     msg = f"status=done だが verdict が {sorted(VERDICT)} のどれでもない（問いへの答えを 1 語で書く）"
                     issues.append(_issue("L048", s, msg, sev_verdict))

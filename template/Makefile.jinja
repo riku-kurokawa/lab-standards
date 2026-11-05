@@ -16,6 +16,6 @@ fmt:
 	uv run ruff check --fix src scripts tests
 
 example:
-	@RUN=$$(uv run python scripts/run_example.py configs/experiments/example.toml | tail -1) && \
+	@RUN=$$(uv run labkit run configs/experiments/example.toml | tail -1) && \
 	for s in example_timeseries example_psd example_learning_curve; do \
 	  uv run labkit fig figspecs/$$s.toml --run $$RUN; done

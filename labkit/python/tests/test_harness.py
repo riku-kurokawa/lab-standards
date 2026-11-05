@@ -98,11 +98,15 @@ def test_migrate_flow_checklist(git_project, tmp_path):
 def test_devlog_auto_block_and_sections(git_project):
     p = git_project
     (p / "src" / "n.py").write_text("x = 1\n", encoding="utf-8", newline="\n")
-    with Run("today", {"seed": 0}, root=p):
+    (p / ".gitignore").write_text("/runs/*\n", encoding="utf-8", newline="\n")  # 追跡済みファイルの変更（" M" の行）
+    (p / "docs" / "note.md").write_text("x\n", encoding="utf-8", newline="\n")  # 文書だけの変更は dirty に数えない
+    with Run("today", {"seed": 0}, root=p) as run:
         pass
+    assert run.git["dirty"] and run.git["dirty_paths"] == [".gitignore", "src/n.py"]
     f = update(p)
     text = f.read_text(encoding="utf-8")
-    assert "未コミット: src/n.py" in text and "today" in text and text.count("<!-- labkit:auto -->") == 1
+    assert "未コミット: .gitignore" in text and "未コミット: src/n.py" in text and "today" in text
+    assert text.count("<!-- labkit:auto -->") == 1 and "- コード量: src 1 行（+1、1 ファイル）" in text
     text = text.replace("## 目的\n", "## 目的\n\n目的 A\n")
     f.write_text(text, encoding="utf-8", newline="\n")
     update(p)  # 自動ブロックだけ更新され、人が書いた部分は残る

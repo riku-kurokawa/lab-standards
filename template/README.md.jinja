@@ -15,8 +15,9 @@ make check                                # 規約チェック + テスト
 ## 再現手順
 
 ```bash
-make example                              # 例: 合成信号の前処理 → run 生成 → 図
+make example                              # 例: labkit run（entry）→ run 生成 → 図
 uv run labkit runs list
+uv run labkit digest                      # 人間の入口 docs/DIGEST.md（主張・予想の判定・run・図・レビュー）
 ```
 
 ## ディレクトリ
@@ -24,12 +25,13 @@ uv run labkit runs list
 | パス | 中身 | git |
 |---|---|---|
 | `src/{{ package_name }}/` | 再利用ライブラリ（純粋関数） | ✓ |
-| `scripts/` | 薄いエントリポイント | ✓ |
+| `scripts/` | entry で書けないものだけ（理由を 1 行）。実験の入口は `configs/experiments/*.toml` の `entry` + `labkit run` | ✓ |
 | `configs/` | 実験設定（TOML）、環境別パス `paths/` | ✓ |
 | `figspecs/` | 図の仕様（テンプレート名・データ・ラベル） | ✓ |
 | `data/raw/` | 生データ（不変・`MANIFEST.sha256`） | MANIFEST のみ |
 | `data/{external,interim,processed,cache}/` | 外部データ・中間・最終派生データ・再生成できるキャッシュ | × |
 | `runs/<run_id>/` | 実験 1 回分（設定・来歴・指標・図） | × |
+| `docs/DIGEST.md`, `docs/claims.md` | 人間の入口 1 枚（`labkit digest`）と主張の台帳（`labkit claim`） | ✓ |
 | `docs/devlog/` | 開発ログ（1 日 1 ファイル） | ✓ |
 | `docs/decisions/` | ADR（設計判断の記録） | ✓ |
 | `docs/reviews/` | 独立レビューの記録（lab-reviewer agent が書く） | ✓ |

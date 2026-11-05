@@ -33,6 +33,11 @@ def test_citations_skip_auto_block_and_cover_docs_tree(git_project):
         "## 目的\nx\n## 結果・観察\n\n誤差 0.5 % は 0.02 rel [run:" + run.run_id + ":e1] と同じ行\n裸の 1.5e-3\n"
         "## 判断と理由\ny\n## 未解決・次の作業\nz\n<!-- labkit:auto -->\n- 20260101-000000_auto_abcdef0_0000 finished\n<!-- /labkit:auto -->\n",
     )
+    write(
+        p / "docs" / "papers" / "units.md",
+        f"## 結果\n\n比 0.0199 1 [run:{run.run_id}:e1]（1.99 % [run:{run.run_id}:e1]）。加速度 0.02 m/s^2 [run:{run.run_id}:e1]。"
+        f"速さ（3.75 m/s）・0.02 [run:{run.run_id}:e1]\n",
+    )  # 無次元の単位 "1"、% の換算、括弧で区切られた直前でない数値は拾わない
     got = run_check(root=p)[0]
     assert [i.where for i in got if i.code == "L033"] == ["docs/papers/draft.md:5"]  # docs/** も照合する
     assert [i.where for i in got if i.code == "L032" and "link" not in i.message] == [
@@ -169,7 +174,7 @@ def test_runs_table_concatenates_clean_finished(git_project):
     with Run("agg", {"seed": 0}) as agg:
         df = runs_table("sweep", root=git_project)
     assert (
-        df["k"].tolist() == [1, 2]
+        sorted(df["k"]) == [1, 2]
         and df.attrs["excluded"][0][1] == "dirty"
         and list(df.columns[:2]) == ["run_id", "commit"]
     )

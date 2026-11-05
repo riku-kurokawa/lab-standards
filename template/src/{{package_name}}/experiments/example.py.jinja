@@ -1,0 +1,23 @@
+"""例: 合成信号にローパスをかけて SNR を評価する（`labkit run configs/experiments/example.toml`）.
+
+実験の入口は src の小さな関数。設定を受け取り、結果を dict で返す（数値 → metrics、配列 → HDF5、表 → Parquet）。
+step 付きの記録が要るときだけ第 2 引数 run を受け取る。ファイルの読み書き・描画はここに書かない。
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+from {{ package_name }}.filters import lowpass, snr_db
+
+
+def run(cfg: dict, r) -> dict:
+    rng = np.random.default_rng(cfg["seed"])
+    s, f = cfg["signal"], cfg["filter"]
+    t = np.arange(0, s["duration_s"], 1 / s["fs"])
+    clean = np.sin(2 * np.pi * s["freq_hz"] * t)
+    noisy = clean + s["noise_std"] * rng.standard_normal(t.size)
+    for step, cutoff in enumerate(f["cutoffs_hz"]):
+        r.log_metric("snr_db", snr_db(clean, lowpass(noisy, s["fs"], cutoff, f["order"])), step=step)
+    best = lowpass(noisy, s["fs"], f["cutoffs_hz"][-1], f["order"])
+    return {"signal": {"t": t, "clean": clean, "noisy": noisy, "filtered": best}}

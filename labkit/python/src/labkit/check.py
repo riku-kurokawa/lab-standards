@@ -5,9 +5,10 @@
     L020 run の meta.json が無い（殻は `labkit runs mark`）/スキーマ違反 L021 run が running のまま（警告。`labkit runs mark`）
     L022 data/interim・processed の派生ファイルにサイドカーが無い/スキーマ違反（data/cache は対象外）
     L024 予想（prediction）のある run が finished なのに判定（prediction_result）が無い（警告。`labkit runs verdict`）
+    L023 run を実行した labkit の版がプロジェクトの固定版と違う（警告。(版, 実行環境) ごとに 1 件。環境の同期漏れ）
     L030 開発ログの書式違反・必須欄（目的 / 判断と理由 / 未解決）が空
     L032 文書（check.claim_docs）が引用する run ID が runs/ に無い。failed/link/退避済みの run の引用は警告、
-         dirty な run の引用は check.dirty_citation（既定 warn）。自動ブロックと DIGEST は見ない
+         dirty な run の引用は check.dirty_citation（既定 warn）。状態の警告は (文書, run) ごとに 1 件。自動ブロックと DIGEST は見ない
     L033 `12.3 dB [run:<run_id>:<key>]` の数値が metrics.json と一致しない
     L034 「結果・観察」節の小数・指数表記の数値に引用が無い（警告。引用を含む行は対象外）
     L036 主張の台帳 docs/claims.md の書式、撤回の理由、open な主張の根拠が dirty/failed/退避済み/無い run（claims.py）
@@ -20,7 +21,6 @@
     L017 src のモジュールがどこからも import されていない（警告。configs の entry も使用に数える）
     L018 src・scripts のファイルが check.max_file_lines 行（空行を除く）を超える（警告。人間が読める大きさに保つ）
     L014 図が runs/*/figures 以外にある  L015 データが data/・runs/ 以外にある
-    L023 run を実行した labkit の版がプロジェクトの固定版と違う（警告。環境の同期漏れ）
     L031 ADR の書式   L035 レビュー記録の書式（summary の欠落は警告）   L037 state.md の構造（H1 は 1 つ、同じ H2 は 1 回、行数）
     L040-L048 文献管理（literature.py。L047 ノートの正直さ、L048 サーベイの判定は警告）
 """
@@ -58,8 +58,9 @@ DATA_EXT = {
     ".ckpt",
 }
 RUN_ID_RE = re.compile(r"\b(\d{8}-\d{6}_[a-z0-9-]+_(?:[0-9a-f]{7}|nogit)_[0-9a-f]{4})\b")
+# 引用: 数値 [単位] [run:<id>:<key>]。単位は数字で始まらず括弧・読点を含まない 1 語（m/s^2 可。無次元は "1"）。数値は cite の直前にあること
 CITE_RE = re.compile(
-    r"(?P<num>[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*(?P<unit>[^\s\[\]\d][^\s\[\]]{0,11})?\s*"
+    r"(?P<num>[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*(?P<unit>1|[^\s\[\]\d()（）、・,;:][^\s\[\]()（）、・,;:]{0,11})?\s*"
     r"\[run:(?P<run>[^:\]\s]+):(?P<key>[^\]\s]+)\]"
 )
 # 測定値らしい数値: 小数または指数表記（整数の個数・番号は対象にしない）
@@ -318,6 +319,7 @@ class Checker:
             return
         schema = self._schema("run_meta.schema.json")
         pinned = pinned_version(self.root)
+        stale: dict[tuple[str, str], list] = {}  # (版, 実行環境) → [件数, 最初の run]
         for d in sorted(base.iterdir()):
             if not d.is_dir():
                 if d.name != ".gitkeep":
@@ -339,36 +341,44 @@ class Checker:
                 self.add("L020", mf, f"スキーマ違反: {getattr(e, 'message', e)}")
                 continue
             if pinned and meta.get("labkit_version") != pinned[0] and str(meta.get("created", "")) >= pinned[1]:
-                py = (meta.get("command") or [""])[0]
-                self.add(
-                    "L023",
-                    d,
-                    f"labkit {meta.get('labkit_version')} で実行（プロジェクトの固定版は {pinned[0]}）。"
-                    f"実行環境 {py or '?'} を `uv sync --reinstall-package labkit` で揃える",
-                    "warn",
-                )
-            if meta["status"] == "finished" and meta.get("prediction") and not meta.get("prediction_result"):
-                self.add(
-                    "L024",
-                    d,
-                    f"予想を書いた run の判定がありません。`labkit runs verdict {d.name} --say hit|miss --note ...`"
-                    "（表形式の予想は run の終了時に自動で判定される）",
-                    "warn",
-                )
-            if meta["status"] == "running":
-                hb = d / "heartbeat"
-                age = ""
-                if hb.is_file():
-                    import datetime as _dt
+                key = (str(meta.get("labkit_version")), (meta.get("command") or ["?"])[0] or "?")
+                stale.setdefault(key, [0, d.name])[0] += 1
+            self._l024(d, meta)
+            self._l021(d, meta)
+        for (ver, py), (count, first) in stale.items():
+            self.add(
+                "L023",
+                base,
+                f"{count} 件の run が labkit {ver} で実行されている（プロジェクトの固定版は {pinned[0]}。例: {first}）。"
+                f"実行環境 {py} を `uv sync --reinstall-package labkit` で揃える",
+                "warn",
+            )
 
-                    secs = (_dt.datetime.now() - _dt.datetime.fromtimestamp(hb.stat().st_mtime)).total_seconds()
-                    age = f"最後の記録から {secs / 3600:.1f} 時間"
-                self.add(
-                    "L021",
-                    d,
-                    f"status=running のまま（{age or '実行中か異常終了'}）。終わっているなら `labkit runs mark {d.name} --to failed --reason ...`",
-                    "warn",
-                )
+    def _l024(self, d: Path, meta: dict) -> None:
+        if meta["status"] == "finished" and meta.get("prediction") and not meta.get("prediction_result"):
+            self.add(
+                "L024",
+                d,
+                f"予想を書いた run の判定がありません。`labkit runs verdict {d.name} --say hit|miss --note ...`"
+                "（表形式の予想は run の終了時に自動で判定される）",
+                "warn",
+            )
+
+    def _l021(self, d: Path, meta: dict) -> None:
+        if meta["status"] == "running":
+            hb = d / "heartbeat"
+            age = ""
+            if hb.is_file():
+                import datetime as _dt
+
+                secs = (_dt.datetime.now() - _dt.datetime.fromtimestamp(hb.stat().st_mtime)).total_seconds()
+                age = f"最後の記録から {secs / 3600:.1f} 時間"
+            self.add(
+                "L021",
+                d,
+                f"status=running のまま（{age or '実行中か異常終了'}）。終わっているなら `labkit runs mark {d.name} --to failed --reason ...`",
+                "warn",
+            )
 
     def data_sidecars(self) -> None:
         import jsonschema
@@ -471,10 +481,17 @@ class Checker:
                     cache[rid] = {}
             return cache[rid]
 
+        # 同じ文書が同じ run を何十回も引用するので、状態の指摘は (文書, run, 種類) ごとに 1 件にまとめる（最初の行番号と件数）
+        agg: dict[tuple[str, str, str], list] = {}
+
+        def note(doc: str, rid: str, kind: str, n: int, msg: str, sev: str) -> None:
+            agg.setdefault((doc, rid, kind), [n, 0, msg, sev])[1] += 1
+
         for p, n, line, section in doc_lines(self.root, self.lab):
             is_devlog = p.parent == devlog_dir
             is_claims = p == self.root / CLAIMS_FILE
-            where = f"{p.relative_to(self.root).as_posix()}:{n}"
+            doc = p.relative_to(self.root).as_posix()
+            where = f"{doc}:{n}"
             for rid in set(RUN_ID_RE.findall(line)):
                 if rid not in runs:
                     self.add("L032", where, f"run {rid} が runs/ にありません（HPC の run なら meta.json を同期する）")
@@ -484,23 +501,28 @@ class Checker:
                     self.add("L032", where, f"run {rid} に meta.json がありません")
                     continue
                 if meta.get("status") != "finished":
-                    self.add("L032", where, f"run {rid} は status={meta.get('status')}（結果として引用しない）", "warn")
+                    note(
+                        doc,
+                        rid,
+                        "status",
+                        n,
+                        f"run {rid} は status={meta.get('status')}（結果として引用しない）",
+                        "warn",
+                    )
                 if (meta.get("labkit_source") or {}).get("mode") == "link":
-                    self.add("L032", where, f"run {rid} は link 中の labkit で実行（正式版の結果ではない）", "warn")
+                    note(doc, rid, "link", n, f"run {rid} は link 中の labkit で実行（正式版の結果ではない）", "warn")
                 if meta.get("archived"):
-                    self.add(
-                        "L032",
-                        where,
+                    note(
+                        doc,
+                        rid,
+                        "archived",
+                        n,
                         f"run {rid} は退避済み（labkit runs archive）。根拠にするなら退避を取り消す",
                         "warn",
                     )
                 if (meta.get("git") or {}).get("dirty") and p.parent != reviews_dir:
-                    self.add(
-                        "L032",
-                        where,
-                        f"run {rid} は dirty（未コミットの差分あり）。結果として引用するなら commit して clean に再実行する",
-                        dirty_sev,
-                    )
+                    msg = f"run {rid} は dirty（未コミットの差分あり）。結果として引用するなら commit して clean に再実行する"
+                    note(doc, rid, "dirty", n, msg, dirty_sev)
             rest = line
             for m in CITE_RE.finditer(line):
                 rest = rest.replace(m.group(0), " ")
@@ -510,7 +532,9 @@ class Checker:
                 vals = metrics(rid)
                 if key not in vals:
                     self.add("L033", where, f"run {rid} の metrics.json に {key} がありません")
-                elif not num_matches(num, vals[key]):
+                elif not num_matches(num, vals[key]) and not (
+                    m.group("unit") == "%" and num_matches(num, vals[key] * 100)
+                ):
                     self.add(
                         "L033", where, f"{num} は run {rid} の {key}={vals[key]} と一致しません（表示桁で丸めて比較）"
                     )
@@ -532,6 +556,8 @@ class Checker:
                     "scratch/ のファイルは検証できません。根拠にするなら src に entry を書いて commit し `labkit run` の run を引用する",
                     "warn",
                 )
+        for (doc, _, _), (first, count, msg, sev) in agg.items():
+            self.add("L032", f"{doc}:{first}", msg + (f"（この文書で {count} 箇所）" if count > 1 else ""), sev)
 
     def claims_ledger(self) -> None:
         from labkit.claims import check_claims

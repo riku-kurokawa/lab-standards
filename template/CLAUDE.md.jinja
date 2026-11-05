@@ -18,29 +18,40 @@
   run の数値は `labkit cite <run_id> <key> --unit <単位>` の出力（`12.3 dB [run:<run_id>:snr_db]`）を貼る。
 - 正式な run は commit してから実行する（dirty な run は `dirty.patch` 付きで記録されるが、結果としては引用しない）。
 
+## 人間のレビューを軽くする（人間が読むのはこれだけ。載らないものは人間に見えていない）
+
+- **実験の入口は共通**: `configs/experiments/*.toml` に `entry`・`[prediction]`・`[[pass]]` を書き `labkit run`。scripts/ を書くなら、entry で書けない理由を 1 行残す。
+- **引用できる run は clean で finished で退避されていないものだけ**。scratch/ のファイルは根拠にしない（L038）。failed/interrupted は `labkit runs archive --status failed,interrupted`（削除はしない）。
+- **主張は台帳**: 確定したら `labkit claim add "<1 文>" --evidence <run>:<key>`、崩れたら `labkit claim retract <ID> --reason`。`docs/state.md` は H1 1 つ・150 行以内で上書きする。
+- **予想は表で書き、外れは外れと残す**: `[prediction] basis` と `[[prediction.claims]]`（終了時に自動判定）。自由記述なら `labkit runs verdict <id> --say hit|miss`。
+- **コードは読める大きさ**: ファイルは 300 行（空行を除く）以内（L018）。使っていないものは消す（L017）。
+- **人間の入口**: 1 日 1 回 `labkit digest`（docs/DIGEST.md）。`labkit claim list`・`labkit review list --open`・`labkit lit queue` が人間向けの一覧。
+
 ## 長い自律運用（/goal・/loop。skill: autonomous-run）
 
-- 目標は `prompts/goal_v<N>.md`、1 拍の指示書は `prompts/beat_v1.md`、状態は `docs/state.md`、未着手は `docs/backlog.md`。
-  /goal はファイルを指す短い文にし、/loop で 1 拍の指示書を定期的に再注入する（要約で指示が薄れない）。
-- **考えてから計算する**: run の前に結果を数値で予想して設定の `prediction` に書く。予想が確かで証拠として要らない計算は回さず、導出で確定とする。
+- 現行の版は `prompts/current.toml`（goal / beat）。拍は `labkit beat start` → 指示書の手順 → `labkit beat end --predicted --observed --decided`（`/loop 20m /lab-rules:beat`）。
+  状態は `docs/state.md`、未着手は `docs/backlog.md`。要約の後は SessionStart が目標の冒頭を原文で戻す。
+- **考えてから計算する**: 専門家なら計算せずに分かる結果（`expert_predictable`）は回さず、導出で確定とする。計算するのは予想が割れるときだけ。
 - **待たない**: 計算を投入したら同じターンで次の作業に移る。独立な作業はサブエージェントに並行で投げる。
-- **ぶっちゃけ点検**: 4 拍に 1 回、作業の記録を渡さずに candor-check agent を起動し、答えを受け入れるか根拠つきで退ける。
-- **活動量で測らない**: 進捗は主張を支える結果・撤回した主張・捨てた線で測る。範囲を縮める判断は queue に積む。
+- **ぶっちゃけ点検**: 4 拍に 1 回、作業の記録を渡さずに candor-check agent を 3 回起動し、採点の中央値と答えを受け入れるか根拠つきで退ける。
+- **活動量で測らない**: 進捗は主張を支える結果・撤回した主張・捨てた線で測る。採点が 2 回続けて上がらなければ主線を替える。範囲を縮める判断は queue に積む。
 
 ## 置き場所の判定
 
 | 作るもの | 置き場所 | 方法 |
 |---|---|---|
 | 再利用する関数（純粋関数） | `src/{{ package_name }}/` | テストを `tests/` に書く |
-| 実行の入口 | `scripts/` | 設定を読み `src` を呼ぶだけの薄いもの |
-| パラメータ | `configs/experiments/*.toml` | `extends = "../base.toml"`。seed を必ず持つ |
+| 実験の入口 | `src/{{ package_name }}/experiments/<name>.py` の `run(cfg) -> dict` | 設定の `entry` から `labkit run` が呼ぶ。≤ 80 行 |
+| パラメータ・予想・合否 | `configs/experiments/*.toml` | `extends = "../base.toml"`。seed・`[prediction]`・`[[pass]]` を持つ |
 | 実験結果 | `runs/<run_id>/` | `labkit.Run` 経由でのみ生成。異常終了は `labkit runs mark` |
 | 派生データ | `data/interim`, `data/processed` | `labkit.save` / `writer` 経由（サイドカー付き）。再生成できる中間物は `data/cache` |
 | 図 | `runs/<run_id>/figures/` | `figspecs/*.toml` + `labkit fig`。描画ライブラリを直接使わない |
-| 文献・サーベイ | `literature/` | `labkit lit add` / `labkit lit survey` |
+| 主張と撤回 | `docs/claims.md` | `labkit claim add / retract`（手で編集しない） |
+| 事前登録・草稿 | `docs/prereg/`, `docs/papers/` | 計算の前に commit。引用は `labkit cite` の書式 |
+| 文献・サーベイ | `literature/` | `labkit lit add --doi` / `lit read` / `lit survey`（読んだ主体と範囲を正直に） |
 | 設計判断 | `docs/decisions/` | `labkit adr "タイトル"` |
 | レビュー記録 | `docs/reviews/` | lab-reviewer agent だけが書く（Agent ツールで起動） |
-| 試行錯誤 | `scratch/` | git 管理外。成果物にしない |
+| 試行錯誤 | `scratch/` | git 管理外。成果物にも根拠にもしない |
 
 ## 人間が不在でも止まらない
 

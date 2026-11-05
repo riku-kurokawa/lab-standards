@@ -251,3 +251,18 @@ def test_approve_legacy_item_without_category(git_project):
     state.save_item(p, it2)
     with pytest.raises(ValueError, match="判定できません"):
         state.approve(p, it2["id"], ttl_hours=1)
+
+
+def test_archive_allowed_and_reviewer_read_commands(git_project):
+    p = git_project
+    assert handle("pretool", bash("uv run labkit runs archive --status failed,interrupted", p)) == (0, "", "")
+    rv = {"agent_type": "lab-rules:lab-reviewer"}
+    for cmd in (
+        "labkit review list --open",
+        "uv run labkit claim list",
+        "labkit lit queue",
+        "labkit runs table sweep --md",
+    ):
+        assert handle("pretool", bash(cmd, p, **rv)) == (0, "", ""), cmd
+    assert handle("pretool", bash("labkit claim add x --evidence a:b", p, **rv))[0] == 2
+    assert handle("pretool", bash("labkit runs archive abc", p, **rv))[0] == 2

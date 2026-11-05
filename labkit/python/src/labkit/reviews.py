@@ -96,8 +96,8 @@ def load_review(path: Path) -> Review:
         r.errors.append("changes-requested には findings が必要です")
     r.summary = str(fm.get("summary") or "").strip()
     r.resolves = str(fm.get("resolves") or "").strip()
-    if not r.summary:
-        r.warnings.append(f"summary（人間向けの 1 行、{SUMMARY_MAX} 字以内）がありません")
+    if "summary" in fm and not r.summary:
+        r.warnings.append(f"summary（人間向けの 1 行、{SUMMARY_MAX} 字以内）が空です")
     elif len(r.summary) > SUMMARY_MAX:
         r.warnings.append(f"summary が {len(r.summary)} 字（{SUMMARY_MAX} 字以内）")
     if r.resolves and not (path.parent.parent.parent / r.resolves).is_file():

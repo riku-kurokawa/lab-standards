@@ -14,7 +14,8 @@ description: プロジェクトで作業中に、lab-standards 本体（雛形�
 
 ## 手順
 
-1. 何を・なぜ・どの部品か を 3〜5 行で今日の開発ログに書く。
+1. 何を・なぜ・どの部品か を 3〜5 行にまとめ、本体の issue（`gh issue create -R <owner>/lab-standards`）か、feat ブランチの `CHANGELOG.md` の節の案として書く。
+   プロジェクトの `docs/` に本体への提案文書を溜めない（開発ログには issue か commit へのリンクを 1 行だけ）。
 2. 本体（`~/dev/lab-standards`、または `$LAB_STANDARDS_DEV`）で `git switch -c feat/<短い名前>`。本体の `CLAUDE.md` を読む。
 3. 直す。labkit を変えたなら `uv run labkit standards link` でこのプロジェクトから試す（L050 が出る間は commit しない）。
    雛形を変えたら使い捨ての場所に `copier copy --vcs-ref HEAD` で生成して確認する。

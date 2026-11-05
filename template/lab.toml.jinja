@@ -30,6 +30,19 @@ mode = "strict"            # 移行中は "warn"（違反を表示するが失�
 plot_import_allowed = []   # 描画ライブラリを直接 import してよいファイル（glob）。原則空
 format_allowed = []        # pickle 等を許すファイル（glob）。例: ["src/{{ package_name }}/models/checkpoint.py"]
 skip = []                  # 一時的に無効化するチェックコード（例: ["L012"]）
+max_file_lines = 300       # L018: src・scripts のファイルの行数（空行を除く）の上限（警告）。人間が一度に読める大きさ
+max_lines_allowed = []     # 上限を外すファイル（glob）。理由を書く
+dirty_citation = "warn"    # dirty な run を文書が結果として引用したとき（"warn" | "error"。claims.md は常に error）
+# claim_docs = ["docs/**/*.md", "literature/surveys/*.md"]   # 引用を照合する文書（既定）
+
+[state]
+file = "docs/state.md"     # L037: H1 は 1 つ・同じ H2 は 1 回（error）、max_lines 超は警告。履歴は git に任せ、積み上げない
+max_lines = 150
+
+[digest]
+file = "docs/DIGEST.md"    # 人間の入口 1 枚（`labkit digest`）。図は assets に写す
+assets = "docs/assets/digest"
+max_figures = 12
 
 [devlog]
 dir = "docs/devlog"
@@ -41,7 +54,8 @@ dir = "docs/decisions"
 
 [runs]
 hash_max_gb = 2.0          # これより大きい入力・出力は sha256 を計算しない（MANIFEST/サイドカーの値は使う）
-require_prediction = false # true: 正式な run は設定の prediction（結果の予想と根拠）が無いと始まらない。meta.json に残る
+require_prediction = true  # 正式な run は設定の prediction（[prediction] basis と [[prediction.claims]]）が無いと始まらない。終了時に判定が残る
+require_clean = true       # 未コミットの変更がある状態では run を始めない（dirty な run は結果として引用できない。試行は scratch/ で）
 
 [literature]
 pdf_dir = "literature/pdfs"   # 複数プロジェクトで共有するなら "~/lab-library/pdfs" など

@@ -38,8 +38,13 @@ def code_volume(root: Path, since: str) -> str:
     delta: dict[str, int] = {}
     for ln in (stat or "").splitlines():
         a, d, path = ln.split("\t", 2)
-        if a.isdigit() and d.isdigit():
+        if a.isdigit() and d.isdigit() and path.endswith(".py"):
             delta[path.split("/", 1)[0]] = delta.get(path.split("/", 1)[0], 0) + int(a) - int(d)
+    status = git(root, "status", "--porcelain", "--untracked-files=all") or ""  # 未追跡の .py は diff に出ない
+    for ln in status.splitlines():
+        path = ln[3:]
+        if ln.startswith("??") and path.endswith(".py") and path.split("/", 1)[0] in ("src", "scripts", "tests"):
+            delta[path.split("/", 1)[0]] = delta.get(path.split("/", 1)[0], 0) + count_code_lines(root / path)
     parts, over = [], 0
     for d in ("src", "scripts", "tests"):
         files = [p for p in (root / d).rglob("*.py") if not set(p.parts) & SKIP_DIRS] if (root / d).is_dir() else []

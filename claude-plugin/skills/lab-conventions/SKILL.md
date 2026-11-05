@@ -1,6 +1,6 @@
 ---
 name: lab-conventions
-description: lab.toml があるプロジェクトで、ファイルを作る・置く・保存する前に参照する規約の全体像（置き場所、保存形式、run、図、文書、禁止事項、承認ゲート）。どこに何を書くか迷ったときに使う。
+description: lab.toml があるプロジェクトで、ファイルを作る・置く・保存する前に参照する規約の全体像（置き場所、保存形式、run と labkit run の entry、図、文書、主張の台帳、人間の入口、禁止事項、承認ゲート）。どこに何を書くか迷ったときに使う。
 ---
 
 # lab-standards の規約
@@ -11,18 +11,20 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 
 | 作るもの | 置き場所 | 作り方 |
 |---|---|---|
-| 再利用する関数 | `src/<pkg>/` | 純粋関数。I/O・設定読込・描画を入れない。テストを `tests/` に |
-| 実行の入口 | `scripts/` | 設定を読む → src を呼ぶ → labkit で保存、だけの薄い層 |
-| パラメータ | `configs/experiments/<name>.toml` | `extends = "../base.toml"` で差分だけ書く。seed を持つ |
+| 再利用する関数 | `src/<pkg>/` | 純粋関数。I/O・設定読込・描画を入れない。テストを `tests/` に。1 ファイル 300 行以内（空行を除く。L018） |
+| 実験の入口 | `configs/experiments/<name>.toml` の `entry` | `entry = "pkg.module:func"` を `uv run labkit run <config>` が実行する（skill: new-experiment）。`extends = "../base.toml"` で差分だけ書く。seed・`[prediction]`・`[[pass]]`・`[sweep]` も設定に |
+| スクリプト | `scripts/` | entry で書けないもの（外部プロセスの起動など）だけ。冒頭に「entry で書けない理由」を 1 行。計算は src に |
 | 環境別パス | `configs/paths/{local,hpc}.toml` | コードに絶対パスを書かない。`datapath("processed", ...)`。`mirror_root` に写し先 |
 | 実験結果 | `runs/<run_id>/` | `with Run(...)` の中で `runpath(run, ...)` に保存。異常終了は `labkit runs mark` |
 | 派生データ | `data/interim/`, `data/processed/` | `save(datapath(...), data)`。巨大データは `writer()`。再生成できる中間物は `data/cache/` |
 | 図 | `runs/<run_id>/figures/` | `figspecs/<name>.toml` + `labkit fig`（skill: make-figure） |
 | 開発ログ | `docs/devlog/YYYY-MM-DD.md` | skill: write-devlog |
+| 主張の台帳 | `docs/claims.md` | `labkit claim add / retract / list`。手で編集しない |
+| 人間の入口 | `docs/DIGEST.md`、`docs/assets/digest/` | `labkit digest` が生成（1 日 1 回）。手で編集しない |
 | 設計判断 | `docs/decisions/NNNN-slug.md` | skill: write-adr |
 | 文献・サーベイ | `literature/` | skill: literature-survey |
 | HPC ジョブ | `jobs/` | skill: hpc-job |
-| 長い自律運用 | `prompts/`, `docs/state.md`, `docs/backlog.md` | skill: autonomous-run |
+| 長い自律運用 | `prompts/current.toml`（現行の goal/beat）, `docs/state.md`, `docs/backlog.md` | skill: autonomous-run、1 拍は skill: beat |
 | LLM プロンプト | `prompts/<用途>_v<N>.md` | 改訂時は版を上げる |
 | 試行錯誤 | `scratch/` | git 管理外。成果物の根拠にしない |
 
@@ -30,8 +32,9 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 
 | 操作 | Python |
 |---|---|
-| 設定 | `cfg = load_config(path, ["k=v"])` |
-| run | `with Run(name, cfg, inputs=[...]) as run:` |
+| 実験の entry | `def run(cfg: dict) -> dict`（2 引数なら `run(cfg, run)`）。戻り値: 数値 → metrics、DataFrame → `<key>.parquet`、ndarray・配列の dict → `.h5`、str → ログ |
+| 設定 | `cfg = load_config(path, ["k=v"])`（entry の外で自分で run を組むとき） |
+| run | `with Run(name, cfg, inputs=[...]) as run:`（同上） |
 | run 内パス | `runpath(run, "x.h5")` |
 | 指標 | `log_metric(run, "loss", v, step=i)` |
 | ログ | `log_message(run, "msg")` |
@@ -40,6 +43,11 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 | データパス | `datapath("processed", "f.parquet")` |
 | 図 | `fig("figspecs/a.toml", run)` |
 | 数値の引用 | `cite(run_id, "snr_db", digits=1, unit="dB")` |
+
+## 人間の入口
+
+人間は devlog を読まない。読むのは `docs/DIGEST.md`（`labkit digest`）、`docs/claims.md`（`labkit claim list`）、`labkit runs list` / `review list` / `beat log` / `lit queue` の 1 行ずつ。
+これらは台帳・meta.json・frontmatter から同じコードで作られるので、人間に伝えたいことは文章ではなく台帳と run に入れる。不要な run は `labkit runs archive`（削除しない）で視界から消す。
 
 ## 禁止事項（hooks がブロックする）
 

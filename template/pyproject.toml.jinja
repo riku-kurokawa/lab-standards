@@ -33,7 +33,7 @@ target-version = "py{{ python_version | replace('.', '') }}"
 extend-exclude = ["legacy", "scratch"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "NPY", "TID251"]
+select = ["E", "F", "I", "B", "UP", "NPY", "TID251", "C90", "PLR0915"]   # C90/PLR0915: 関数の複雑さ・長さ（読める大きさに保つ）
 ignore = ["E501"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]

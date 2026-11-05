@@ -1,8 +1,8 @@
 {
   "name": "lab-rules",
   "displayName": "Lab Rules",
-  "version": "1.4.0",
-  "description": "lab-standards 規約の強制（承認ゲート・成果物の保護・独立レビュー・終了時の検証）と、実験・図・開発ログ・移行・長い自律運用の手順 skills、ぶっちゃけ点検 agent",
+  "version": "1.5.0",
+  "description": "lab-standards 規約の強制（承認ゲート・成果物の保護・独立レビュー・終了時の検証）、主張の台帳・人間の入口（DIGEST）・1 拍の入口（labkit beat）と、実験・図・開発ログ・移行・長い自律運用の手順 skills、ぶっちゃけ点検 agent",
   "author": {
     "name": "lab-standards"
   },

@@ -21,7 +21,14 @@ _skip_if_exists:
   - configs/paths/local.toml
   - configs/paths/hpc.toml
   - figspecs/example_*.toml
-  - scripts/run_example.py
+  - scripts/README.md
+  - docs/claims.md
+  - docs/state.md
+  - docs/backlog.md
+  - prompts/current.toml
+  - prompts/goal_v1.md
+  - prompts/beat_v1.md
+  - src/*/experiments/*.py
   - jobs/slurm_example.sh
   - src/*/__init__.py
   - src/*/filters.py
@@ -58,4 +65,4 @@ standards_repo:
 standards_ref:
   type: str
   help: 使う lab-standards のタグ（再現性のため固定）
-  default: "v1.4.0"
+  default: "v1.5.0"

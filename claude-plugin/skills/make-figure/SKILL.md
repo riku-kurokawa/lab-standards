@@ -15,7 +15,7 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
    template = "timeseries"
    name = "filtered_vs_raw"        # 出力ファイル名
    size = "double"                 # single | onehalf | double | square | slide | [幅, 高さ]（inch）
-   description = "図の意図"
+   description = "図の意図"         # DIGEST の図の説明に使われる
 
    [data]
    file = "signal.h5"              # run 内の相対パス。data/ のファイルは "data:processed/x.parquet"
@@ -24,6 +24,7 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
    legend = ["raw", "filtered"]
 
    [labels]
+   title = "Filtered vs raw"       # DIGEST に写る図の見出し（無いと name が使われる）
    x = "Time [s]"                  # 物理量と単位を必ず書く
    y = "Voltage [µV]"
 
@@ -46,6 +47,7 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
 4. **出力する**: `uv run labkit fig figspecs/<name>.toml --run <run_id>`
    → `runs/<run_id>/figures/<name>.pdf`, `.png`, `.figmeta.json`（spec の写し、使ったデータの sha256、commit）
 5. **確認する**: png を Read で開いて見た目を確認し、軸ラベル・単位・凡例・範囲を figspec で直す。
+   新しい図は `labkit digest` が `docs/DIGEST.md` に写す（最新 `digest.max_figures` 枚）。人間が図だけ見て分かるよう `labels.title` と `description` を書く。
 
 ## 合うテンプレートが無いとき
 

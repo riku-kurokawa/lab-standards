@@ -38,11 +38,12 @@ def test_reviews_summary_resolves_and_open_list(project):
         "summary: 草稿の下限に格子の不確かさが無い\nresolves: docs/reviews/2026-11-01_adhoc_review.md\n",
     )
     review(p, "2026-11-03_adhoc_review_2.md", "pass", "summary: " + "長" * 121 + "\nresolves: docs/reviews/nope.md\n")
+    review(p, "2026-11-04_adhoc_review.md", "pass", 'summary: ""\n')  # 新しい雛形で summary が空 → 警告
     got = [i for i in run_check(root=p)[0] if i.code == "L035"]
-    assert sorted((i.severity, i.where) for i in got) == [
+    assert sorted((i.severity, i.where) for i in got) == [  # 11-01 は summary のキーが無い古い記録なので警告しない
         ("error", "docs/reviews/2026-11-03_adhoc_review_2.md"),
-        ("warn", "docs/reviews/2026-11-01_adhoc_review.md"),
         ("warn", "docs/reviews/2026-11-03_adhoc_review_2.md"),
+        ("warn", "docs/reviews/2026-11-04_adhoc_review.md"),
     ]
     assert [r.path.name for r in open_reviews(p)] == ["2026-11-02_adhoc_review.md"]  # 11-01 は 11-02 が resolves
     r = load_review(p / "docs" / "reviews" / "2026-11-02_adhoc_review.md")

@@ -1,0 +1,4 @@
+# 現行の版（`labkit beat` と SessionStart が読む。目標や指示書を改訂したら、新しい版のファイルを作ってここを更新する）
+goal = "goal_v1.md"
+beat = "beat_v1.md"
+interval = "20m"   # /loop の間隔。1 拍に新しい結果が 1 つ以上届く長さ（計算 1 本の 1.5 倍程度）

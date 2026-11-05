@@ -180,7 +180,9 @@ def test_check_survey_verdict(project):
     lab = load_lab(project)
     s = survey(project, "2026-11-01_draft", status="draft")
     assert l04(project, lab, "L048") == []
-    s = survey(project, "2026-11-02_done", status="done")
+    survey(project, "2026-11-02_old", status="done")  # 古い雛形（verdict / n_opened のキーが無い）は対象外
+    assert l04(project, lab, "L048") == []
+    s = survey(project, "2026-11-02_done", status="done", verdict='""', n_opened=0)
     issues = l04(project, lab, "L048")
     assert [(i[0], i[1], i[3]) for i in issues] == [("L048", s, "warn")] * 2
     assert "verdict が" in issues[0][2] and "n_opened が 0" in issues[1][2]
@@ -191,10 +193,11 @@ def test_check_survey_verdict(project):
     assert [len(i) for i in l04(project, strict, "L048")] == [3]
     items = list_surveys(project, lab)
     assert [(i["date"], i["slug"], i["status"], i["verdict"], i["n_opened"]) for i in items] == [
+        ("2026-11-02", "old", "done", "", 0),
         ("2026-11-02", "done", "done", "maybe", 3),
         ("2026-11-01", "draft", "draft", "", 0),
     ]
-    assert format_surveys(items).splitlines()[0] == "2026-11-02  done  (done/maybe/opened=3)  q"
+    assert format_surveys(items).splitlines()[1] == "2026-11-02  done  (done/maybe/opened=3)  q"
 
 
 # ---------- queue / index ----------

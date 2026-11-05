@@ -124,5 +124,5 @@ def run_config(config_path: str, overrides: list[str] | None = None, root: Path 
             from labkit.io import save
 
             save(runpath(run, "results.parquet"), pd.DataFrame(rows), description="sweep の 1 条件 1 行")
-        print(run.run_id)
+    print(run.run_id)  # 最後の行が run ID（Makefile や呼び出し側が tail -1 で受ける）
     return run.run_id

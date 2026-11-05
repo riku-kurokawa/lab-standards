@@ -82,27 +82,40 @@ def deep_merge(base: dict, override: dict) -> dict:
 def git(cwd: Path, *args: str) -> str | None:
     """git コマンドの標準出力。git が無い・リポジトリ外・失敗なら None."""
     try:
-        return subprocess.run(
-            ["git", *args],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=30,
-            encoding="utf-8",
-            errors="replace",
-        ).stdout.strip()
+        return (
+            subprocess.run(
+                ["git", *args],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=30,
+                encoding="utf-8",
+                errors="replace",
+            )
+            .stdout.rstrip()
+            .lstrip("\r\n")
+        )  # 先頭の空白は残す（`git status --porcelain` の " M path" の 1 行目が欠けていた）
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return None
 
 
+# 計算結果に影響しない場所。ここだけの未コミットは dirty に数えない（文書を書くたびに run が dirty になるのを防ぐ）
+DIRTY_IGNORE = ("docs/", "literature/", "prompts/", "scratch/", "notebooks/", ".lab/", "README.md", "CLAUDE.md")
+
+
 def git_info(root: Path) -> dict | None:
-    """commit・branch・dirty。dirty は未追跡ファイル（コードになりうる）も数える."""
+    """commit・branch・dirty。dirty は未追跡ファイル（コードになりうる）も数えるが、文書だけの変更は数えない。
+    何が dirty だったかは dirty_paths（先頭 20 件）に残す."""
     commit = git(root, "rev-parse", "HEAD")
     if commit is None:
         return None
     status = git(root, "status", "--porcelain", "--untracked-files=all") or ""
-    return {"commit": commit, "branch": git(root, "rev-parse", "--abbrev-ref", "HEAD") or "", "dirty": bool(status)}
+    paths = [ln[3:] for ln in status.splitlines() if ln[3:] and not ln[3:].startswith(DIRTY_IGNORE)]
+    info = {"commit": commit, "branch": git(root, "rev-parse", "--abbrev-ref", "HEAD") or "", "dirty": bool(paths)}
+    if paths:
+        info["dirty_paths"] = paths[:20]
+    return info
 
 
 def git_dirty_patch(root: Path) -> str:

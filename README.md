@@ -12,7 +12,7 @@
 lab-standards/
 ├── copier.yml, template/     ① プロジェクト雛形（ディレクトリ構造・lab.toml・CLAUDE.md・Makefile …）
 ├── labkit/python/            ② 共通ライブラリ + CLI（labkit）。hooks の判定もここ（labkit hook）
-├── claude-plugin/            ③ Claude Code plugin「lab-rules」（hooks の入口・skills・レビュー agent・ぶっちゃけ点検 agent）
+├── claude-plugin/            ③ Claude Code plugin「lab-rules」（hooks の入口・13 の skills（実験・図・開発ログ・移行・自律運用・1 拍 beat …）・レビュー agent・ぶっちゃけ点検 agent）
 └── .claude-plugin/marketplace.json   この repo 自体が plugin の配布元
 ```
 
@@ -38,7 +38,11 @@ lab-standards/
 | 報告は実データと照合 | 開発ログの数値（`12.3 dB [run:<id>:<key>]`）を `labkit check` が runs/ と突き合わせる。判断欄が空の開発ログは記録ではない |
 | 取り返しのつかない操作だけ人間が承認 | 保護ブランチへの push/merge・tag・gh release/merge・raw freeze。承認は種類＋ブランチ＋期限に結び付く（commit しても無効にならない） |
 | レビューは独立 | `docs/reviews/` は lab-reviewer agent だけが書ける |
-| 長い自律運用は考えてから計算する | 目標と 1 拍の指示書は `prompts/`（/goal・/loop で再注入）、run の前の予想（`prediction`）、記録を見ない candor-check agent の点検（skill: autonomous-run） |
+| 長い自律運用は考えてから計算する | 目標と 1 拍の指示書は `prompts/`、現行の版は `prompts/current.toml`（`labkit beat start/end` と SessionStart が読み、compact 後は目標の冒頭を原文で再注入）。run の前の予想は `[prediction]` の表（finished 時に hit/miss を自動判定）。記録を見ない candor-check agent の点検（skill: autonomous-run） |
+| 人間の入口は 1 枚 | `labkit digest` が `docs/DIGEST.md`（主張の変化・予想と結果・run の収支・新しい図・未解消のレビュー・承認待ち・check の集計・文献・コード量）を台帳と run から同じコードで作る。人間は devlog を読まない。退避した run・使われないコードは視界から消す |
+| 主張は台帳 | `docs/claims.md` を `labkit claim add / retract` で書く（手で編集しない）。根拠は `labkit cite` の書式。根拠の run が無い・failed・dirty・退避済みになると L036 |
+| 実験の入口は共通 | 設定の `entry = "pkg.module:func"` を `labkit run` が実行する（`[sweep]`・`[[pass]]`・`[prediction]` も設定に）。使い捨ての `scripts/run_*.py` を書かず、一度レビューした入口を使い回す |
+| コードは読める大きさ | src・scripts のファイルは 300 行以内（L018）。scripts→scripts の import・使われない src は警告。開発ログの自動ブロックにコード量の 1 行 |
 
 ---
 
@@ -65,12 +69,18 @@ make check && make example                              # 動作確認（合成�
 | やること | コマンド |
 |---|---|
 | 規約チェック＋テスト | `make check`（成果物の検証だけなら `uv run labkit check --claims`、生データの sha256 まで `--full`） |
-| 実験の実行 | `uv run python scripts/run_<name>.py configs/experiments/<name>.toml [key=value ...]` |
+| 実験の実行 | `uv run labkit run configs/experiments/<name>.toml [key=value ...]`（設定の `entry` を実行。`[sweep]` は 1 条件 1 行の results.parquet） |
+| 予想の判定 / 表の連結 | `uv run labkit runs verdict <id> --say hit\|miss\|partial --note ...`（自由記述の予想。表形式は自動）/ `runs table <name> [--md]`（clean な finished の同名 parquet を連結） |
 | 図 | `uv run labkit fig figspecs/<name>.toml --run <run_id>`（`labkit fig list` で一覧） |
-| run 一覧 / 詳細 / 異常終了の記録 | `uv run labkit runs list` / `runs show <id>` / `runs mark <id> --to failed --reason ...` |
+| run 一覧 / 詳細 / 異常終了の記録 | `uv run labkit runs list [--all]` / `runs show <id>` / `runs mark <id> --to failed --reason ...` |
+| run の退避（削除しない） | `uv run labkit runs archive <id> \| --status failed,interrupted \| --uncited [--older-than N] [--dry-run] [--undo]`（一覧と DIGEST から隠す） |
+| 主張の台帳 | `uv run labkit claim add "<1 文>" --evidence <run>:<key>[:<unit>][:<digits>] [--note prereg:slug]` / `claim retract C003 --reason ...` / `claim list [--status open]` |
+| 人間の入口 | `uv run labkit digest [--since YYYY-MM-DD]` → `docs/DIGEST.md`（1 日 1 回、人間が読む前に） |
+| 1 拍 | `uv run labkit beat start` → 指示書の手順 → `labkit beat end --predicted ... --observed ... --decided ... [--runs <id>]` / `beat log`（`/loop 20m /lab-rules:beat`） |
 | 正本の写し | `uv run labkit mirror push`（`configs/paths/*.toml` の `mirror_root`）/ `mirror pull` |
 | 開発ログ / ADR | `uv run labkit devlog`（変更ファイルと run を自動で埋める）/ `uv run labkit adr "タイトル" --slug slug` |
-| 文献 | `uv run labkit lit add --file x.bib --tags ...` / `labkit lit survey --question ...` / `labkit lit index` |
+| 文献 | `uv run labkit lit add --doi 10.x \| --arxiv 2606.09554 --tags ...`（一次情報から取得）/ `lit read <citekey> --by human [--scope full]` / `lit queue [--min-relevance 4]`（人間の読書キュー）/ `lit survey --question ...` / `lit surveys` / `lit index` |
+| レビュー記録の一覧 | `uv run labkit review list [--open]`（未解消の changes-requested） |
 | 生データ登録 | `uv run labkit raw freeze`（承認ゲートの対象） |
 | 数値の引用 | `uv run labkit cite <run_id> <key> --unit dB` → `12.3 dB [run:<id>:<key>]` を文書に貼る |
 | 承認・質問 | `uv run labkit queue list` → `labkit approve <ID>` / `labkit reject <ID>` / `labkit answer <ID> "..."`（人間） |
@@ -102,14 +112,19 @@ Claude: 次のプロンプトで「承認済み #Q001」を受け取り、実行
 |---|---|
 | 成果物の検証（`--claims`。Stop hook が見る） | |
 | L002 / L003 | data/raw が MANIFEST と一致しない / 書き込み可能 |
-| L020 / L021 | run の meta.json 無し・スキーマ違反（開始直後の殻は `labkit runs mark <id> --to interrupted`） / running のまま（警告。`labkit runs mark`） |
+| L020 / L021 / L023 | run の meta.json 無し・スキーマ違反（開始直後の殻は `labkit runs mark <id> --to interrupted`） / running のまま（警告。`labkit runs mark`） / 実行した labkit の版がプロジェクトの固定版と違う（警告） |
 | L022 | data/interim・processed の派生ファイルにサイドカーが無い（サブディレクトリも。data/cache は対象外） |
+| L024 | 予想（`prediction`）のある run が finished なのに判定（`prediction_result`）が無い（警告。`labkit runs verdict`） |
 | L030 | 開発ログの書式違反、目的・判断と理由・未解決 が空 |
-| L032 / L033 / L034 | 引用した run が無い / 数値が metrics.json と一致しない / 結果節の数値に引用が無い（警告） |
+| L032 / L033 / L034 | 引用した run が無い（failed・link・退避済みは警告、dirty は `check.dirty_citation`、既定 warn） / 数値が metrics.json と一致しない / 結果節の数値に引用が無い（警告。引用を含む行は対象外）。対象は `check.claim_docs`（既定 docs/**/*.md と surveys）。自動ブロックと DIGEST は見ない |
+| L036 | 主張の台帳 `docs/claims.md` の書式、撤回の理由、open な主張の根拠が無い・failed・dirty・退避済みの run |
+| L038 | 結果・主張の節が scratch/ のファイルを根拠にしている（警告） |
 | 体裁（pre-commit・CI） | |
 | L001 / L004 / L050 | トップレベルの不許可ファイル / 衝突マーカー / 本体を link したまま |
-| L010–L017 | 描画ライブラリの直接 import、src→scripts 依存、絶対パス（jobs/ も）、禁止形式、図・データの置き場所、np.save（警告）、どこからも import されない src のモジュール（警告） |
-| L031 / L035 / L040–L046 | ADR / レビュー記録 / 文献管理の書式 |
+| L005 | `prompts/current.toml` が指す goal/beat が無い、またはより新しい版がある（警告） |
+| L010–L018 | 描画ライブラリの直接 import、src→scripts 依存（scripts→scripts は警告）、絶対パス（jobs/ も）、禁止形式、図・データの置き場所、np.save（警告）、どこからも使われない src のモジュール（警告。configs の `entry` も使用に数える）、`check.max_file_lines`（既定 300、空行を除く）を超えるファイル（警告。例外は `max_lines_allowed`） |
+| L031 / L035 / L037 | ADR の書式 / レビュー記録の書式（`summary` 無しは警告、`resolves` の先が無いと違反） / state.md の構造（H1 が 2 つ以上・同じ H2 が 2 回以上は違反、`[state] max_lines`（150）超は警告） |
+| L040–L048 | 文献管理の書式。L047: status が read/key なのに `claims` が空か `read_scope` が abstract 以下（警告）。L048: done のサーベイに `verdict`・`n_opened` が無い（警告） |
 
 ## テスト
 
