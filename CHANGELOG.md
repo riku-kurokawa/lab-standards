@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.1.0 — 2026-11-10
+## v2.2.0 — 2026-11-10
 
 accelerated-diff-pat で、腕のあいだで条件（駆動の自由度・与える入力・正規化など）がそろっていない比較が「同条件」と文章で書かれたまま
 主張の根拠になり、ADR の監査で 10 件の主張を撤回した。比較の公平性を文章ではなく機械の関門にする（**ceteris paribus**: 比較が成り立つのは、
@@ -55,9 +55,9 @@ accelerated-diff-pat で、腕のあいだで条件（駆動の自由度・与�
 - O: 実験間の照合は `[compare.<名>]` の common・arms・sweep なども比べる（除くのは keys とラベルだけ）。
 
 ### 移行
-1. `labkit standards unlink --to v2.1.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`、
-   雛形の差分は `labkit standards template --ref v2.1.0`。
-2. **主張の根拠は既定で拒否になる**。v2.1.0 より前の run の設定には `[report] noncomparative` も `[compare.<名>]` も無いので、それを根拠にした
+1. `labkit standards unlink --to v2.2.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`、
+   雛形の差分は `labkit standards template --ref v2.2.0`。
+2. **主張の根拠は既定で拒否になる**。v2.2.0 より前の run の設定には `[report] noncomparative` も `[compare.<名>]` も無いので、それを根拠にした
    open な主張はすべて L027 になる。比較でない指標は設定に `[report] noncomparative` を書いて clean に再実行し、根拠を差し替える。比較は
    `[compare.<名>]` を書いて再実行する。再実行しない主張は `labkit claim retract`。他の文書の未宣言の引用は警告（`check.undeclared_citation`）。
 3. 条件のそろっていなかった run は `labkit runs archive <id> ... --reason "条件不一致: <何が違ったか>"` で退避する。
@@ -85,6 +85,23 @@ R の文書ごとの照合は腕を名指す語を除いた同じ指標でまと
 - 同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引く文書は従来どおり文書ごとの error（腕ごとに run を分けて同じ指標名で並べる形）。
 - 残る危険として docs/harness.md と雛形 CLAUDE.md に明記: 比較は台帳を通す。文書の並置は警告だけで、行を分けた名前の違う指標の並置は機械では止まらない。
 - 移行: 文書で比較を書いている行には台帳の主張の ID を書く（無ければ `labkit claim add` で通す）。
+
+## v2.1.0 — 2026-11-10
+
+論文・発表の比較の図を、テンプレートのまま適切な体裁で出せるようにし、体裁を機械的に検査する。
+
+### 追加
+- figspec の `style = "paper" | "slide"`（文字 8 pt / 16 pt、最小 6 pt / 12 pt。slide は線も太く）。
+- panels の `share = "x" | "y" | "both"`（軸の範囲をそろえ、内側の目盛りの文字と軸名は外側だけ）と `clim = "shared"`（ヒートマップの色の範囲を全パネルでそろえる。diverging は 0 中心の共通の範囲）。
+- heatmap の `options.clim = [下, 上]`、凡例の `options.legend_loc = "outside"`。
+- 図の体裁の検査（`labkit.viz.layout`）: 描かれる文字どうしの重なり、凡例とデータ点の重なり、style の最小より小さい文字。
+  結果は figmeta の `layout_issues`。`lab.toml` の `[fig] overlap = "error"` なら保存しない（既定 "warn"、雛形は "error"）。
+
+### 変更
+- panels の見出しは左の「(a) 題」だけにした（中央の題との二重表示を直した）。図は constrained layout で配置する。
+
+### 移行
+- `labkit standards unlink --to v2.1.0`。既存の figspec はそのまま動く（検査は既定で警告だけ）。厳しくするなら `lab.toml` に `[fig] overlap = "error"`（人間が編集）。
 
 ## v2.0.0 — 2026-11-10
 

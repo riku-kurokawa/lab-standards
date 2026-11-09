@@ -5,6 +5,13 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
 
 # 図を作る
 
+## 論文・発表の図の約束（比べる図ほど厳しく）
+- **比べるものは同じ物差しで**: 複数パネルは `share = "x" | "y" | "both"` で軸の範囲を、`clim = "shared"` でヒートマップの色の範囲をそろえる。別の図に分けるときも `options.xlim/ylim/clim` を同じ値にする。差の図は `diverging = true`（0 中心）。
+- **読める文字**: 発表は `style = "slide"`（16 pt、最小 12 pt）、論文は `style = "paper"`（実寸 8 pt、最小 6 pt）。ラベルは物理量と単位、手法名は正確に（略号だけにしない）。
+- **重ねない**: 文字どうし・凡例とデータの重なり、小さすぎる文字は `labkit fig` が検査し、`lab.toml` の `[fig] overlap = "error"` なら保存しない（既定は警告と figmeta の `layout_issues`）。
+  凡例が重なるなら `legend_loc = "outside"`、文字が詰まるなら `size` を大きくするかラベルを短くする。
+- **代表例は図を見る前に決める**（規則を事前に書く）。代表例の図と、全例の分布の図（boxplot・scatter）を両方出す。
+
 図はすべて labkit の図テンプレートで作る。matplotlib などを直接使うコードは hooks がブロックする。
 
 1. **テンプレートを選ぶ**: `uv run labkit fig list` で一覧と必須キー・例を確認する。
@@ -28,7 +35,9 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
    x = "Time [s]"                  # 物理量と単位を必ず書く
    y = "Voltage [µV]"
 
-   [options]                       # xlim, ylim, logx, logy, grid, legend, legend_loc, aspect
+   style = "paper"                 # paper（論文の実寸、8 pt）| slide（発表、16 pt）
+
+   [options]                       # xlim, ylim, logx, logy, grid, legend, legend_loc（"outside" で軸の外）, aspect, clim（色の範囲）
    xlim = [0, 2]
    ```
    複数パネル:

@@ -64,7 +64,20 @@ def figsize(size: str | list | tuple) -> tuple[float, float]:
     return SIZES[size]
 
 
-def apply() -> None:
+# 文字の大きさ（pt）。paper は実寸で論文に載せる大きさ、slide は投影で読める大きさ。これより小さい文字は描かない（render が検査する）
+FONTS = {
+    "paper": {"base": 8, "tick": 7, "min": 6},
+    "slide": {"base": 16, "tick": 14, "min": 12},
+}
+
+
+def fonts(kind: str) -> dict:
+    if kind not in FONTS:
+        raise ValueError(f"style は {list(FONTS)} のいずれか: {kind!r}")
+    return FONTS[kind]
+
+
+def apply(kind: str = "paper") -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -72,4 +85,17 @@ def apply() -> None:
     from cycler import cycler
 
     plt.rcParams.update(RC)
+    f = fonts(kind)
+    plt.rcParams.update(
+        {
+            "font.size": f["base"],
+            "axes.titlesize": f["base"],
+            "axes.labelsize": f["base"],
+            "xtick.labelsize": f["tick"],
+            "ytick.labelsize": f["tick"],
+            "legend.fontsize": f["tick"],
+        }
+    )
+    if kind == "slide":
+        plt.rcParams.update({"lines.linewidth": 2.0, "lines.markersize": 6, "axes.linewidth": 1.0})
     plt.rcParams["axes.prop_cycle"] = cycler(color=OKABE_ITO)
