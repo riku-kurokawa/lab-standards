@@ -37,7 +37,7 @@ Stop hook が毎回見るのはこれだけ（体裁の検査は pre-commit と 
 | 主張の台帳 | `docs/claims.md` の各行の書式、撤回の理由、open な主張の根拠（L036。根拠の run が無い・failed・dirty・退避済みなら違反）。台帳は `labkit claim` だけが書く |
 | 予想の判定 | `[prediction]` の表（basis・claims の key と range/point+tol）は finished 時に metrics と照合され `prediction_result`（hit/miss/partial/undeterminable）が meta.json に残る。自由記述の予想は `labkit runs verdict --say`（self_reported）。判定の無い run は警告（L024） |
 | 退避 | `labkit runs archive` は削除せず meta.json に `archived` を書く。`runs list`・DIGEST・`runs table` から隠れ、ID の言及は警告・数値の引用は error（L032、`check.archived_citation`）。名指しは `runs archive <id> ... --reason`。`--undo --reason` で戻る（`archive_log` に履歴が残る） |
-| 比較の条件 | 設定の `[compare.<名>]`（vary は 1 軸で値は 1 語、腕の条件は common ∪ 腕の表から導出、`[compare]` の外に腕の名前の鍵を置かない、掃引は比較の指標と `better` で全腕同じ総試行数、対象外は `lab.toml` の `[compare.capability]` か著者の宣言）を Run が開始前に検査し、config.json の hash を `meta.config_sha256` に残し、終了時に設定が変わっていないことを確かめてから 1 回だけ `comparisons.json` を書く（hash は meta の outputs）。L027 は凍結した設定から計算し直す。主張の根拠は matched な比較の指標か `[report] noncomparative`（広い glob・腕の名前・比べる語は不可）だけ（既定で拒否）、複数 run・run をまたぐ段落は axis と軸以外の設定（`[compare]` の common・arms を含む）・commit の同一性 |
+| 比較の条件 | 設定の `[compare.<名>]`（vary は 1 軸で値は 1 語、腕の条件は common ∪ 腕の表から導出、`[compare]` の外に腕を名指す語（腕の名前・軸の値・levels）の鍵を置かない、掃引は比較の指標と `better` で全腕同じ総試行数、対象外は `lab.toml` の `[compare.capability]` か著者の宣言）を Run が開始前に検査し、config.json の hash を `meta.config_sha256` に残し、終了時に設定が変わっていないことを確かめてから 1 回だけ `comparisons.json` を書く（hash は meta の outputs）。L027 は凍結した設定から計算し直す。主張の根拠は matched な比較の指標か `[report] noncomparative`（広い glob・腕を名指す語・比べる語は不可）だけ（既定で拒否）。主張は既定で比較: 2 つ以上の値を引くなら、1 つの run の値は 1 つの matched な比較の keys だけ（非比較は 1 つまで）。複数 run の主張と、同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引く文書（段落・表を区別しない文書ごと）は axis（値は 1 語）と軸以外の設定（`[compare]` の common・arms を含む）・commit の同一性 |
 
 ### 比較の脅威モデルと残る危険
 
@@ -55,6 +55,16 @@ Stop hook が毎回見るのはこれだけ（体裁の検査は pre-commit と 
 （git に commit した台帳・追記だけの記録・別の計算機）に固定する必要があり、本体はまだそれを持たない。比較の結論を外に出す前には、人間か
 独立した再実行が run を再現すること。また、entry のコードが `arm_conditions`・`chosen` の値を本当にソルバに渡したかは機械では証明できない
 （設定が唯一の出所であることまでを保証する）。
+
+残る危険はほかに 2 つある（どちらも機械では閉じられないので、レビューで見る）:
+
+- **比べる語の一覧は経験則である**: 非比較の指標の名前の検査は、腕を名指す語（腕の名前・軸の値・levels）・比較の指標の語幹・
+  比べる語の一覧（`vs`・`minus`・`over`・`speedup`・`beats`・`wins`）だけを見る。`delta_db`・`improvement_ratio`・`gap`・`rel_*` のような、
+  一覧に無い語で名づけた 1 つの非比較の指標が、中で複数の腕から計算した差や比であっても機械は見抜けない（1 つの主張・文書に並べた 2 つの値は
+  上の既定で比較とみなして照合するが、1 つの値の中に畳み込んだ比較は名前でしか分からない）。
+- **entry が arm_conditions を無視しうる**: entry のコードが腕の条件を `arm_conditions`・`chosen` から読まず、腕の順番で引く配列・
+  設定の値（鍵ではなく）・コードの定数に腕ごとの条件を埋めれば、設定の照合は通る。比較対象の自由パラメータを全腕共通の定数として
+  トップレベルに置けば、掃引も強制されない。設定に書いた条件が実際に使われたことは、コードを読むか独立に再実行して確かめる。
 
 ## 2. 主線と芽（完全自律の中で、主線から絶対にずれず、芽を拾い続ける）
 

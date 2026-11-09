@@ -92,7 +92,7 @@ DEFAULTS: dict = {
         "claim_docs": ["docs/**/*.md", "literature/surveys/*.md"],
         # 退避済み（labkit runs archive）の run の数値の引用 `値 [run:<id>:<key>]`: "error" | "warn"（ID だけの言及は警告）
         "archived_citation": "error",
-        # 開発ログの数値の引用の指標が比較とも非比較とも宣言されていない・段落の引用が run をまたぐ（L027）: "warn" | "error" | "off"。
+        # 開発ログの数値の引用の指標が比較とも非比較とも宣言されていない・文書の同じ指標の引用が run をまたぐ（L027）: "warn" | "error" | "off"。
         # 他の文書（state・papers・reports など）では常に error、claims.md は台帳の照合（error）
         "undeclared_citation": "warn",
         "dirty_citation": "warn",  # dirty な run を結果として引用したとき: "warn" | "error" | "off"（claims.md は常に error）

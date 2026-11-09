@@ -515,3 +515,61 @@ def test_o_cross_run_compares_compare_common_and_arms(project):
     b = one("b", dof="P", quant_bits=16, eval_set="easy")
     with pytest.raises(ValueError, match="compare.design.common"):
         claims.add_claim(project, "a と b", [f"{a.run_id}:gain_db", f"{b.run_id}:gain_db"], axis="seed")
+
+
+# ---- 3 回目のレビューの抜け道。各テストは抜け道 1 つが塞がれていることを確かめる ----
+def test_p_axis_values_in_levels_name_the_arms(project):
+    ab = {"a": {"method": "proposed"}, "b": {"method": "baseline"}}
+    base = cfg(arms=ab, levels=["proposed", "baseline"])
+    refused(project, {**base, "solver": {"proposed": {"steps": 1000}, "baseline": {"steps": 10}}}, "solver.proposed")
+    refused(project, {**base, "report": {"noncomparative": ["score_proposed", "score_baseline"]}}, "proposed")
+    with Run("lv", {**base, "report": {"noncomparative": ["score_*"]}}) as run:
+        run.log_metric("gain_db", 1.0)
+        run.log_metric("score_proposed", 2.0)
+    with pytest.raises(ValueError, match="proposed"):
+        claims.add_claim(project, "proposed は 2", [f"{run.run_id}:score_proposed"])
+
+
+def test_q_claims_are_comparative_by_default(project):
+    r = plain("noc", {"gain_ours": 3.0, "gain_flat": 1.0}, report={"noncomparative": ["gain_ours", "gain_flat"]})
+    with pytest.raises(ValueError, match="比較でない値"):
+        claims.add_claim(project, "ours > flat", [f"{r.run_id}:gain_ours", f"{r.run_id}:gain_flat"])
+    with pytest.raises(ValueError, match="比較でない値"):  # 本文に書いても同じ
+        claims.add_claim(project, f"ours > flat 1.0 [run:{r.run_id}:gain_flat]", [f"{r.run_id}:gain_ours"])
+    assert claims.add_claim(project, "ours は 3", [f"{r.run_id}:gain_ours"])  # 1 つだけなら引ける
+    with Run("m", {**cfg(), "report": {"noncomparative": ["snr_*"]}}) as m:
+        m.log_metric("gain_db", 2.0)
+        m.log_metric("snr_db", 12.0)
+    assert claims.add_claim(project, "利得 2 dB（SNR 12 dB）", [f"{m.run_id}:gain_db", f"{m.run_id}:snr_db"])
+
+
+def test_r_cross_run_check_is_per_document(project):
+    def state_issues():
+        return [i for i in issues(project, "L027") if i.where.startswith("docs/state.md")]
+
+    a = plain("a", {"gain": 3.0}, lr=0.1, report={"noncomparative": ["gain"]})
+    b = plain("b", {"gain": 1.0}, lr=0.001, extra=5, report={"noncomparative": ["gain"]})
+    write(
+        project / "docs" / "state.md", f"# 状態\n\nours 3.0 [run:{a.run_id}:gain]\n\nflat 1.0 [run:{b.run_id}:gain]\n"
+    )
+    assert any("axis" in i.message for i in state_issues())
+    text = f"# 状態\n\naxis=lr\n\n## ours\n\n3.0 [run:{a.run_id}:gain]\n\n## flat\n\n1.0 [run:{b.run_id}:gain]\n"
+    write(project / "docs" / "state.md", text)
+    assert any("extra" in i.message for i in state_issues())
+    c = plain("c", {"gain_x": 1.0}, lr=0.001, extra=5, report={"noncomparative": ["gain_x"]})
+    write(project / "docs" / "state.md", f"# 状態\n\n3.0 [run:{a.run_id}:gain]\n\n1.0 [run:{c.run_id}:gain_x]\n")
+    assert not state_issues()  # 違う指標は実験間の比較ではない
+
+
+def test_s_cross_run_axis_value_is_one_word(project):
+    a = plain("a", {"t": 1.0}, preset="ours+fp64+lr0.1", report={"noncomparative": ["t"]})
+    b = plain("b", {"t": 2.0}, preset="flat+fp16+lr0.001", report={"noncomparative": ["t"]})
+    with pytest.raises(ValueError, match="1 語"):
+        claims.add_claim(project, "a と b", [f"{a.run_id}:t", f"{b.run_id}:t"], axis="preset")
+
+
+def test_t_residual_risks_are_documented():
+    from pathlib import Path
+
+    doc = (Path(__file__).resolve().parents[3] / "docs" / "harness.md").read_text(encoding="utf-8")
+    assert "比べる語の一覧は経験則" in doc and "entry が arm_conditions を無視しうる" in doc

@@ -17,7 +17,7 @@
          台帳の open な主張（本文・根拠・備考のすべての引用）の指標が matched な比較の指標でも非比較の宣言（[report] noncomparative。
          腕の名前・比較の指標の語幹・比べる語を含まない）でもない（既定で拒否）、複数 run の根拠に axis が無い・軸以外の設定
          （[compare.<名>] の common・arms を含む）か commit が違う。他の文書の数値の引用: そろわない比較の指標、未宣言の指標、
-         run をまたぐ段落（同じ段落に axis=<鍵> が無い・軸以外が違う）は error。開発ログだけ check.undeclared_citation（既定 warn）
+         同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引く文書（段落・表を区別しない文書ごと。文書に axis=<鍵> が無い・軸以外が違う）は error。開発ログだけ check.undeclared_citation（既定 warn）
     L033 `12.3 dB [run:<run_id>:<key>]` の数値が metrics.json と一致しない
     L034 「結果・観察」節の小数・指数表記の数値に引用が無い（警告。引用を含む行は対象外）
     L036 主張の台帳 docs/claims.md の書式、撤回の理由、open な主張の根拠が dirty/failed/退避済み/無い run（claims.py）
@@ -505,7 +505,7 @@ class Checker:
     # ---- 報告と実データの照合 ----
     def citations(self) -> None:
         from labkit.claims import AXIS_RE, CLAIMS_FILE, ROW_RE
-        from labkit.compare import cross_run_problem, evidence_problems, key_problem, run_status
+        from labkit.compare import arm_labels, cross_run_problem, evidence_problems, key_problem, run_status, strip_arms
 
         runs = run_index(self.root)
         undeclared_sev = self.lab["check"]["undeclared_citation"]
@@ -527,9 +527,9 @@ class Checker:
 
         # 同じ文書が多数の run を何十回も引用するので、状態の指摘は (文書, 種類) ごとに 1 件にまとめる（最初の行、run 数、箇所数）
         agg: dict[tuple[str, str], list] = {}
-        # 段落（空行・見出しで区切る）ごとの引用の run と axis=<鍵>。run をまたぐ段落は実験間の比較として照合する
-        paras: dict[tuple[str, int], dict] = {}
-        para_id, last_p = 0, None
+        # 文書ごと（段落・表・本文を区別しない）の引用 (run, 指標, 行) と axis=<鍵>。同じ指標（腕を名指す語を除いて同じ指標も）を
+        # 2 つ以上の run から引く文書は、実験間の比較として照合する
+        docs: dict[str, dict] = {}
 
         def note(doc: str, rid: str, kind: str, n: int, msg: str, sev: str, code: str = "L032") -> None:
             if sev == "off":
@@ -543,11 +543,9 @@ class Checker:
             is_claims = p == self.root / CLAIMS_FILE
             doc = p.relative_to(self.root).as_posix()
             where = f"{doc}:{n}"
-            if p != last_p or not line.strip() or line.lstrip().startswith("#"):
-                para_id, last_p = para_id + 1, p
-            para = paras.setdefault((doc, para_id), {"where": where, "rids": set(), "axis": None, "devlog": is_devlog})
-            if not is_claims and p.parent != reviews_dir and (ax := AXIS_RE.search(line)):
-                para["axis"] = ax[1]
+            dd = docs.setdefault(doc, {"cites": [], "axes": [], "devlog": is_devlog})
+            if not is_claims and p.parent != reviews_dir:
+                dd["axes"] += [a for a in AXIS_RE.findall(line) if a not in dd["axes"]]
             row = ROW_RE.match(line) if is_claims else None
             if row and row.group(5) == "retracted":
                 continue  # 撤回済みの主張は履歴（根拠が崩れたことは撤回の理由に書いてある）。状態の列で判定する
@@ -598,7 +596,7 @@ class Checker:
                     msg = f"run {rid} は退避済み（labkit runs archive）の数値を引用している。退避した結果は根拠にしない"
                     note(doc, rid, "archived-cite", n, msg, archived_sev)
                 if not is_claims and p.parent != reviews_dir:
-                    para["rids"].add(rid)
+                    dd["cites"].append((rid, key, n))
                     st = status_cache.setdefault(rid, run_status(runs[rid]["_dir"], runs[rid], self.lab))
                     kind, why = key_problem(st, key)
                     if kind == "unmatched" or (kind == "undeclared" and not is_devlog):
@@ -632,13 +630,27 @@ class Checker:
                     "scratch/ のファイルは検証できません。根拠にするなら src に entry を書いて commit し `labkit run` の run を引用する",
                     "warn",
                 )
-        for (doc, _), pa in paras.items():
-            if len(pa["rids"]) > 1 and (why := cross_run_problem(runs, sorted(pa["rids"]), pa["axis"])):
-                msg = f"段落の引用が run をまたぐ: {why}（同じ段落に axis=<設定の鍵> を書き、軸以外が同一の run だけを並べる）"
-                if pa["devlog"]:
-                    note(doc, "", "cross-run", int(pa["where"].rsplit(":", 1)[1]), msg, undeclared_sev, "L027")
-                else:
-                    self.add("L027", pa["where"], msg)
+        for doc, dd in docs.items():
+            labels = [
+                t for rid in {r for r, _, _ in dd["cites"]} for t in arm_labels(status_cache[rid]["cfg"]).values()
+            ]
+            groups: dict[str, list] = {}
+            for rid, key, n in dd["cites"]:
+                groups.setdefault(strip_arms(key, labels) or key, []).append((rid, n))
+            for key, cs in groups.items():
+                rids = sorted({r for r, _ in cs})
+                if len(rids) < 2:
+                    continue
+                whys = [cross_run_problem(runs, rids, a) for a in dd["axes"] or [None]]
+                if all(whys):
+                    msg = (
+                        f"文書の指標 {key!r} の引用が run をまたぐ: {whys[0]}（文書に axis=<設定の鍵> を書き、"
+                        "軸以外が同一の run だけを並べる。段落・表を分けても同じ文書なら比較）"
+                    )
+                    if dd["devlog"]:
+                        note(doc, "", "cross-run", cs[0][1], msg, undeclared_sev, "L027")
+                    else:
+                        self.add("L027", f"{doc}:{cs[0][1]}", msg)
         for (doc, _), (first, rids, count, msg, sev, code) in agg.items():
             more = f"（この文書で {len(rids)} run・{count} 箇所）" if count > 1 else ""
             self.add(code, f"{doc}:{first}", msg + more, sev)

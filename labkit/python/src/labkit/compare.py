@@ -138,12 +138,39 @@ def _comparisons(cfg: dict) -> dict[str, dict]:
     return {n: c for n, c in comp.items() if isinstance(c, dict)} if isinstance(comp, dict) else {}
 
 
-def _names(cfg: dict) -> dict[str, list[str]]:
-    """非比較の指標・設定の鍵に現れてはいけない語の並び {説明: 語}: 腕の名前と、比較の指標の語幹（最後の語を除く）."""
+def arm_labels(cfg: dict) -> dict[str, list[str]]:
+    """腕を名指す語の並び {説明: 語}: 腕の名前、腕の軸の値、levels のすべての値（a/b という腕が method="proposed" を持つなら proposed も）."""
     out: dict[str, list[str]] = {}
     for n, c in _comparisons(cfg).items():
-        for a in c.get("arms") if isinstance(c.get("arms"), dict) else {}:
+        arms = c.get("arms") if isinstance(c.get("arms"), dict) else {}
+        for a, t in arms.items():
             out[f"腕 {a!r}（{n}）"] = _tokens(a)
+            v = t.get(c.get("vary")) if isinstance(t, dict) and isinstance(c.get("vary"), str) else None
+            if isinstance(v, str | int | float | bool) and _tokens(v):
+                out.setdefault(f"軸の値 {v!r}（{n}）", _tokens(v))
+        for v in c.get("levels") if isinstance(c.get("levels"), list) else []:
+            if isinstance(v, str | int | float | bool) and _tokens(v):
+                out.setdefault(f"軸の値 {v!r}（{n}）", _tokens(v))
+    return out
+
+
+def strip_arms(key: str, labels: list[list[str]]) -> str:
+    """key から腕を名指す語（arm_labels の語の並び）を除いた残り（gain_ours と gain_flat は同じ gain）."""
+    toks = _tokens(key)
+    for t in sorted(labels, key=len, reverse=True):
+        i = 0
+        while t and i + len(t) <= len(toks):
+            if toks[i : i + len(t)] == t:
+                del toks[i : i + len(t)]
+            else:
+                i += 1
+    return "_".join(toks)
+
+
+def _names(cfg: dict) -> dict[str, list[str]]:
+    """非比較の指標・設定の鍵に現れてはいけない語の並び {説明: 語}: 腕を名指す語（arm_labels）と、比較の指標の語幹（最後の語を除く）."""
+    out = arm_labels(cfg)
+    for n, c in _comparisons(cfg).items():
         for k in c.get("keys") if isinstance(c.get("keys"), list) else []:
             t = _tokens(k)
             out[f"比較 {n} の指標 {k!r} の語幹"] = t[:-1] if len(t) > 1 else t
@@ -171,12 +198,8 @@ def _nc_problems(nc: list[str], names: dict[str, list[str]]) -> list[str]:
 
 
 def _arm_named_keys(cfg: dict) -> list[str]:
-    """[compare] の腕の表の外で、腕の名前を含む設定の鍵（[solver.ours] のような腕ごとの条件）."""
-    arms = {
-        f"腕 {a!r}": _tokens(a)
-        for c in _comparisons(cfg).values()
-        for a in (c.get("arms") if isinstance(c.get("arms"), dict) else {})
-    }
+    """[compare] の腕の表の外で、腕を名指す語（腕の名前・軸の値・levels）を含む設定の鍵（[solver.ours] のような腕ごとの条件）."""
+    arms = arm_labels(cfg)
     out: list[str] = []
 
     def walk(x: Any, path: str, skip: bool) -> None:
@@ -501,7 +524,13 @@ def nc_key_problem(cfg: dict, key: str) -> str:
 def run_status(d: Path, meta: dict, lab: dict) -> dict:
     """run の比較を凍結した設定から計算し直す: {problems, matched_keys, unmatched_keys, noncomparative, author_excluded}."""
     cfg, why = _frozen(d, meta, "config.json")
-    st: dict = {"problems": [why] if why else [], "matched_keys": set(), "unmatched_keys": set(), "cfg": cfg}
+    st: dict = {
+        "problems": [why] if why else [],
+        "matched_keys": set(),
+        "unmatched_keys": set(),
+        "cfg": cfg,
+        "owner": {},
+    }
     st["author_excluded"] = []
     glob = config_problems(cfg, lab).get("", []) if not why else []
     st["problems"] += glob
@@ -518,6 +547,7 @@ def run_status(d: Path, meta: dict, lab: dict) -> dict:
         c = cfg["compare"][name]
         ks = c.get("keys") if isinstance(c, dict) and isinstance(c.get("keys"), list) else []
         st["matched_keys" if ok else "unmatched_keys"] |= {k for k in ks if isinstance(k, str)}
+        st["owner"].update({k: name for k in ks if isinstance(k, str)} if ok else {})
         st["author_excluded"] += [f"{name}.{a}" for a in r.get("author_declared_not_applicable", [])]
         if not r["matched"]:
             st["problems"] += [f"{name}: {p}" for p in r["diff"] if p not in glob]
@@ -577,6 +607,9 @@ def cross_run_problem(runs: dict, rids: list[str], axis: str | None) -> str:
         flat = _flat(_cross_cfg(cfg, runs[rid]))
         if axis not in flat or flat[axis].startswith(("{", "[")):
             return f"run {rid}: 軸 {axis!r} が設定の 1 つのスカラーの鍵ではない（表ごと変えると複数の条件が変わる）"
+        v = json.loads(flat[axis])
+        if isinstance(v, str) and (_SEP_RE.search(v) or not v.strip()):
+            return f"run {rid}: 軸 {axis!r} の値 {v!r} は 1 語（+ / , ; 空白などで条件を束ねない）"
         flats[rid] = {k: v for k, v in flat.items() if k != axis}
     ref = flats[rids[0]]
     diff = sorted({k for f in flats.values() for k in set(f) | set(ref) if f.get(k) != ref.get(k)})
@@ -586,14 +619,32 @@ def cross_run_problem(runs: dict, rids: list[str], axis: str | None) -> str:
 
 
 def evidence_problems(runs: dict, lab: dict, cites: list[tuple[str, str]], axis: str | None) -> list[str]:
-    """主張の根拠（既定で拒否）: 各指標は matched な比較の指標か非比較の宣言。複数 run は軸以外が同一."""
-    out, cache = [], {}
+    """主張の根拠（既定で拒否）: 各指標は matched な比較の指標か非比較の宣言。複数 run は軸以外が同一.
+
+    主張は既定で比較とみなす: 2 つ以上の値を引くなら、1 つの run の中の値は 1 つの matched な比較の keys だけで、
+    非比較の指標は 1 つまで（同じ run の非比較の値を 2 つ並べると、宣言していない比較になる）。
+    """
+    out, cache, keys = [], {}, {}
     for rid, key in cites:
         if rid not in runs or runs[rid].get("status") is None:
             continue
         st = cache.setdefault(rid, run_status(runs[rid]["_dir"], runs[rid], lab))
+        keys.setdefault(rid, set()).add(key)
         if kind := key_problem(st, key)[1]:
             out.append(f"run {rid}: {kind}")
+    if len({(r, k) for r, ks in keys.items() for k in ks}) > 1:
+        for rid, ks in keys.items():
+            owners = sorted({cache[rid]["owner"][k] for k in ks if k in cache[rid]["owner"]})
+            nc = sorted(k for k in ks if k not in cache[rid]["owner"])
+            if len(owners) > 1:
+                out.append(
+                    f"run {rid}: 1 つの主張が別々の比較 {owners} の指標を並べている（1 つの matched な比較の keys だけ）"
+                )
+            if len(nc) > 1:
+                out.append(
+                    f"run {rid}: 1 つの主張が同じ run の比較でない値 {nc} を並べている（主張は既定で比較。"
+                    "腕どうしの数値は [compare.<名>] keys で宣言し matched な run で出す）"
+                )
     if why := cross_run_problem(runs, [r for r, _ in cites if r in runs], axis):
         out.append(why)
     return out
