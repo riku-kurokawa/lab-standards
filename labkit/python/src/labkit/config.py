@@ -115,8 +115,17 @@ DEFAULTS: dict = {
     # allow_self_stop: /loop を Claude が自分で止めること（CronDelete・ScheduleWakeup の stop）を許すか。止めるのは人間
     "claude": {"require_devlog": True, "max_stop_blocks": 3, "allow_self_stop": False},
     # 長い自律運用: backlog（"- [ ] ..." の行）に未着手の項目が min_open 件未満なら Stop hook が終了を止める。空文字で無効
-    "autonomy": {"backlog": "", "min_open": 0, "stall_beats": 3},
-    "gate": {"enabled": True, "protected_branches": ["main", "master"], "approval_ttl_hours": 24},
+    "autonomy": {
+        "backlog": "",
+        "min_open": 0,
+        "stall_beats": 3,
+        # 主線と芽（docs/mainline.md に open の項目があるときだけ働く。focus.py）
+        "main_share": 0.7,  # 直近 main_window 拍のうち主線の拍の下限
+        "main_window": 10,
+        "main_guard_hours": 12.0,  # 期限までこの時間を切った主線があると、主線以外の拍は記録しない
+        "seed_every": 8,  # この拍数のあいだに芽が 1 つも無いと拍を閉じない（0 で無効）
+        "fail_repeat": 3,  # 同じ名前の run がこの回数続けて失敗し commit も同じなら、次は始めない（0 で無効）
+    },
 }
 
 

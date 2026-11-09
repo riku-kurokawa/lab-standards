@@ -7,9 +7,9 @@ description: lab.toml のあるプロジェクトで生データの受け入れ�
 
 ## 生データ（data/raw）
 
-- 配置は人間が行う（または人間が `labkit delegate raw_write` を宣言したとき Claude が `mv` で 1 つずつ移す。削除はしない）。
-- 配置後、`uv run labkit raw freeze`（承認ゲート）で `MANIFEST.sha256` に登録され、読み取り専用になる。
-- 新しい生データが来たら `docs/data-dictionary.md` の data/raw の表（取得元・取得日・形式・変数・単位）を埋める。分からない項目は「要確認」と書き、人間に尋ねる。
+- 新しいファイルを `cp` / `mv` で 1 つずつ置く（既存のファイルの上書き・削除・持ち出しは hooks が止める）。
+- 配置後、`uv run labkit raw freeze` で `MANIFEST.sha256` に登録され、読み取り専用になる。
+- 新しい生データが来たら `docs/data-dictionary.md` の data/raw の表（取得元・取得日・形式・変数・単位）を埋める。分からない項目は「要確認」と書き、`labkit queue ask` で人間に知らせる（返事は待たない）。
 - 形式が HDF5 / Parquet 以外（.mat, .csv, 機器固有形式）でもそのまま置く。変換結果は派生データとして作る。
 
 ## 派生データ（data/interim, data/processed）

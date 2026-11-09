@@ -4,16 +4,14 @@
 
 PreToolUse(Bash):
   0. 入力の無い `python -`（標準入力待ちで止まる）→ 拒否
-  1. Claude が実行してはいけない操作（labkit approve/reject/answer/delegate）→ 拒否
-  2. lab-reviewer（レビュー agent）は許可リストの読み取りコマンドだけ
-  3. 承認ゲートの対象（保護ブランチへの push/merge、tag、gh release/merge、raw freeze）:
-       委任あり → 許可 / 確認画面が出る permission mode → ask / それ以外 → 拒否して .lab/queue に積む
-  4. 成果物の保護: data/raw・runs/・lab.toml・.lab/ を壊す操作
+  1. lab-reviewer（レビュー agent）は許可リストの読み取りコマンドだけ
+  2. 成果物の保護: data/raw・runs/・lab.toml・.lab/ を壊す操作
+  （v2.0.0 で承認ゲートと承認・却下・回答・委任を廃止。push・merge・tag・release・raw freeze も止めない。完全自律）
 PreToolUse(Write/Edit): .lab/ と規約ファイルの保護、docs/reviews/ は lab-reviewer だけ、docs/claims.md と DIGEST.md は labkit だけ、置き場所、禁止 import
-SessionStart / UserPromptSubmit: 状態（承認待ち・回答・委任・flow・今日の開発ログ）を文脈に入れる
+SessionStart: 状態（主線と芽・拍・人間への連絡・flow・今日の開発ログ）を文脈に入れる。UserPromptSubmit は何もしない
 Stop: 主張の検証（labkit check --claims）、コードを変えた日の開発ログの判断欄が空でないこと、
       [autonomy] を設定したら backlog の未着手が min_open 件以上あること
-lab-standards 本体では 1〜3 と .lab/ の保護だけ。
+lab-standards 本体では 0〜1 と .lab/ の保護だけ。
 """
 
 from __future__ import annotations
@@ -29,7 +27,6 @@ from labkit import gate, state
 from labkit._util import read_json, write_json_atomic
 from labkit.config import find_scope, load_lab
 
-INTERACTIVE_MODES = {"default", "acceptEdits", "plan"}  # hook の ask が確認画面として人間に届くモード
 REVIEWER = "lab-reviewer"
 REVIEW_DIR = "docs/reviews"
 PROTECTED_FILES = {"lab.toml", ".copier-answers.yml", ".claude/settings.json"}
@@ -39,26 +36,50 @@ DELETING = r"^\s*(?:sudo\s+)?(?:rm|shred|unlink|truncate)\b|\bfind\b.*-(?:delete
 # 入力の無い `python -`（行頭か ; && || & の直後。パイプの後ろは入力があるので対象外）
 STDIN_PYTHON = r"(?:^|[;&\n]|\|\|)\s*(?:\S*/)?(?:python[0-9.]*|py)(?:\.exe)?\s+-(?=\s|$)"
 WRITE_OPS = r">{1,2}|\btee\b|\bsed\s+-i|\b(?:rm|mv|cp|touch|truncate|python[0-9.]*\s+-c|perl|node\s+-e)\b"
-GENERATED = {"docs/claims.md": "`labkit claim add / retract`", "docs/DIGEST.md": "`labkit digest`"}
+GENERATED = {
+    "docs/claims.md": "`labkit claim add / retract`",
+    "docs/DIGEST.md": "`labkit digest`",
+    "docs/mainline.md": "`labkit main set / add / done`",
+    "docs/seeds.md": "`labkit seed add / decide`",
+}
+
+
+# 移行の手順（labkit flow）の中で、lab.toml を書くことが段階の仕事であるもの（mode を warn にする / strict に戻す）
+LAB_TOML_STAGES = {"apply-template", "strict"}
+
+
+def _lab_toml_stage(root: Path) -> bool:
+    from labkit import flow
+
+    try:
+        return any(st.get("stage") in LAB_TOML_STAGES for st in flow.active_flows(root))
+    except Exception:  # noqa: BLE001 - 壊れた flow 状態で hooks を落とさない
+        return False
 
 
 class Block(Exception):
     """操作を止め、理由を Claude に返す（exit 2）."""
 
 
-def _decision(decision: str, reason: str) -> dict:
-    return {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": decision,
-            "permissionDecisionReason": f"[lab-rules] {reason}",
-        }
-    }
-
-
 def _is_reviewer(data: dict) -> bool:
     t = str(data.get("agent_type") or "")
     return t == REVIEWER or t.endswith(":" + REVIEWER)
+
+
+def _raw_intake(s: str, root: Path) -> bool:
+    """data/raw への新しいファイルの搬入（cp / mv / rsync / install で、既存のファイルを上書きせず、data/raw から持ち出さない）."""
+    m = re.match(r"^\s*(cp|mv|rsync|install)\b", s)
+    if not m:
+        return False
+    args = [a for a in s.split()[1:] if not a.startswith("-")]
+    if len(args) < 2 or "data/raw" not in args[-1] or any("data/raw" in a for a in args[:-1]):
+        return False
+    dest = root / args[-1]
+    if args[-1].endswith("/") or dest.is_dir() or len(args) > 2:
+        targets = [dest / Path(a.rstrip("/")).name for a in args[:-1]]
+    else:
+        targets = [dest]
+    return not any(t.exists() for t in targets)
 
 
 def _raw_write(s: str) -> bool:
@@ -87,65 +108,31 @@ def pretool_bash(data: dict, root: Path, kind: str) -> dict | None:
                 raise Block(f"許可されていないコマンドです: `{seg[:80]}`。{gate.reviewer_allowed_summary()}")
     for seg in segs:
         if re.search(r"\.lab/(?:queue|flows|delegations|beats)", seg) and re.search(WRITE_OPS, seg):
+            raise Block(".lab/ は直接書き換えません（labkit queue / flow / beat を使う）。")
+        if (
+            kind == "project"
+            and re.search(r"docs/(?:claims|DIGEST|mainline|seeds)\.md", seg)
+            and re.search(WRITE_OPS, seg)
+        ):
             raise Block(
-                ".lab/ は直接書き換えません（labkit queue / flow / beat を使う）。承認・却下・回答・委任は人間だけが行います。"
-            )
-        if kind == "project" and re.search(r"docs/(?:claims|DIGEST)\.md", seg) and re.search(WRITE_OPS, seg):
-            raise Block(
-                "docs/claims.md と docs/DIGEST.md は手で書きません（`labkit claim add / retract`、`labkit digest`）。"
+                "docs/claims.md・DIGEST.md・mainline.md・seeds.md は手で書きません（`labkit claim` / `digest` / `main` / `seed`）。"
             )
 
     lab = load_lab(root)
-    conf = lab["gate"]
-    cwd = Path(data.get("cwd") or root)
-    branch = state.git_branch(cwd)
-    hits = gate.classify(cmd, conf["protected_branches"], branch)
-    reasons: list[str] = []
-    for h in hits:
-        if h.category == "forbidden":
-            raise Block(f"{gate.FORBIDDEN}。人間に依頼してください（`labkit queue list` で ID を伝える）。")
-    gated = [h for h in hits if h.category in gate.GATED]
-    if gated and conf.get("enabled", True):
-        for h in gated:
-            d = state.find_delegation(root, h.category, branch)
-            if d is None:
-                mode = str(data.get("permission_mode") or "default")
-                if mode in INTERACTIVE_MODES:
-                    return _decision("ask", f"{h.description}。承認ゲートの対象です。実行してよいか確認してください。")
-                item = state.request(
-                    root,
-                    h.category,
-                    cmd.strip(),
-                    cwd=cwd,
-                    reason=h.description,
-                    session=str(data.get("session_id") or ""),
-                )
-                raise Block(
-                    f"{h.description} は人間の承認が必要です。承認待ち #{item['id']} として記録しました。"
-                    "この操作に依存しない作業を続け、終了時の報告に挙げてください。"
-                    f"人間が {root} で `labkit approve {item['id']}`（この種類・このブランチを 24 時間許可）か "
-                    f"`labkit delegate {h.category} --hours N` をすると通ります"
-                    "（ゲートはこのセッションのプロジェクトで判定するので、別のリポジトリを操作するときもここで承認・委任する）。"
-                )
-            reasons.append(f"委任 #{d['id']}（{h.category}）")
 
     if kind == "project":
         readonly = lab["layout"]["readonly"]
-        raw_in = state.find_delegation(root, "raw_write")
-        toml_ok = state.find_delegation(root, "lab_toml")
         for seg in segs:
             s = seg.strip()
             if re.search(r"\bgit\s+clean\b[^|]*-[a-zA-Z]*x", s):
                 raise Block("git clean -x は管理外の data/・runs/・literature/pdfs を消します。実行しないでください。")
             if re.search(r"\bgit\s+(?:checkout|restore)\b.*\bdata/raw\b", s):
                 raise Block("data/raw を git で書き換える操作は禁止です。")
-            if "data/raw" in s and _raw_write(s):
-                if raw_in is None or re.search(DELETING, s):
-                    raise Block(
-                        "data/raw を変更・削除する操作は禁止です（生データは不変）。搬入は人間が行うか、"
-                        "人間が `labkit delegate raw_write --hours N` で委任したときだけ移動でき、その後 `labkit raw freeze` で登録します。"
-                    )
-                reasons.append(f"委任 #{raw_in['id']}（raw_write）")
+            if "data/raw" in s and _raw_write(s) and not _raw_intake(s, root):
+                raise Block(
+                    "data/raw の既存ファイルを変更・削除・持ち出す操作は禁止です（生データは不変）。新しいファイルの搬入"
+                    "（cp / mv で、上書きしない）はできます。搬入したら `labkit raw freeze` で登録します。"
+                )
             for ro in readonly:
                 if ro != "data/raw" and ro in s and _raw_write(s):
                     raise Block(f"{ro} は読み取り専用領域です。変更・削除はしません。")
@@ -153,13 +140,13 @@ def pretool_bash(data: dict, root: Path, kind: str) -> dict | None:
                 raise Block(
                     "run の削除・権限変更は人間が行います。異常終了した run は `labkit runs mark <id> failed --reason ...`。"
                 )
-            if re.search(r"(?:>|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b)[^|]*\blab\.toml\b", s):
-                if toml_ok is None:
-                    raise Block(
-                        "lab.toml は規約ファイルです。変更案を人間に提示してください（人間は `labkit delegate lab_toml` で委任できる）。"
-                    )
-                reasons.append(f"委任 #{toml_ok['id']}（lab_toml）")
-    return _decision("allow", "、".join(dict.fromkeys(reasons)) + " により許可") if reasons else None
+            if re.search(r"(?:>|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b)[^|]*\blab\.toml\b", s) and not _lab_toml_stage(
+                root
+            ):
+                raise Block(
+                    "lab.toml は規約ファイルです。エージェントは自分を縛る規約を変えません。変更案は `labkit queue ask` で人間に伝え、今の規約で進めます。"
+                )
+    return None
 
 
 # ---- PreToolUse: Write / Edit ----
@@ -191,16 +178,14 @@ def pretool_write(data: dict, root: Path, kind: str) -> dict | None:
     lab = load_lab(root)
     layout = lab["layout"]
     top = r.split("/", 1)[0]
+    if r == "lab.toml" and _lab_toml_stage(root):
+        return None  # 移行の段階の仕事（mode の切り替え）
     if r in PROTECTED_FILES:
-        if r == "lab.toml" and state.find_delegation(root, "lab_toml") is not None:
-            return None
         raise Block(
-            f"{r} は規約ファイルです。理由と差分案を人間に提示してください（人間は `labkit delegate lab_toml` で委任できる）。"
+            f"{r} は規約ファイルです。エージェントは自分を縛る規約を変えません。変更案は `labkit queue ask` で人間に伝え、今の規約で進めます。"
         )
     for ro in layout["readonly"]:
         if r == ro or r.startswith(ro.rstrip("/") + "/"):
-            if ro == "data/raw" and state.find_delegation(root, "raw_write") is not None:
-                return None
             raise Block(
                 f"{r} は読み取り専用領域（{ro}）です。派生データは scripts から labkit.save で data/interim か data/processed に作ります。"
             )
@@ -244,27 +229,6 @@ def pretool_write(data: dict, root: Path, kind: str) -> dict | None:
 
 
 # ---- SessionStart / UserPromptSubmit ----
-def _queue_delta(root: Path) -> list[str]:
-    s = state.pending_summary(root)
-    lines = [
-        f"- 承認済み #{it['id']}: {it.get('category') or '?'}（ブランチ {it.get('branch')}）は委任 {it.get('delegation')} の期限まで実行してよい。"
-        f"実行したら `labkit queue done {it['id']}`"
-        for it in s["approved"]
-    ]
-    lines += [
-        f"- 回答あり #{it['id']}: 質問「{it.get('question')}」→ 回答「{it.get('answer')}」（仮の判断は「{it.get('assumed')}」）。"
-        f"取り込んだら `labkit queue done {it['id']}`"
-        for it in s["answered"]
-    ]
-    lines += [
-        f"- 却下 #{it['id']}: `{it.get('command', '')}`"
-        + (f"（理由: {it['note']}）" if it.get("note") else "")
-        + f" → 実行しない。確認したら `labkit queue done {it['id']}`"
-        for it in s["rejected"]
-    ]
-    return lines
-
-
 def session(data: dict, root: Path, kind: str) -> str:
     from labkit._version import __version__
     from labkit.flow import active_flows, describe
@@ -285,9 +249,8 @@ def session(data: dict, root: Path, kind: str) -> str:
             )
         )
     lines.append(
-        "- 承認ゲート: 保護ブランチへの push/merge・tag・gh release/merge・raw freeze は hooks が止め、承認待ち（.lab/queue）に積む。"
-        "拒否されたら依存しない作業を続け、終了時に ID を報告する。feat ブランチへの push は自由。"
-        "判断の分かれる問いは `labkit queue ask` に積んで仮の判断で進む。approve/reject/answer/delegate は人間専用。"
+        "- 完全自律: 承認を待つ操作は無い（push・merge・tag も自分で行う）。判断の分かれる問いは自分で決めて根拠を残し、"
+        "人間に知らせたいことは `labkit queue ask` に積む（返事は待たない）。"
     )
     pv = data.get("plugin_version")
     if pv and pv != __version__:
@@ -307,39 +270,28 @@ def session(data: dict, root: Path, kind: str) -> str:
                     f"- 無効のままの関門: runs.{' / runs.'.join(off)}（lab.toml で人間が有効にする。既定 false）"
                 )
             lines += session_lines(root, compact=data.get("source") == "compact")
+            from labkit.focus import status_lines as focus_lines
+
+            lines += focus_lines(root)
             if st := staleness(root, announce_missing=autonomous):
                 lines.append(st)
         except Exception as e:
             lines.append(f"- 注意: {CURRENT} か .lab/beats を読めません（`labkit check`）: {type(e).__name__}: {e}")
-    lines += [
-        f"- 委任中 {state.describe_delegation(d)}: 承認を待たずに実行してよい" for d in state.active_delegations(root)
-    ]
-    lines += _queue_delta(root)
     s = state.pending_summary(root)
     lines += [
-        f"- 承認待ち #{it['id']}: `{it['command']}` — 人間の `labkit approve {it['id']}` を待つ" for it in s["pending"]
-    ]
-    lines += [
-        f"- 未回答の質問 #{it['id']}: 「{it.get('question')}」仮の判断「{it.get('assumed')}」で進行中"
+        f"- 人間への連絡 #{it['id']}: 「{it.get('question')}」仮の判断「{it.get('assumed')}」で進行中（返事は待たない）"
         for it in s["open_questions"]
     ]
     for st in active_flows(root):
         lines.append("- " + describe(root, st).replace("\n", "\n  "))
     if data.get("source") == "compact":
-        lines.insert(0, "（会話が要約されたため、承認待ち・委任・手順の状態を再掲する）")
+        lines.insert(0, "（会話が要約されたため、主線・拍・手順の状態を再掲する）")
     return "\n".join(lines)
 
 
 def prompt(data: dict, root: Path, kind: str) -> dict | None:
-    lines = _queue_delta(root)
-    if not lines:
-        return None
-    return {
-        "hookSpecificOutput": {
-            "hookEventName": "UserPromptSubmit",
-            "additionalContext": "[lab-rules] 人間の操作による更新:\n" + "\n".join(lines),
-        }
-    }
+    """v2.0.0 から何もしない（人間の操作による更新＝承認・回答は廃止）。plugin の入口の互換のために残す."""
+    return None
 
 
 # ---- Stop ----
@@ -358,12 +310,6 @@ def stop(data: dict, root: Path, kind: str) -> dict | None:
 
     lab = load_lab(root)
     sid = str(data.get("session_id") or "")
-    mine = [i for i in state.pending_summary(root)["pending"] if sid and i.get("session_id") == sid]
-    if mine:
-        ids = ", ".join(f"#{i['id']}" for i in mine)
-        return {
-            "systemMessage": f"[lab-rules] 承認待ち {ids} があるため終了時の検証を省きます（承認待ちは仕事を止める理由ではない: 依存しない仕事を続ける）。人間: `labkit queue list` → `labkit approve <ID>`"
-        }
     problems: list[str] = []
     keys: list[str] = []  # 違反 1 件ごとの識別（上限で委ねた違反を覚えるため）
     issues, mode = run_check(root=root, claims=True)

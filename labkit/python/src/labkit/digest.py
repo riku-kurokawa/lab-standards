@@ -2,7 +2,7 @@
 
     labkit digest [--since <YYYY-MM-DD | commit>]   既定: DIGEST.md を最後に commit した時点（無ければ 7 日前）
 
-節は材料があるときだけ出す: 主張の変化 / 予想と結果 / run の収支 / 新しい図 / 未解消のレビュー / 承認待ち・質問 /
+節は材料があるときだけ出す: 主張の変化 / 予想と結果 / run の収支 / 新しい図 / 未解消のレビュー / 主線と芽・資源 / 人間への連絡 /
 check の集計 / 文献 / 変更された文書とコード量。長い devlog・state・レビュー記録は読まずに済む。
 図は docs/assets/digest/ に写す（git で見える。上限 digest.max_figures）。DIGEST 自身は引用の照合（L032）の対象外。
 """
@@ -198,17 +198,18 @@ def build(root: Path, since: str | None = None) -> Path:
         L += ["## 未解消のレビュー", ""] + [f"- {ln}" for ln in format_reviews(root, opens[:8]).splitlines()]
         L += ([f"- …ほか {len(opens) - 8} 件（`labkit review list --open`）"] if len(opens) > 8 else []) + [""]
 
-    # queue
+    # 主線と芽・人間への連絡
+    from labkit.focus import digest_lines
+
+    L += digest_lines(root, day)
     s = state.pending_summary(root)
-    items = s["pending"] + s["open_questions"]
+    items = s["open_questions"]
     if items:
-        L += ["## 人間を待っているもの", ""]
-        L += [f"- #{it['id']} 承認待ち: `{str(it.get('command'))[:100]}`" for it in s["pending"][:8]]
+        L += ["## 人間への連絡（返事は待たずに進めている）", ""]
         L += [
-            f"- #{it['id']} 質問: {str(it.get('question'))[:120]}（仮の判断: {str(it.get('assumed'))[:60]}）"
-            for it in s["open_questions"][:8]
+            f"- #{it['id']} {str(it.get('question'))[:120]}（判断: {str(it.get('assumed'))[:60]}）" for it in items[:8]
         ]
-        L += [f"- …ほか {len(items) - 16} 件（`labkit queue list`）"] if len(items) > 16 else []
+        L += [f"- …ほか {len(items) - 8} 件（`labkit queue list`）"] if len(items) > 8 else []
         L.append("")
 
     # check

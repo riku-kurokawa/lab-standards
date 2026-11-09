@@ -261,6 +261,7 @@ def cmd_beat(a) -> int:
             decided=a.decided or "",
             runs=a.runs,
             stall_reason=a.stall_reason or "",
+            line=a.line or "",
         )
         print(f"拍 {r['beat']} を記録しました（{r['time'][11:16]}）。開発ログの自動ブロックに写した")
     else:
@@ -302,7 +303,7 @@ def cmd_paths(a) -> int:
     return 0
 
 
-# ---- ハーネス: キュー・承認・委任・手順・引用・レビュー・hook ----
+# ---- ハーネス: 人間への連絡・主線と芽・手順・引用・レビュー・hook ----
 def _print_item(it: dict) -> None:
     if it.get("kind") == "approval":
         print(f"{it['id']}  [{it.get('status')}]  {it.get('category')}  {it.get('command')}")
@@ -327,18 +328,16 @@ def cmd_queue(a) -> int:
     if a.action == "list":
         items = state.list_queue(root)
         if not a.all:
-            items = [i for i in items if i.get("status") in ("pending", "approved", "open", "answered", "rejected")]
+            items = [i for i in items if i.get("status") == "open"]
         for it in items:
             _print_item(it)
         if not items:
             print("キューは空です")
     elif a.action == "ask":
         if not a.text or not a.assumed:
-            raise SystemExit("queue ask <質問> --assumed <仮の判断> [--options A B ...] [--impact ...]")
+            raise SystemExit("queue ask <人間への連絡> --assumed <自分で決めた判断> [--options A B ...] [--impact ...]")
         it = state.ask_question(root, a.text, options=a.options or [], assumed=a.assumed, impact=a.impact or "")
-        print(
-            f'質問 #{it["id"]} を積みました。仮の判断（{a.assumed}）で今すぐ先に進んでください（答えを待って止まらない）。人間: `labkit answer {it["id"]} "..."`'
-        )
+        print(f"人間への連絡 #{it['id']} を積みました。判断（{a.assumed}）で今すぐ先に進んでください（返事は待たない）")
     else:
         if not a.text:
             raise SystemExit("queue done <ID>")
@@ -346,56 +345,42 @@ def cmd_queue(a) -> int:
     return 0
 
 
-def cmd_approve(a) -> int:
-    from labkit import state
-    from labkit.config import load_lab
+def cmd_main(a) -> int:
+    from labkit import focus
+    from labkit.config import find_root
 
-    root = _scope_root()
-    d = state.approve(root, a.id, ttl_hours=float(a.hours or load_lab(root)["gate"]["approval_ttl_hours"]))
-    print(f"承認しました: {a.id} → 委任 {state.describe_delegation(d)}")
+    root = find_root()
+    if a.action == "set":
+        print(f"主線を書きました: {focus.main_set(root, a.text or '')}")
+    elif a.action == "add":
+        it = focus.main_add(root, a.text or "", done_if=a.done or "", due=a.due or "")
+        print(f"{it['id']} を主線に足しました（期限 {it['due']}）")
+    elif a.action == "done":
+        it = focus.main_done(root, a.text or "", evidence=a.evidence or "")
+        print(f"{it['id']} を done にしました（根拠 {it['evidence']}）")
+    else:
+        print("\n".join(focus.status_lines(root)) or f"{focus.MAIN_FILE} がありません（`labkit main set` で始める）")
     return 0
 
 
-def cmd_reject(a) -> int:
-    from labkit import state
+def cmd_seed(a) -> int:
+    from labkit import focus
+    from labkit.config import find_root
 
-    print(f"却下しました: {state.reject(_scope_root(), a.id, note=a.note or '')['id']}")
-    return 0
-
-
-def cmd_answer(a) -> int:
-    from labkit import state
-
-    it = state.answer_question(_scope_root(), a.id, a.text)
-    print(
-        f"回答を記録しました: {it['id']}（Claude は次のプロンプトで受け取り、取り込んだら `labkit queue done {it['id']}`）"
-    )
-    return 0
-
-
-def cmd_delegate(a) -> int:
-    from labkit import state
-
-    root = _scope_root()
-    if a.categories[:1] == ["list"]:
-        lines = [state.describe_delegation(d) for d in state.active_delegations(root)]
-        print("\n".join(lines) if lines else "有効な委任はありません")
-        return 0
-    if a.categories[:1] == ["revoke"]:
-        if len(a.categories) < 2:
-            raise SystemExit("delegate revoke <ID|all>")
-        for d in state.revoke_delegation(root, a.categories[1]):
-            print(f"取り消しました: {d['id']}  {', '.join(d['categories'])}")
-        return 0
-    if not a.categories:
-        raise SystemExit(
-            "delegate <カテゴリ...> [--hours N] [--branch B] [--note ...]  カテゴリ: "
-            + ", ".join(state.DELEGATABLE)
-            + "  グループ: "
-            + ", ".join(state.GROUPS)
+    root = find_root()
+    if a.action == "add":
+        s = focus.seed_add(root, a.text or "", source=a.source or "", test=a.test or "", value=a.value or "")
+        print(
+            f"芽 {s['id']} を記録しました。主線に戻る（確かめるのは主線の割合と期限が許すとき、`--line seed:{s['id']}`）"
         )
-    d = state.add_delegation(root, a.categories, hours=a.hours, branch=a.branch, note=a.note or "")
-    print(f"委任しました: {state.describe_delegation(d)}\n  取り消し: labkit delegate revoke {d['id']}")
+    elif a.action == "decide":
+        s = focus.seed_decide(root, a.text or "", to=a.to or "", reason=a.reason or "", serves=a.serves or "")
+        print(f"{s['id']} → {s['status']}: {s['why']}")
+    else:
+        for s in focus.list_seeds(root, a.status):
+            print(
+                f"{s['id']}  {s['status']:<8} {s['time']}  {s['what']}  （確かめ方: {s['test']} / 当たれば: {s['value']}）"
+            )
     return 0
 
 
@@ -577,6 +562,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--decided", help="end: 判断")
     s.add_argument("--runs", nargs="*", help="end: この拍の run ID")
     s.add_argument("--stall-reason", help="end: 同じ判断の拍が続くときに、それでも待つ理由（停滞として記録される）")
+    s.add_argument(
+        "--line", help="end: この拍で進めた線 main / seed:Sxxx / other（docs/mainline.md に open の主線があるとき必須）"
+    )
     s.add_argument("--date", help="log: 日付（既定 今日）")
     s.set_defaults(func=cmd_beat)
 
@@ -598,7 +586,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("paths", help="現在の LAB_ENV で解決されるパスを表示")
     s.set_defaults(func=cmd_paths)
 
-    s = sub.add_parser("queue", help="承認待ち・質問のキュー（list / ask / done）")
+    s = sub.add_parser("queue", help="人間への連絡（list / ask / done）。返事は待たない")
     s.add_argument("action", choices=["list", "ask", "done"])
     s.add_argument("text", nargs="?", help="ask: 質問文 / done: ID")
     s.add_argument("--options", nargs="*", help="ask: 選択肢")
@@ -607,30 +595,25 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--all", action="store_true", help="list: 完了済みも表示")
     s.set_defaults(func=cmd_queue)
 
-    s = sub.add_parser("approve", help="承認（人間のみ）: その種類の操作をそのブランチで期限まで許可する")
-    s.add_argument("id")
-    s.add_argument("--hours", type=float, help="有効期間（既定: lab.toml の gate.approval_ttl_hours）")
-    s.set_defaults(func=cmd_approve)
+    s = sub.add_parser("main", help="主線（set / add / done / status）。docs/mainline.md")
+    s.add_argument("action", choices=["set", "add", "done", "status"])
+    s.add_argument("text", nargs="?", help="set: 主線の 1 文 / add: 成果物 / done: ID")
+    s.add_argument("--done", help="add: 完了条件（機械か人が確かめられる形）")
+    s.add_argument("--due", help="add: 期限 'YYYY-MM-DD HH:MM'（ローカル時刻）")
+    s.add_argument("--evidence", help="done: 根拠（run ID・ファイル・commit）")
+    s.set_defaults(func=cmd_main)
 
-    s = sub.add_parser("reject", help="却下（人間のみ）")
-    s.add_argument("id")
-    s.add_argument("--note")
-    s.set_defaults(func=cmd_reject)
-
-    s = sub.add_parser("answer", help="質問に回答する（人間のみ）")
-    s.add_argument("id")
-    s.add_argument("text")
-    s.set_defaults(func=cmd_answer)
-
-    s = sub.add_parser(
-        "delegate",
-        help="委任（人間のみ）: `delegate <カテゴリ...> --hours N` / `delegate list` / `delegate revoke <ID|all>`",
-    )
-    s.add_argument("categories", nargs="*")
-    s.add_argument("--hours", type=float, default=8.0, help="有効期間（既定 8 時間）")
-    s.add_argument("--branch", help="このブランチに限る")
-    s.add_argument("--note", help="目的（記録に残す）")
-    s.set_defaults(func=cmd_delegate)
+    s = sub.add_parser("seed", help="芽（add / decide / list）。docs/seeds.md")
+    s.add_argument("action", choices=["add", "decide", "list"])
+    s.add_argument("text", nargs="?", help="add: 芽（観察・問い）/ decide: ID")
+    s.add_argument("--from", dest="source", help="add: 出どころ（run・ファイル・拍）")
+    s.add_argument("--test", help="add: 最安の確かめ方")
+    s.add_argument("--value", help="add: 当たれば何が変わるか")
+    s.add_argument("--to", help="decide: try / park / promote / drop")
+    s.add_argument("--reason", help="decide: 理由")
+    s.add_argument("--serves", help="decide --to promote: 効く主線の ID")
+    s.add_argument("--status", help="list: 状態で絞る")
+    s.set_defaults(func=cmd_seed)
 
     s = sub.add_parser("flow", help="手順のチェックリスト（start / status / advance / abort）")
     s.add_argument("action", choices=["start", "status", "advance", "abort"])

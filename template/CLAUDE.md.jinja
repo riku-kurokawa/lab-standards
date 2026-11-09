@@ -49,27 +49,36 @@
 | 派生データ | `data/interim`, `data/processed` | `labkit.save` / `writer` 経由（サイドカー付き）。再生成できる中間物は `data/cache` |
 | 図 | `runs/<run_id>/figures/` | `figspecs/*.toml` + `labkit fig`。描画ライブラリを直接使わない |
 | 主張と撤回 | `docs/claims.md` | `labkit claim add / retract`（手で編集しない） |
+| 主線・芽 | `docs/mainline.md`, `docs/seeds.md` | `labkit main` / `labkit seed`（手で編集しない） |
 | 事前登録・草稿 | `docs/prereg/`, `docs/papers/` | 計算の前に commit。引用は `labkit cite` の書式 |
 | 文献・サーベイ | `literature/` | `labkit lit add --doi` / `lit read` / `lit survey`（読んだ主体と範囲を正直に） |
 | 設計判断 | `docs/decisions/` | `labkit adr "タイトル"` |
 | レビュー記録 | `docs/reviews/` | lab-reviewer agent だけが書く（Agent ツールで起動） |
 | 試行錯誤 | `scratch/` | git 管理外。成果物にも根拠にもしない |
 
-## 人間が不在でも止まらない
+## 完全自律（人間の承認を待つ操作は無い）
 
-- **承認ゲート**: 保護ブランチへの push/merge・`git tag`・`gh release`・`gh pr merge`・`labkit raw freeze` は hooks が止め、
-  承認待ち `.lab/queue/<ID>` に記録する。feat ブランチへの push は自由。拒否されたら依存しない作業を続け、終了時に ID を報告する。
-  人間の `labkit approve <ID>` はその種類の操作をそのブランチで 24 時間許可する（commit しても無効にならない）。
-- **質問**: 判断の分かれる問いは `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>"` で積み、仮の判断で進む。
-- **待って止まらない**: 人間の答え・承認・実機の作業を待つことは、止まる理由にならない。それに依存する仕事は、人間なしで同じ問いに
-  答える方法（計算、公開データ、独立実装による検証）に置き換えるか、依存しない仕事を進める。`/loop` を止めるのは人間だけ
-  （`claude.allow_self_stop = false` の既定では hooks が止める）。目標を達したら、より大きい次の問いを立てて続ける。
-- **委任**: 人間が `labkit delegate <カテゴリ> --hours N` で宣言した操作は待たずに実行してよい（`labkit delegate list`）。
-- `labkit approve / reject / answer / delegate` は人間専用（Claude は実行できない）。
+- push・merge・tag・release・`labkit raw freeze` も自分で行う。取り返しのつかなさは成果物の保護（data/raw・runs/ は不変、lab.toml は変えない）と検証で守る。
+- **人間への連絡は一方通行**: 判断の分かれる問いは自分で決めて根拠を残し、`labkit queue ask "<質問>" --options A B --assumed "<決めたことと理由>"` で知らせて進む。返事は待たない。
+- **待って止まらない**: 人間の答え・実機の作業を待つことは止まる理由にならない。人間なしで同じ問いに答える方法（計算、公開データ、独立実装による検証）に
+  置き換えるか、依存しない仕事を進める。`/loop` を止めるのは人間だけ（`claude.allow_self_stop = false` の既定では hooks が止める）。
+
+## 主線と芽（主線から絶対にずれず、面白い芽を拾い続ける）
+
+- **主線**は 1 文と、成果物・完了条件・期限の項目（`labkit main set / add / done`、`docs/mainline.md`）。期限のある約束はすべてここに入れる。
+- **毎拍、どの線を進めたかを宣言する**: `labkit beat end ... --line main | seed:Sxxx | other`。主線の割合（`autonomy.main_share`）を割る拍、
+  期限が近い（`main_guard_hours`）のに主線以外を進めた拍は記録されない。
+- **芽を拾い続ける**: 主線の作業中に見た外れた予想・妙な数字・別の説明がつく現象は、その場で `labkit seed add "<芽>" --from <run|file> --test "<最安の確かめ方>" --value "<当たれば>"`。
+  `autonomy.seed_every` 拍のあいだに芽が 1 つも無いと拍を閉じられない。芽は芽の枠（主線以外の拍）で最安の方法で確かめ、
+  主線のどの項目に効くかを言えたときだけ `labkit seed decide S00N --to promote --serves M00N` で主線に入れる。言えない芽は park か drop。
+- **資源は必ずどれかの線に紐づく**: 主線に open の項目があるあいだ、run の設定に `serves = "M001" | "S003" | "other:<理由>"` が無いと始まらない。
+  同じ名前の run が `autonomy.fail_repeat` 回続けて失敗し commit が進んでいなければ、次は始まらない（壊れた計算を回し続けない）。
+  `labkit beat start` と digest が直近 24 時間の run 時間を線ごとに示す。主線に使えていなければ、その拍で正す。
+- **目標を書き換えて逃げない**: 主線を変えるのは、主線の項目を done（根拠つき）にするか、期限と理由を残して項目を替えるときだけ。
 
 ## 禁止事項
 
-- `data/raw/` と `runs/` の変更、`lab.toml` の編集、`.lab/` の直接編集。
+- `data/raw/` の既存ファイルと `runs/` の変更、`lab.toml` の編集、`.lab/` の直接編集（新しい生データの搬入は cp / mv で上書きせずに行い、`labkit raw freeze`）。
 - pickle など言語依存形式での保存、`np.save` での成果物保存（来歴が付かない）、コード中の絶対パス（`configs/paths/*.toml` を使う）。
 - 規約に合わない新しいトップレベルディレクトリの作成。
 

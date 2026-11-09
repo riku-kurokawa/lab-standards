@@ -26,6 +26,5 @@
 1. `CHANGELOG.md` の先頭に `## vX.Y.Z — YYYY-MM-DD` の節を書く（追加・変更・移行手順）。
 2. `python tools/release.py X.Y.Z` で全ファイルの版を揃える。
 3. `make test` → commit → `git switch main && git merge --ff-only feat/<名前>` → `git tag vX.Y.Z` → `git push origin main --tags`。
-   merge / tag / push は承認ゲートの対象（人間が `labkit approve` か `labkit delegate release`）。
 
 版の付け方: 互換を保つ機能追加はマイナー、修正のみはパッチ、互換を壊す変更はメジャー。

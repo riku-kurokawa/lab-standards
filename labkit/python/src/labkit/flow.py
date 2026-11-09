@@ -127,27 +127,8 @@ def advance(root: Path, name: str) -> tuple[dict, str]:
         raise SystemExit(
             f"段階 {cur['name']} の完了条件が満たされていません:\n" + "\n".join(f"  - {m}" for m in missing)
         )
-    via = None
-    if cur["approval"]:
-        d = state.find_delegation(root, "flow", state.git_branch(root))
-        if d is None:
-            item = state.request(
-                root,
-                "flow",
-                ADVANCE.format(name=name),
-                cwd=root,
-                reason=f"flow {name}: 段階 {cur['name']} → {nxt['name']} の承認",
-            )
-            raise SystemExit(
-                f"段階 {cur['name']} から進むには人間の承認が必要です。承認待ち #{item['id']} として記録しました。\n"
-                f"依存しない作業を続け、終了時の報告に挙げてください。人間: `labkit approve {item['id']}`"
-                "（または `labkit delegate flow`）"
-            )
-        via = d["id"]
     st["stage"] = nxt["name"]
     hist = {"stage": nxt["name"], "at": now_iso(), "event": "advance", "head": git(root, "rev-parse", "HEAD")}
-    if via:
-        hist["via"] = via
     st["history"].append(hist)
     if next_stage(st) is None and not nxt["done"]:
         st["status"] = "finished"
@@ -158,8 +139,6 @@ def advance(root: Path, name: str) -> tuple[dict, str]:
 def describe(root: Path, st: dict) -> str:
     cur = stage_def(st)
     lines = [f"flow {st['flow']}: 段階 {cur['name']}（{st['status']}）", f"  {cur['description']}"]
-    if cur["approval"]:
-        lines.append("  次へ進むには人間の承認が必要（labkit flow advance → キュー → labkit approve）")
     missing = unmet(root, st) if st["status"] == "active" else []
     if missing:
         lines += ["  未達の条件:", *(f"    - {m}" for m in missing)]
@@ -182,7 +161,7 @@ def c_git_tag(root, c):
     return (
         None
         if c["name"] in (git(root, "tag", "--list", c["name"]) or "").split()
-        else (f"タグ {c['name']} がありません（`git tag {c['name']}` は承認ゲートの対象）")
+        else (f"タグ {c['name']} がありません（`git tag {c['name']}` を打つ）")
     )
 
 

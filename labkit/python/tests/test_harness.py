@@ -1,4 +1,4 @@
-"""キュー・委任・flow（チェックリスト）・ミラー・開発ログの自動ブロック・standards link."""
+"""キュー（人間への連絡）・flow（チェックリスト）・ミラー・開発ログの自動ブロック・standards link."""
 
 import json
 
@@ -10,30 +10,14 @@ from labkit.devlog import section_bodies, update
 from .conftest import git
 
 
-def test_queue_and_delegations(project):
+def test_queue_is_one_way(project):
+    """v2.0.0: queue は人間への連絡だけ（返事は待たない）。承認・回答・委任は無い."""
     q = state.ask_question(project, "lz4 か zstd か", options=["lz4", "zstd"], assumed="zstd（互換）")
     assert q["id"] == "Q001" and state.pending_summary(project)["open_questions"]
-    state.answer_question(project, "Q001", "lz4")
-    assert state.pending_summary(project)["answered"][0]["answer"] == "lz4"
     state.mark_done(project, "Q001")
-    it = state.request(project, "git_tag", "git tag v1", cwd=project, reason="tag")
-    assert (
-        it["id"] == "Q002"
-        and state.request(project, "git_tag", "git tag v1", cwd=project, reason="tag")["id"] == "Q002"
-    )
-    d = state.approve(project, "Q002", ttl_hours=2)
-    assert state.find_delegation(project, "git_tag") and state.get_item(project, "Q002")["delegation"] == d["id"]
-    with pytest.raises(ValueError):
-        state.approve(project, "Q002", ttl_hours=1)
-    state.reject(project, "Q002")
-    assert state.find_delegation(project, "git_tag") is None
-    d = state.add_delegation(project, ["migrate"], hours=1, branch="feat/m")
-    assert set(d["categories"]) == set(state.GROUPS["migrate"])
-    assert state.find_delegation(project, "flow", "feat/m") and not state.find_delegation(project, "flow", "main")
-    state.revoke_delegation(project, "all")
-    assert state.active_delegations(project) == []
-    with pytest.raises(ValueError):
-        state.expand(["nope"])
+    assert not state.pending_summary(project)["open_questions"]
+    for gone in ("approve", "reject", "answer_question", "add_delegation", "find_delegation", "request"):
+        assert not hasattr(state, gone), gone
     assert (project / ".lab" / ".gitignore").read_text(encoding="utf-8").startswith("#")
 
 
@@ -56,16 +40,20 @@ def test_migrate_flow_checklist(git_project, tmp_path):
     (p / "scratch" / "migration-inventory.csv").write_text(
         "old_path,kind,new_path,size,note\n", encoding="utf-8", newline="\n"
     )
-    with pytest.raises(SystemExit, match="承認待ち #Q001"):
-        flow.advance(p, "migrate")  # 承認が要る段階
-    state.approve(p, "Q001", ttl_hours=1)
     st, _ = flow.advance(p, "migrate")
-    assert st["stage"] == "apply-template" and st["history"][-1]["via"] == "D001"
+    assert st["stage"] == "apply-template" and "via" not in st["history"][-1]
     assert "mode" in flow.unmet(p, st)[-1]  # lab_mode=warn 未達
+    from labkit.hook import handle
+
+    from .test_hook import write
+
+    assert handle("pretool", write("lab.toml", p))[0] == 0  # 段階の仕事なので lab.toml を書ける（完全自律の移行）
+    assert handle("pretool", write(".copier-answers.yml", p))[0] == 2
     (p / "lab.toml").write_text('[lab]\nproject = "t"\n[check]\nmode = "warn"\n', encoding="utf-8", newline="\n")
     (p / ".copier-answers.yml").write_text("_commit: v1.0.0\n", encoding="utf-8", newline="\n")
     st, _ = flow.advance(p, "migrate")
     assert st["stage"] == "raw-data" and "freeze" in flow.unmet(p, st)[0]
+    assert handle("pretool", write("lab.toml", p))[0] == 2  # 段階を過ぎたら規約ファイルに戻る
     from labkit.rawdata import freeze
 
     freeze(root=p, progress=lambda *_: None)

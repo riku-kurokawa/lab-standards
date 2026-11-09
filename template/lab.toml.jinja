@@ -1,6 +1,6 @@
 # ============================================================
 # lab.toml — このプロジェクトの規約の唯一の設定源
-#   labkit check / Claude Code の hooks がここを読む。変更は人間が行う（Claude は `labkit delegate lab_toml` の委任中だけ）。
+#   labkit check / Claude Code の hooks がここを読む。変更は人間が行う（エージェントは自分を縛る規約を変えない。hooks が止める）。
 #   ここに無いキーは labkit の既定値（labkit/config.py の DEFAULTS）。
 # ============================================================
 
@@ -70,9 +70,9 @@ allow_self_stop = false    # /loop を Claude が自分で止めること（Cron
 backlog = ""               # 例: "docs/backlog.md"。空で無効
 min_open = 0
 stall_beats = 3            # 判断と結果が（数字を除いて）同じで run の無い拍がこの回数続くと `labkit beat end` が記録を拒む。0 で無効
-
-[gate]
-# 承認ゲート: 保護ブランチへの push/merge・tag・gh release/merge・labkit raw freeze。feat ブランチへの push は自由
-enabled = true
-protected_branches = ["main", "master"]
-approval_ttl_hours = 24    # `labkit approve` が与える許可（同じ種類・同じブランチ）の有効時間
+# 主線と芽（docs/mainline.md・docs/seeds.md）。主線に open の項目があるあいだだけ働く
+main_share = 0.7           # 直近 main_window 拍のうち主線（--line main）の拍の下限。主線以外は floor((1-share)*window) 拍まで
+main_window = 10
+main_guard_hours = 12      # 期限切れか、期限までこの時間以内の open の主線があると、主線以外の拍は記録しない
+seed_every = 8             # この拍数のあいだに芽（labkit seed add）が 1 つも無いと拍を閉じられない。0 で無効
+fail_repeat = 3            # 同じ名前の run がこの回数続けて failed/interrupted で commit が進んでいなければ次を始めない。0 で無効

@@ -1,5 +1,39 @@
 # Changelog
 
+## v2.0.0 — 2026-11-10
+
+完全自律にし、**主線から絶対にずれず、しかし面白い芽を拾い続ける**ことと、**資源を必ずどれかの線に使う**ことを機械的な関門にした（ADR 0002）。
+nla-solver の 2 週間の運用で、目標の版の乗り換え（20 版）、期限のある成果物の放置、壊れた計算の無監視の反復（18 本）、待つ拍が、与えられた資源を成果物に変えなかった。
+
+### 削除（互換を壊す）
+- 承認ゲート（`[gate]`）と `labkit approve / reject / answer / delegate`、委任（`.lab/delegations.json`）、UserPromptSubmit の差分注入。push・merge・tag・release・raw freeze も Claude が行う。
+- migrate の flow から承認の段階を外した（inventory は CSV だけで進む）。
+
+### 変更
+- `labkit queue` は人間への一方通行の連絡（`ask` / `list` / `done`）。返事は待たない。v1.x の承認待ちは無視され、`queue done` で閉じられる。
+- hooks: data/raw への新しいファイルの搬入（上書きしない cp / mv）を許す。既存ファイルの変更・削除・持ち出しは引き続き止める。
+  lab.toml は migrate の apply-template・strict 段階のあいだだけ書ける。`docs/mainline.md`・`docs/seeds.md` の手書きを止める。
+- SessionStart: 完全自律の 1 行、主線と芽・資源の使い道、人間への連絡を注入する。
+
+### 追加（主線と芽・資源）
+- `labkit main set / add / done / status`（`docs/mainline.md`）: 主線の 1 文と項目（成果物・完了条件・期限・状態・根拠）。完了は `--evidence` 必須。
+- `labkit seed add / decide / list`（`docs/seeds.md`）: 芽（出どころ・最安の確かめ方・当たれば）。昇格は `--to promote --serves <主線の ID>` だけ。
+- `labkit beat end --line main|seed:Sxxx|other`: 主線に open の項目があるあいだ必須。主線の割合（`autonomy.main_share` 0.7・`main_window` 10）、
+  期限の守り（`main_guard_hours` 12）、芽の頻度（`seed_every` 8）を満たさない拍は記録しない。`beat start` が主線の残り時間・割合・芽・資源を出す。
+- `labkit.Run`: 主線に open の項目があるあいだ設定の `serves`（Mxxx / Sxxx / `other:<理由>`）が必須。meta.json に `serves`。
+  同じ名前の run が `fail_repeat`（既定 3）回続けて failed/interrupted で commit が進んでいなければ始まらない。
+- digest に「主線と芽」の節（項目・芽・直近 24 時間の run 時間を線ごと・状態ごと）。
+- check: L025（期限切れの open な主線の項目、警告）、L026（主線・芽の台帳の書式、error）。
+- 雛形: `docs/mainline.md`・`docs/seeds.md`、lab.toml の `[autonomy]` の新しいキー、CLAUDE.md の「完全自律」「主線と芽」、beat_v1.md の手順（芽を残す・`--line`）、例の設定の `serves`。
+
+### 移行
+1. `labkit standards unlink --to v2.0.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`、
+   雛形の差分は `labkit standards template --ref v2.0.0`。
+2. `lab.toml` の `[gate]` は消してよい（無視される）。`[autonomy]` に新しいキーを足すかは任意（既定値で動く）。
+3. 主線を置く: `labkit main set "<1 文>"`、`labkit main add "<成果物>" --done "<完了条件>" --due "YYYY-MM-DD HH:MM"`。置いた時点から関門が働く。
+4. 以後の run の設定に `serves = "M001"`（または `S00N`・`other:<理由>`）を書く。拍は `labkit beat end --line ...`。
+5. 開いている v1.x の承認待ちは `labkit queue list` で確かめ、`labkit queue done <ID>` で閉じる。
+
 ## v1.7.0 — 2026-11-09
 
 accelerated-diff-pat で、メモリ不足で実行環境が計算を止めるたびに、エージェントが「人間の再開の指示まで起動しない」と同じ拍を

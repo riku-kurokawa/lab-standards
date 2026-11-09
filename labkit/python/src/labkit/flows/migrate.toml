@@ -1,14 +1,13 @@
 # 手順のチェックリスト: 既存プロジェクトを lab-standards に移行する（skill: migrate-project）
 #   labkit flow start migrate → flow status → flow advance
-# 各段階の done 条件を advance が機械的に検査する。操作の禁止はしない（取り返しのつかない操作は承認ゲートが別に守る）。
-# approval = true の段階から進むには人間の承認（`labkit approve` か `labkit delegate flow`）が要る。
+# 各段階の done 条件を advance が機械的に検査する。操作の禁止はしない。
 
 name = "migrate"
 description = "既存プロジェクトを lab-standards の構造へ段階的に移行する"
 
 [[stage]]
 name = "freeze"
-description = "すべてを commit してタグ pre-migration を打ち（承認ゲート）、git 管理外のデータを `labkit mirror push --to <写し先> --paths <dir...>` で写しておく"
+description = "すべてを commit してタグ pre-migration を打ち、git 管理外のデータを `labkit mirror push --to <写し先> --paths <dir...>` で写しておく"
 done = [
   { type = "clean_tree" },
   { type = "git_tag", name = "pre-migration" },
@@ -17,8 +16,7 @@ done = [
 
 [[stage]]
 name = "inventory"
-description = "読み取りのみ。scratch/migration-inventory.csv（old_path, kind, new_path, size, note）を作り、人間の承認を待つ"
-approval = true
+description = "読み取りのみ。scratch/migration-inventory.csv（old_path, kind, new_path, size, note）を作る"
 done = [{ type = "csv", path = "scratch/migration-inventory.csv", columns = ["old_path", "kind", "new_path", "size", "note"] }]
 
 [[stage]]
@@ -32,7 +30,7 @@ done = [
 
 [[stage]]
 name = "raw-data"
-description = "棚卸し表の raw を data/raw/ へ移し、`labkit raw freeze` で台帳に登録する（承認ゲート）"
+description = "棚卸し表の raw を data/raw/ へ移し、`labkit raw freeze` で台帳に登録する"
 done = [{ type = "manifest" }]
 
 [[stage]]

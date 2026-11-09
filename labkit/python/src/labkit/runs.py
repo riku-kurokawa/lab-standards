@@ -178,6 +178,9 @@ class Run:
             )
         check_prediction(self.config.get("prediction"))
         check_pass(self.config.get("pass"))
+        from labkit.focus import check_run_start
+
+        serves = check_run_start(self.root, self.name, self.config, (self.git or {}).get("commit"))
         self._mkdir()
         self._t0 = time.time()
         # 入力の hash や環境の取得は遅い。その間に止められても meta.json の無い殻（L020）を残さないよう、
@@ -215,6 +218,7 @@ class Run:
             "git": self.git,
             "env": env_info(self.root),
             "seed": self.config.get("seed"),
+            "serves": serves or None,
             "prediction": self.config.get("prediction"),
             "slurm": slurm_info(),
             "command": [sys.executable, *sys.argv],

@@ -2,7 +2,8 @@
 
     prompts/current.toml      goal = "goal_v8.md"  beat = "beat_v3.md"  interval = "20m"（現行の版。人かエージェントが更新）
     labkit beat start         現行の goal / beat の本文と状態（終わった run・queue・主張）を出し、拍の開始を記録する
-    labkit beat end --predicted ... --observed ... --decided ...   拍の 3 行を記録し、開発ログの自動ブロックに写す
+    labkit beat end --predicted ... --observed ... --decided ... --line main|seed:Sxxx|other
+                              拍の 3 行と進めた線を記録し、開発ログの自動ブロックに写す（主線と芽の関門は focus.py）
     labkit beat log [--date]  その日の拍（人間が思考の流れを追う）
 
 記録は .lab/beats/YYYY-MM-DD.jsonl（git 管理）。時刻は機械が入れる（手書きの時刻はずれる）。
@@ -103,8 +104,9 @@ def status_lines(root: Path) -> list[str]:
     running = [m for m in list_runs(root) if m.get("status") == "running"]
     if running:
         lines.append("- 実行中: " + ", ".join(m["run_id"] for m in running[:5]))
-    lines += [f"- 回答あり #{it['id']}: {it.get('answer')}" for it in s["answered"]]
-    lines += [f"- 未回答 #{it['id']}: {it.get('question')}（仮: {it.get('assumed')}）" for it in s["open_questions"]]
+    lines += [
+        f"- 人間への連絡 #{it['id']}: {it.get('question')}（判断: {it.get('assumed')}）" for it in s["open_questions"]
+    ]
     claims = list_claims(root, "open")
     lines.append(f"- open な主張: {len(claims)} 件（`labkit claim list`）")
     return lines
@@ -169,6 +171,9 @@ def start(root: Path) -> str:
     if k >= 2:
         out.append(f"- **停滞: 同じ判断・結果の拍が {k} 回続いている。** {STALL_HELP}")
     out += status_lines(root)
+    from labkit.focus import status_lines as focus_lines
+
+    out += focus_lines(root)
     for k, p in parts:
         out += ["", f"## {k}: prompts/{p.name}", "", p.read_text(encoding="utf-8").rstrip()]
     return "\n".join(out)
@@ -182,6 +187,7 @@ def end(
     decided: str = "",
     runs: list[str] | None = None,
     stall_reason: str = "",
+    line: str = "",
 ) -> dict:
     if not decided.strip():
         raise ValueError("--decided（この拍の判断）は必須です。人間が読むのはこの 1 行")
@@ -189,8 +195,13 @@ def end(
     n = _open_beat(beats)
     if n is None:
         raise ValueError("閉じる拍がありません（`labkit beat start` で始めた拍だけ閉じられる。二重の end も不可）")
+    from labkit.focus import gate
+
+    gate(root, line)
     rec = {"event": "end", "beat": n, "time": now_iso(), "predicted": predicted, "observed": observed}
     rec.update(decided=decided, runs=runs or [])
+    if line:
+        rec["line"] = line
     limit = stall_limit(root)
     if limit and not runs and stalled_run([*beats, rec]) >= limit:
         if not stall_reason.strip():
@@ -214,7 +225,9 @@ def beats_block(root: Path, date: str) -> list[str]:
     for b in ends:
         t = b.get("time", "")[11:16]
         lines.append(
-            f"- 拍 {b.get('beat')}（{t}）予想: {b.get('predicted') or '—'} / 結果: {b.get('observed') or '—'} / 判断: {b.get('decided') or '—'}"
+            f"- 拍 {b.get('beat')}（{t}）"
+            + (f"[{b['line']}] " if b.get("line") else "")
+            + f"予想: {b.get('predicted') or '—'} / 結果: {b.get('observed') or '—'} / 判断: {b.get('decided') or '—'}"
             + (f" / **停滞**: {b['stall_reason']}" if b.get("stall_reason") else "")
         )
         if b.get("runs"):

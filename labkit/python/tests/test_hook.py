@@ -1,4 +1,4 @@
-"""hooks の判定（labkit hook）: 承認ゲート・委任・成果物の保護・レビュアー・終了時の検証."""
+"""hooks の判定（labkit hook）: 成果物の保護・レビュアー・終了時の検証（v2.0.0: 承認ゲートは無い）."""
 
 import json
 import subprocess
@@ -39,50 +39,36 @@ def test_outside_project_does_nothing(tmp_path):
     assert handle("pretool", bash("git push origin main", tmp_path)) == (0, "", "")
 
 
-def test_gate_queue_approve_and_delegate(git_project):
+def test_no_approval_gate(git_project):
+    """v2.0.0: 承認ゲートを廃止。push・merge・tag・release・raw freeze も止めない（完全自律）."""
     p = git_project
-    git(p, "switch", "-q", "-c", "feat/x")
-    assert handle("pretool", bash("git push -u origin feat/x", p)) == (0, "", "")  # feat ブランチは自由
-    code, out, err = handle("pretool", bash("git push origin main", p))
-    assert code == 2 and "承認待ち #Q001" in err
-    assert str(p) in err  # どのプロジェクトで承認・委任するかを示す（別リポジトリを操作するときに迷わない）
-    item = state.list_queue(p)[0]
-    assert item["category"] == "git_push" and item["session_id"] == "s1" and item["branch"] == "feat/x"
-    # 対話モードなら確認画面
-    assert decision(handle("pretool", bash("git push origin main", p, mode="default"))[1]) == "ask"
-    # 終了時: このセッションの承認待ちがあれば止めない
-    assert "承認待ち #Q001" in json.loads(handle("stop", {"cwd": str(p), "session_id": "s1"})[1])["systemMessage"]
-    # 承認 = そのカテゴリ・そのブランチの委任。commit しても有効で、期限内は何度でも通る
-    state.approve(p, "Q001", ttl_hours=1)
-    (p / "scripts" / "a.py").write_text("x = 1\n", encoding="utf-8", newline="\n")
-    git(p, "add", "-A")
-    git(p, "commit", "-q", "-m", "more")
-    for _ in range(2):
-        code, out, _ = handle("pretool", bash("git push origin main", p))
-        assert code == 0 and decision(out) == "allow"
-    git(p, "switch", "-q", "main")
-    assert handle("pretool", bash("git push origin main", p))[0] == 2  # 別のブランチには効かない
-    assert "承認済み #Q001" in handle("session", {"cwd": str(p)})[1]
-    state.reject(p, "Q001", "やめる")
-    assert "却下 #Q001" in json.loads(handle("prompt", {"cwd": str(p)})[1])["hookSpecificOutput"]["additionalContext"]
-    state.add_delegation(p, ["release"], hours=1)
-    assert decision(handle("pretool", bash("git tag v1 && git push --tags", p))[1]) == "allow"
+    for cmd in (
+        "git push origin main",
+        "git push --force origin main",
+        "git tag v1 && git push --tags",
+        "git merge --ff-only feat/x",
+        "gh pr merge 3",
+        "gh release create v1",
+        "uv run labkit raw freeze",
+    ):
+        assert handle("pretool", bash(cmd, p)) == (0, "", ""), cmd
+    assert not state.list_queue(p)  # 承認待ちは積まれない
+    assert handle("prompt", {"cwd": str(p)}) == (0, "", "")  # UserPromptSubmit は何もしない
+    assert "完全自律" in handle("session", {"cwd": str(p)})[1]
 
 
-def test_forbidden_and_state_protection(git_project):
+def test_state_protection(git_project):
     p = git_project
-    assert handle("pretool", bash("uv run labkit approve Q001", p))[0] == 2
-    assert "人間だけ" in handle("pretool", bash("labkit delegate release", p))[2]
     assert handle("pretool", bash("echo x > .lab/queue/Q009.json", p))[0] == 2
-    assert handle("pretool", write(".lab/delegations.json", p))[0] == 2
-    assert handle("pretool", bash("labkit delegate list", p)) == (0, "", "")
+    assert handle("pretool", write(".lab/flows/x.json", p))[0] == 2
+    assert handle("pretool", bash("uv run labkit queue list", p)) == (0, "", "")
 
 
 def test_artifact_protection(git_project):
     p = git_project
     for cmd in (
         "rm data/raw/x.bin",
-        "cp a.h5 data/raw/",
+        "mv data/raw/x.bin elsewhere/",
         "git clean -fdx",
         "rm -rf runs/2026",
         "echo 1 > lab.toml",
@@ -99,10 +85,13 @@ def test_artifact_protection(git_project):
         "elsewhere/x.py",
     ):
         assert handle("pretool", write(path, p))[0] == 2, path
-    state.add_delegation(p, ["raw_write"], hours=1)
-    assert decision(handle("pretool", bash("mv ~/dl/x.bin data/raw/", p))[1]) == "allow"
-    assert handle("pretool", bash("rm data/raw/x.bin", p))[0] == 2  # 削除は委任しても拒否
-    assert handle("pretool", write("data/raw/x.bin", p))[0] == 0
+    # 新しい生データの搬入はできる（上書きしない）。既存のファイルへの上書きは止める
+    assert handle("pretool", bash("mv ~/dl/x.bin data/raw/", p)) == (0, "", "")
+    assert handle("pretool", bash("cp a.h5 b.h5 data/raw/", p)) == (0, "", "")
+    (p / "data" / "raw").mkdir(parents=True, exist_ok=True)
+    (p / "data" / "raw" / "x.bin").write_bytes(b"1")
+    assert handle("pretool", bash("cp ~/dl/x.bin data/raw/", p))[0] == 2
+    assert handle("pretool", bash("cp new.bin data/raw/x.bin", p))[0] == 2
     assert handle("pretool", write("src/a.py", p))[0] == 0
     assert handle("pretool", write(".claude/commands/goal.md", p))[0] == 0  # 複数段の writable（既定）
     assert handle("pretool", write(".claude/settings.json", p))[0] == 2  # 同じ親でも settings は書けない
@@ -165,7 +154,7 @@ def test_standards_repo_scope(tmp_path, monkeypatch):
     (tmp_path / "copier.yml").write_text("", encoding="utf-8")
     (tmp_path / "labkit" / "python").mkdir(parents=True)
     git(tmp_path, "init", "-q", "-b", "main")
-    assert handle("pretool", bash("git push origin main", tmp_path))[0] == 2  # ゲートは効く
+    assert handle("pretool", bash("git push origin main", tmp_path)) == (0, "", "")  # 承認ゲートは無い
     assert handle("pretool", write("data/raw/x", tmp_path))[0] == 0  # プロジェクト規約は適用しない
     assert handle("stop", {"cwd": str(tmp_path)}) == (0, "", "")
     assert "本体" in handle("session", {"cwd": str(tmp_path)})[1]
@@ -179,12 +168,12 @@ def test_plugin_entry_script(git_project, tmp_path):
     script = Path(__file__).resolve().parents[3] / "claude-plugin" / "scripts" / "hook.py"
     r = subprocess.run(
         [sys.executable, str(script), "pretool"],
-        input=json.dumps(bash("labkit approve Q1", git_project)),
+        input=json.dumps(bash("echo x > .lab/queue/Q1.json", git_project)),
         capture_output=True,
         text=True,
         encoding="utf-8",
     )
-    assert r.returncode == 2 and "人間だけ" in r.stderr
+    assert r.returncode == 2 and ".lab/" in r.stderr
     r = subprocess.run(
         [sys.executable, str(script), "session"],
         input=json.dumps({"cwd": str(git_project)}),
@@ -192,7 +181,7 @@ def test_plugin_entry_script(git_project, tmp_path):
         text=True,
         encoding="utf-8",
     )
-    assert r.returncode == 0 and "承認ゲート" in r.stdout
+    assert r.returncode == 0 and "完全自律" in r.stdout
     other = tmp_path.parent / f"{tmp_path.name}-other"
     other.mkdir()
     r = subprocess.run(
@@ -249,21 +238,6 @@ def test_stop_requires_backlog_when_autonomy_is_set(git_project):
     assert handle("stop", {"cwd": str(p), "session_id": "s7"})[0] == 2
     (p / "docs" / "backlog.md").write_text("- [ ] a\n- [ ] b\n", encoding="utf-8", newline="\n")
     assert handle("stop", {"cwd": str(p), "session_id": "s7"}) == (0, "", "")
-
-
-def test_approve_legacy_item_without_category(git_project):
-    """v0.x が積んだ承認待ち（category が無い）も承認できる（KeyError で落ちていた）."""
-    p = git_project
-    it = state.request(p, "git_push", "git status; git push origin main 2>&1 | tail -3", cwd=p, reason="push")
-    del it["category"]
-    state.save_item(p, it)
-    d = state.approve(p, it["id"], ttl_hours=1)
-    assert d["categories"] == ["git_push"] and state.get_item(p, it["id"])["category"] == "git_push"
-    it2 = state.request(p, "git_push", "echo nothing", cwd=p, reason="x")
-    del it2["category"]
-    state.save_item(p, it2)
-    with pytest.raises(ValueError, match="判定できません"):
-        state.approve(p, it2["id"], ttl_hours=1)
 
 
 def test_archive_allowed_and_reviewer_read_commands(git_project):

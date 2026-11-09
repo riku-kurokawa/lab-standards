@@ -1,31 +1,16 @@
-"""Bash コマンドの分類: 承認ゲートの対象、Claude が実行してはいけない操作、lab-reviewer に許す読み取り.
+"""Bash コマンドの分類: lab-reviewer（レビュー agent）に許す読み取り専用コマンドの判定.
 
-shlex でトークン化し、`command git push`、`git -c x=y -C dir push`、`uv run labkit raw freeze`、連結コマンドを見る。
+shlex でトークン化し、`command git log`、`git -c x=y -C dir diff`、`uv run labkit check`、連結コマンドを見る。
 限界: `sh -c "..."`、スクリプト経由、エイリアスは見えない（hooks は security boundary ではない）。
-最後の砦は GitHub 側のブランチ保護（docs/harness.md）。
+v2.0.0 で承認ゲート（GATED・classify・FORBIDDEN）を廃止した。
 """
 
 from __future__ import annotations
 
 import re
 import shlex
-from dataclasses import dataclass
-
-# 承認ゲートの対象 = 取り返しのつかない、または共有先を変える操作だけ。feat ブランチへの push は自由
-GATED = {
-    "git_push": "保護ブランチへの push（または force / 削除 / --all / --tags）",
-    "git_tag": "git tag の作成・削除",
-    "git_merge": "保護ブランチへの merge",
-    "gh_merge": "gh pr merge",
-    "gh_release": "gh release の作成・変更",
-    "raw_freeze": "labkit raw freeze（生データの確定）",
-}
-FORBIDDEN = "labkit approve / reject / answer / delegate（承認・回答・委任は人間だけ）"
 
 GIT_GLOBAL_WITH_ARG = {"-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
-PUSH_WITH_ARG = {"--repo", "--receive-pack", "--exec", "-o", "--push-option", "--recurse-submodules", "--signed"}
-TAG_LIST = {"-l", "--list", "-n", "--contains", "--no-contains", "--points-at", "--merged", "--no-merged", "--sort"}
-TAG_WRITE = {"-d", "--delete", "-a", "-s", "-u", "-f", "--force", "-m", "-F", "--annotate", "--sign"}
 UV_RUN_WITH_ARG = {
     "--project",
     "-p",
@@ -64,17 +49,6 @@ WRAPPERS = (
     "do",
     "else",
 )
-
-
-@dataclass
-class Hit:
-    category: str
-    segment: str
-    detail: str = ""
-
-    @property
-    def description(self) -> str:
-        return GATED.get(self.category, FORBIDDEN)
 
 
 def segments(command: str) -> list[str]:
@@ -141,75 +115,6 @@ def labkit_args(toks: list[str]) -> list[str] | None:
     return None
 
 
-def _push_targets(args: list[str]) -> tuple[list[str], bool]:
-    """(push 先ブランチ名の一覧, 危険フラグ)。危険 = force / delete / --all / --mirror / --tags."""
-    danger = False
-    positional: list[str] = []
-    i = 0
-    while i < len(args):
-        a = args[i]
-        if a in PUSH_WITH_ARG:
-            i += 2
-            continue
-        if a.startswith("-"):
-            if a in ("-f", "--force", "-d", "--delete", "--all", "--mirror", "--tags", "--prune") or a.startswith(
-                "--force"
-            ):
-                danger = True
-        else:
-            positional.append(a)
-        i += 1
-    targets = []
-    for spec in positional[1:]:  # positional[0] はリモート
-        src, _, dst = spec.lstrip("+").rpartition(":")
-        if ":" in spec and not src:
-            danger = True  # `:branch` はリモートブランチの削除
-        targets.append(dst.removeprefix("refs/heads/"))
-    if positional and len(positional) == 1 and "--delete" in args:
-        danger = True
-    return targets, danger
-
-
-def classify_segment(seg: str, protected: list[str], current_branch: str | None) -> list[Hit]:
-    toks = tokens(seg)
-    if not toks:
-        return []
-    b = _basename(toks[0])
-    if b == "git":
-        sub, args = _git_subcommand(toks)
-        if sub == "push":
-            targets, danger = _push_targets(args)
-            if not targets:
-                targets = [current_branch or "?"]
-            if danger or any(t in protected or t == "?" for t in targets):
-                return [Hit("git_push", seg, " ".join(args))]
-        elif sub == "tag":
-            positional = [a for a in args if not a.startswith("-")]
-            listing = any(a in TAG_LIST or a.startswith(("--sort", "--format", "--contains", "-l", "-n")) for a in args)
-            if any(a in TAG_WRITE for a in args) or (positional and not listing):
-                return [Hit("git_tag", seg, " ".join(args))]
-        elif sub == "merge" and (current_branch is None or current_branch in protected):
-            return [Hit("git_merge", seg, f"branch={current_branch or '?'}")]
-        return []
-    if b == "gh":
-        if toks[1:3] == ["pr", "merge"]:
-            return [Hit("gh_merge", seg)]
-        if toks[1:2] == ["release"] and (toks[2:3] or [""])[0] not in ("list", "view", "download", ""):
-            return [Hit("gh_release", seg, toks[2])]
-        return []
-    la = labkit_args(toks)
-    if la is not None:
-        if la[:2] == ["raw", "freeze"]:
-            return [Hit("raw_freeze", seg)]
-        if la[:1] in (["approve"], ["reject"], ["answer"]) or (la[:1] == ["delegate"] and la[1:2] != ["list"]):
-            return [Hit("forbidden", seg, la[0])]
-    return []
-
-
-def classify(command: str, protected: list[str], current_branch: str | None) -> list[Hit]:
-    return [h for seg in segments(command) for h in classify_segment(seg, protected, current_branch)]
-
-
 # ---- lab-reviewer（レビュー agent）に許す読み取り専用コマンド（許可リスト。載っていないものは拒否） ----
 REVIEWER_ALLOWED = {
     "cat",
@@ -253,7 +158,6 @@ LABKIT_READ = {
     ("paths",),
     ("fig", "list"),
     ("queue", "list"),
-    ("delegate", "list"),
     ("flow", "status"),
     ("standards", "status"),
     ("beat", "log"),

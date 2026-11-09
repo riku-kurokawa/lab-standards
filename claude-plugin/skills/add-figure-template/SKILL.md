@@ -13,15 +13,15 @@ description: 既存の図テンプレート（labkit fig list）で表現でき�
 - `[options]`（xlim, ylim, logx, logy, grid, legend, aspect）や `[data]` の組合せ、事前に集計したデータの保存で済まないか。
 - 複数パネルは `panels`、平均±帯は `band`、数値 x の比較は `errorbar` の `xmode = "numeric"` で描ける。
 
-## 2. 人間に提案する
+## 2. 案を書く
 
-次を提示して承認を待つ（待つ間は他の作業を続ける）:
+次を本体の issue か CHANGELOG の案に書く（承認は待たない。既存テンプレートで足りない理由を言えないなら作らない）:
 - テンプレート名（snake_case）と用途
 - 必須の `[data]` キーと任意キー、入力データの形式（HDF5 の配列名 / Parquet の列）
 - figspec の例
 - 既存テンプレートでは足りない理由
 
-## 3. 承認後、lab-standards 側で実装する（skill: improve-standards）
+## 3. lab-standards 側で実装する（skill: improve-standards）
 
 - `@template(name, required_data, description, example)` で登録し、`(spec, ctx, ax) -> None` で渡された軸に描く。
 - 共通ヘルパ `_labels`, `_options`, `_legend`, `_get`, `_col` を使い、スタイル（`style.py`）を上書きしない。

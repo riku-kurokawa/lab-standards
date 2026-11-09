@@ -113,18 +113,18 @@ def test_hooks_protect_beats_claims_and_digest(git_project):
     assert handle("pretool", write("docs/DIGEST.md", p))[0] == 2
     assert handle("pretool", bash("uv run labkit claim add 'x' --evidence a:b", p)) == (0, "", "")
     assert handle("pretool", bash("cat docs/claims.md", p)) == (0, "", "")
-    # 古い承認待ち（category が無い）があっても SessionStart は落ちない
+    # v1.x の承認待ちが残っていても SessionStart は落ちず、もう扱わない（完全自律）
     from labkit import state
 
     state.save_item(p, {"id": "Q001", "kind": "approval", "status": "approved", "command": "x", "delegation": "D001"})
     code, out, _ = handle("session", {"cwd": str(p)})
-    assert code == 0 and "承認済み #Q001" in out
+    assert code == 0 and "Q001" not in out and "完全自律" in out
 
 
 def test_session_survives_broken_current_toml(git_project):
     put(git_project / "prompts" / "current.toml", "goal = \n")
     code, out, _ = handle("session", {"cwd": str(git_project)})
-    assert code == 0 and "current.toml" in out and "承認ゲート" in out
+    assert code == 0 and "current.toml" in out and "完全自律" in out
 
 
 def test_claim_add_rejects_bad_evidence_and_parses_positionally(git_project):

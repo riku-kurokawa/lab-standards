@@ -1,6 +1,7 @@
 extends = "../base.toml"
 name = "example-lowpass"
 entry = "{{ package_name }}.experiments.example:run"   # 実行: uv run labkit run configs/experiments/example.toml [key=value ...]
+# serves = "M001"   # どの線のための計算か（主線 Mxxx・芽 Sxxx・other:<理由>）。docs/mainline.md に open の項目があると必須
 
 [signal]
 noise_std = 0.8

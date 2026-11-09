@@ -1,6 +1,6 @@
 ---
 name: autonomous-run
-description: lab.toml のあるプロジェクトで、Claude を何時間〜何日も自走させて研究を進めるとき（/goal・/loop・長い計算の待ち）の手順。目標の置き方（prompts/current.toml）、1 拍の回し方（labkit beat）、予想の関門、ぶっちゃけ点検と採点、主張の台帳と撤回、人間の入口。
+description: lab.toml のあるプロジェクトで、Claude を何時間〜何日も自走させて研究を進めるとき（/goal・/loop・長い計算の待ち）の手順。目標の置き方（prompts/current.toml）、1 拍の回し方（labkit beat）、主線と芽（主線から絶対にずれず芽を拾い続ける関門）と資源の紐付け、予想の関門、ぶっちゃけ点検と採点、主張の台帳と撤回、人間の入口。
 ---
 
 # 長い自律運用
@@ -14,6 +14,9 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 - **活動量に最適化する**: commit 数・行数・サーベイ本数のノルマを与えると、手は増えるが考えは増えない。
 - **安全な回り道**: 主線を問い直さず、確かめやすい小さな一歩を積み続ける。当然の結論を避ける。
 - **人間が読めない**: 600 行の devlog と state の積層。人間のレビュー時間がボトルネックになり、判断が止まる。
+- **主線からずれる**: 新しさを追って目標の版を何度も替え、期限のある成果物が空欄のまま残る。
+- **ずれないだけになる**: 主線だけを機械的に回し、外れた予想や妙な数字を拾わない。発見が生まれない。
+- **資源を捨てる**: 壊れた計算を監視なしで何十本も回す。どの線のための計算か分からない run が積み上がる。
 
 ## 置き方（4 つのファイル + current.toml）
 | 何 | どこ | 役割 |
@@ -32,9 +35,24 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 - 間隔は、1 拍に新しい結果が 1 つ以上届く長さ（計算 1 本の所要時間の 1.5 倍程度）。短すぎると状態を取るだけで拍が終わる。
 - 規則（予想の関門など）は CLAUDE.md に置く。ループを止めるのは人間だけ（`claude.allow_self_stop = false` の既定では hooks が CronDelete・ScheduleWakeup の stop を拒否する）。CLAUDE.md は要約の後も読まれる。
 
+## 主線と芽（主線から絶対にずれず、しかし芽を拾い続ける）
+研究者が普段やっているマルチタスク（主線を追いながら、面白い創発の芽を常に考える）を台帳と関門で強制する。
+
+| 何 | 仕組み（機械が止める） |
+|---|---|
+| 主線 | `docs/mainline.md`: 1 文（`labkit main set`）と項目（成果物・完了条件・期限。`main add`）。完了は根拠つき（`main done --evidence`） |
+| 主線から絶対にずれない | 拍ごとに `beat end --line main\|seed:Sxxx\|other`。直近 `main_window` 拍で主線以外が `(1-main_share)` を超える拍、期限まで `main_guard_hours` 以内（または期限切れ）の項目があるのに主線以外を進めた拍は記録されない |
+| 芽を拾い続ける | `docs/seeds.md`: `labkit seed add "<芽>" --from --test --value`。`seed_every` 拍のあいだ芽が 1 つも無いと拍を閉じられない |
+| 芽を育てる | 芽は主線以外の枠で、最安の方法で確かめる（`--line seed:S00N`、run は `serves = "S00N"`）。主線のどの項目に効くかを言えたら `seed decide --to promote --serves M00N`。言えなければ park か drop（理由つき） |
+| 資源の紐付け | 主線に open の項目があるあいだ、run の設定に `serves` が無いと始まらない。`beat start`・digest が直近 24 時間の run 時間を線ごと・状態ごとに出す |
+| 壊れた計算を回し続けない | 同じ名前の run が `fail_repeat` 回続けて failed/interrupted で commit が進んでいなければ、次は始まらない。原因を直して commit してから |
+
+芽の良い出どころ: 予想の miss / partial、桁の合わない数字、2 つの手法で順位が入れ替わる条件、文献と食い違う点、「なぜこれが効くのか説明できない」もの。
+芽の悪い出どころ: 主線が詰まったときの逃げ道、確かめ方が書けない思いつき、当たっても主線にも論文にも何も変えないもの。
+
 ## 1 拍の回し方（skill: beat）
-`labkit beat start`（現行の goal・beat の本文と状態が出る）→ beat ファイルの 5 手 → `labkit beat end --predicted --observed --decided [--runs]`。
-5 手の正本は beat ファイルで、ここには書かない。拍の 3 行は `beat end` が `.lab/beats/` と開発ログの自動ブロックに写す（手で devlog に書き直さない）。
+`labkit beat start`（現行の goal・beat の本文と状態が出る）→ beat ファイルの手順 → `labkit beat end --line --predicted --observed --decided [--runs]`。
+手順の正本は beat ファイルで、ここには書かない。拍の 3 行は `beat end` が `.lab/beats/` と開発ログの自動ブロックに写す（手で devlog に書き直さない）。
 
 ## 予想の関門
 - run の前に、桁の見積もり・既知の理論・既存の結果から結果を数値で予想し、設定の `[prediction]`（`basis`、`confidence`、`expert_predictable`、`[[prediction.claims]]` の key と range か point+tol）に書く。
@@ -59,8 +77,9 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 failed/interrupted の run は `labkit runs archive --status failed,interrupted` で視界から消す。DIGEST に載る図には figspec の `labels.title` と `description` を書く。
 
 ## compact の後に戻るもの
-SessionStart が goal/beat の現行の版、最後の拍の判断、目標ファイルの最初の節（原文）、承認待ち・委任・flow を再注入する。CLAUDE.md と skill は読み直される。
+SessionStart が goal/beat の現行の版、最後の拍の判断、目標ファイルの最初の節（原文）、主線と芽・資源の使い道・人間への連絡・flow を再注入する。CLAUDE.md と skill は読み直される。
 戻らないのは会話の途中の推論なので、判断は state.md と `beat end` の 3 行に残す。
 
 ## 範囲を縮める判断
-目標の範囲を縮める・主線を変える判断は `labkit queue ask` に積み、仮の判断では範囲を保つ。決めるのは人間。
+目標の範囲を縮める・主線を変える判断は自分で行わない: 主線の項目は done（根拠つき）にするまで残る。範囲の変更案は `labkit queue ask` で知らせ、
+その間も今の主線を進める。目標ファイルの版を替えても主線の台帳は変わらない（新しさのために主線を替えない）。

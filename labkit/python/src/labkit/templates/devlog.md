@@ -19,4 +19,4 @@ tags: []
 
 ## 未解決・次の作業
 
-<!-- 承認待ち・質問の ID（labkit queue list）もここに -->
+<!-- 人間への連絡の ID（labkit queue list）もここに -->

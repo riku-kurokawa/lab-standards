@@ -1,6 +1,6 @@
 ---
 name: lab-conventions
-description: lab.toml があるプロジェクトで、ファイルを作る・置く・保存する前に参照する規約の全体像（置き場所、保存形式、run と labkit run の entry、図、文書、主張の台帳、人間の入口、禁止事項、承認ゲート）。どこに何を書くか迷ったときに使う。
+description: lab.toml があるプロジェクトで、ファイルを作る・置く・保存する前に参照する規約の全体像（置き場所、保存形式、run と labkit run の entry、図、文書、主張の台帳、人間の入口、禁止事項、完全自律と主線・芽）。どこに何を書くか迷ったときに使う。
 ---
 
 # lab-standards の規約
@@ -51,19 +51,24 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 
 ## 禁止事項（hooks がブロックする）
 
-- `data/raw/`・`runs/`・`lab.toml`・`.lab/` の直接編集。data/ へのファイルの手書き。
+- `data/raw/` の既存ファイル・`runs/`・`lab.toml`・`.lab/`・台帳（`docs/claims.md`・`mainline.md`・`seeds.md`）の直接編集。data/ へのファイルの手書き。
 - 描画ライブラリ（matplotlib など）の直接 import。pickle / joblib などの保存形式。
 - `layout.writable` 以外への書き込み。新しい置き場所が必要なら、作らずに人間に提案する。
 
-## 人間が不在でも止まらない（承認ゲートとキュー）
+## 完全自律（承認を待つ操作は無い）
 
-- 承認ゲートの対象は、保護ブランチへの push/merge・`git tag`・`gh release`・`gh pr merge`・`labkit raw freeze` だけ。feat ブランチへの push は自由。
-  対象の操作は拒否され、承認待ち `.lab/queue/<ID>` に記録される。その操作に依存しない作業を続け、終了時に ID を報告する。
-  人間の `labkit approve <ID>` はその種類の操作をそのブランチで 24 時間許可する（commit しても無効にならない。同じ種類なら何度でも通る）。
-- 判断が分かれる問いは `labkit queue ask "<質問>" --options A B --assumed "<仮の判断と理由>" --impact "<変更時の影響>"` に積み、仮の判断で進む。
-- 人間の答え・承認・実機の作業を待つことは止まる理由にならない。人間なしで同じ問いに答える方法（計算・公開データ・独立実装）に置き換えるか、依存しない作業を進める。`/loop` を止めるのは人間だけ（hooks が CronDelete・ScheduleWakeup の stop を拒否する。`claude.allow_self_stop`）。
-- 人間が `labkit delegate <カテゴリ> --hours N` で委任した種類の操作（`labkit delegate list`）は、承認を待たずに実行してよい。
-- `labkit approve / reject / answer / delegate` は人間専用。レビュー記録 `docs/reviews/` は lab-reviewer agent だけが書く。
+- push・merge・tag・release・`labkit raw freeze` も自分で行う。守るのは成果物（hooks）と検証（`labkit check`・レビュー）。
+- 判断が分かれる問いは自分で決めて根拠を残し、`labkit queue ask "<質問>" --options A B --assumed "<決めたことと理由>" --impact "<変更時の影響>"` で知らせて進む。返事は待たない。
+- 人間の答え・実機の作業を待つことは止まる理由にならない。人間なしで同じ問いに答える方法（計算・公開データ・独立実装）に置き換えるか、依存しない作業を進める。`/loop` を止めるのは人間だけ（hooks が CronDelete・ScheduleWakeup の stop を拒否する。`claude.allow_self_stop`）。
+- レビュー記録 `docs/reviews/` は lab-reviewer agent だけが書く。
+
+## 主線と芽（主線から絶対にずれず、芽を拾い続ける）
+
+- 期限のある約束は主線の項目にする: `labkit main add "<成果物>" --done "<完了条件>" --due "YYYY-MM-DD HH:MM"`。完了は `labkit main done M00N --evidence <run|path|commit>`。
+- 拍は `labkit beat end --line main|seed:Sxxx|other`。主線の割合（`autonomy.main_share`）を割る拍、期限が近い（`main_guard_hours`）のに主線以外の拍は記録されない。
+- 主線の作業中の外れた予想・妙な数字は `labkit seed add "<芽>" --from <run|file> --test "<最安の確かめ方>" --value "<当たれば>"`。`seed_every` 拍芽が無いと拍を閉じられない。
+  主線に入れるのは `labkit seed decide S00N --to promote --serves M00N`（どの項目に効くかを言えるときだけ）。
+- run の設定に `serves = "M001" | "S003" | "other:<理由>"`（主線に open の項目があると必須）。同じ run が `fail_repeat` 回続けて失敗し commit が進んでいなければ次は始まらない。
 
 ## 完了条件
 

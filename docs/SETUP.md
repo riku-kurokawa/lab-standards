@@ -51,19 +51,18 @@ gh api -X POST repos/<owner>/<repo>/rulesets --input - <<'JSON'
 JSON
 ```
 
-## 4. 承認ゲートの使い方
+## 4. 人間がすること（完全自律）
 
-Claude が保護ブランチへの push/merge・`git tag`・`gh release`・`gh pr merge`・`labkit raw freeze` を実行しようとすると hooks が止め、承認待ちとして `.lab/queue/` に記録する。戻ったら:
+Claude は承認を待たない（v2.0.0 で承認・却下・回答・委任を廃止）。人間がするのは、目標と主線を渡し、短い生成物を読むことだけ:
 
 ```bash
-uv run labkit queue list              # 承認待ち・質問・却下の一覧
-uv run labkit approve Q001            # その種類の操作をそのブランチで 24 時間許可（commit しても有効）
-uv run labkit reject Q001 --note "理由"
-uv run labkit answer Q002 "lz4 で"     # 質問への回答（Claude は次の入力で受け取る）
-uv run labkit delegate release --hours 8   # 先に宣言しておく（release = push/tag/merge/gh）
+uv run labkit main set "<主線を 1 文で>"                                   # Claude に頼んでもよい
+uv run labkit main add "<成果物>" --done "<完了条件>" --due "YYYY-MM-DD HH:MM"
+uv run labkit digest && less docs/DIGEST.md                                # 1 日 1 回
+uv run labkit queue list                                                   # Claude からの連絡（決めたことと理由）
 ```
 
-対話中（permission mode が default）なら拒否ではなく通常の確認画面になる。
+連絡への返事は会話か目標ファイル（`prompts/`）で伝える。規約（`lab.toml`）を変えるのは人間。
 
 ## 5. 正本の写し
 

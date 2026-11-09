@@ -21,9 +21,8 @@ description: プロジェクトで作業中に、lab-standards 本体（雛形�
    雛形を変えたら使い捨ての場所に `copier copy --vcs-ref HEAD` で生成して確認する。
 4. 本体で `make test`（版の整合 + lint + テスト + 雛形の生成）。
 5. **Agent ツールで lab-reviewer を起動**し、本体の差分のレビュー記録をこのプロジェクトの `docs/reviews/`（`labkit review template adhoc standards`）に書かせる。pass まで直す。
-6. 本体の `CHANGELOG.md` に `## vX.Y.Z` の節を書き、`python tools/release.py X.Y.Z`、commit。feat ブランチの push は自由。
-   `git switch main && git merge --ff-only feat/<名前>`、`git tag vX.Y.Z`、`git push origin main --tags` は承認ゲートの対象
-   （人間が `labkit approve` か `labkit delegate release`）。
+6. 本体の `CHANGELOG.md` に `## vX.Y.Z` の節を書き、`python tools/release.py X.Y.Z`、commit。
+   `git switch main && git merge --ff-only feat/<名前>`、`git tag vX.Y.Z`、`git push origin main --tags`（完全自律。レビューが pass してから）。
 7. このプロジェクトで `uv run labkit standards unlink --to vX.Y.Z` → commit → `uv run labkit standards template --ref vX.Y.Z`（衝突を解消）→ `make check` → commit。
 8. 開発ログに「lab-standards vX.Y.Z に更新（変更点・理由）」。他の PC では `/plugin marketplace update lab-standards` が必要と伝える。
 

@@ -1,5 +1,5 @@
 {
-  "description": "lab-standards: lab.toml のあるプロジェクトで承認ゲート・成果物の保護・終了時の検証を行う（判定は labkit hook）。それ以外では何もしない",
+  "description": "lab-standards: lab.toml のあるプロジェクトで成果物と台帳の保護・終了時の検証・主線と芽の状態の注入を行う（判定は labkit hook）。それ以外では何もしない",
   "hooks": {
     "SessionStart": [
       {
