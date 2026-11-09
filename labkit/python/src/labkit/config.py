@@ -90,12 +90,16 @@ DEFAULTS: dict = {
         "skip": [],
         # 引用（run ID・`値 [run:<id>:<key>]`）を照合する文書（ルート基準の glob）。自動ブロックと DIGEST は除く
         "claim_docs": ["docs/**/*.md", "literature/surveys/*.md"],
+        # 退避済み（labkit runs archive）の run の数値の引用 `値 [run:<id>:<key>]`: "error" | "warn"（ID だけの言及は警告）
+        "archived_citation": "error",
         "dirty_citation": "warn",  # dirty な run を結果として引用したとき: "warn" | "error" | "off"（claims.md は常に error）
         # L018: src・scripts のファイルの行数（空行を除く）の上限。人間が一度に読める大きさ。0 で無効
         "max_file_lines": 300,
         "long_file": "warn",
         "max_lines_allowed": [],
     },
+    # 比較は 1 軸だけを変える（compare.py）: required は全比較で腕が明示すべき条件、keys は比較の指標（引用は matched な run だけ。L027）
+    "compare": {"required": [], "keys": []},
     # L037: 状態ファイルは「今」だけを持つ（H1 は 1 つ、同じ H2 は 1 回、max_lines 以内）。履歴は git
     "state": {"file": "docs/state.md", "max_lines": 150},
     "devlog": {

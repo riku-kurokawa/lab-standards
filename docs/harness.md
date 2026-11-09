@@ -36,7 +36,8 @@ Stop hook が毎回見るのはこれだけ（体裁の検査は pre-commit と 
 | dirty の引用 | 未コミットの差分で実行した run を結果として引用すると `[check] dirty_citation`（既定 warn）。`[runs] require_clean = true` なら dirty では run を始めない（雛形は true） |
 | 主張の台帳 | `docs/claims.md` の各行の書式、撤回の理由、open な主張の根拠（L036。根拠の run が無い・failed・dirty・退避済みなら違反）。台帳は `labkit claim` だけが書く |
 | 予想の判定 | `[prediction]` の表（basis・claims の key と range/point+tol）は finished 時に metrics と照合され `prediction_result`（hit/miss/partial/undeterminable）が meta.json に残る。自由記述の予想は `labkit runs verdict --say`（self_reported）。判定の無い run は警告（L024） |
-| 退避 | `labkit runs archive` は削除せず meta.json に `archived` を書く。`runs list`・DIGEST・`runs table` から隠れ、引用すると警告（L032）。`--undo` で戻る |
+| 退避 | `labkit runs archive` は削除せず meta.json に `archived` を書く。`runs list`・DIGEST・`runs table` から隠れ、ID の言及は警告・数値の引用は error（L032、`check.archived_citation`）。名指しは `runs archive <id> ... --reason`。`--undo` で戻る |
+| 比較の条件 | `run.compare(arms, ...)`（`labkit.compare`）が腕の条件を vary 以外で照合し `comparison.json` を書く。合わなければ run は failed。比較の指標の引用・`claim add` は matched の run だけ（L027） |
 
 ## 2. 主線と芽（完全自律の中で、主線から絶対にずれず、芽を拾い続ける）
 

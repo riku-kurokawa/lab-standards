@@ -1,5 +1,38 @@
 # Changelog
 
+## v2.1.0 — 2026-11-10
+
+accelerated-diff-pat で、腕のあいだで条件（駆動の自由度・与える入力・正規化など）がそろっていない比較が「同条件」と文章で書かれたまま
+主張の根拠になり、ADR の監査で 10 件の主張を撤回した。比較の公平性を文章ではなく機械の関門にする（**ceteris paribus**: 比較が成り立つのは、
+宣言した軸以外の条件がすべての腕で同一で、それを機械が確かめたときだけ）。条件のそろっていなかった run は、消さずに根拠から外す。
+
+### 追加
+- `labkit.compare`: `Arm(name, conditions, not_applicable="")`、`declare(run_or_dir, arms, vary=None, comparator_sweep=None, *, keys=None, rel_tol=0.0)`、
+  `run.compare(arms, vary=None, keys=None, comparator_sweep=None, rel_tol=0.0)`。腕の条件の鍵の集合が同じで、vary 以外の値が（正準 JSON で、
+  浮動小数は厳密に、または明示した rel_tol で）一致し、`lab.toml` の `[compare] required` の条件が揃い、比較対象の自由パラメータが宣言した掃引の
+  最良（`{arm: {<param>: [値], chosen, scores, minimize?}}`）であることを確かめ、run に `comparison.json`（腕・vary・keys・vary 以外の条件の
+  sha256 指紋・matched）を書く。合わなければ matched=false と差分を書いて `ConditionMismatch`（run は failed）。目的を受け取れない腕は
+  `not_applicable` で「対象外」とし、照合から外して別に記録する（負けにしない）。
+- 設定の `[compare] vary = [...]`・`keys = [...]`（事前の宣言）: run.compare の vary・keys が違えば拒否。宣言したのに run.compare を呼ばない run は failed。
+- check L027（error）: 比較の指標（comparison.json・設定・`lab.toml` の `[compare] keys`）の引用が、matched な comparison.json でその指標を宣言した run を
+  指していない。`[compare]` を宣言した finished の run に一致した comparison.json が無い（退避済みは対象外）。
+- `labkit claim add`: 根拠の指標が比較の指標なら、その run の comparison.json が matched でないと差分を示して拒否する。
+- `labkit runs archive <run_id> [<run_id> ...] --reason "..."`: finished を含む run を名指しで複数退避する（名指しのときは理由が必須。削除はしない）。
+
+### 変更
+- L032: 退避済みの run の数値の引用 `値 [run:<id>:<key>]` は `check.archived_citation`（既定 error）。ID だけの言及は従来どおり警告。
+  主張の台帳の撤回済みの行（履歴）は引用の照合から外した。
+- 雛形 CLAUDE.md・`lab.toml`（`[compare]`、`archived_citation`）、skill new-experiment・lab-conventions に「比較は 1 軸だけを変える（ceteris paribus）」。
+
+### 移行
+1. `labkit standards unlink --to v2.1.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`、
+   雛形の差分は `labkit standards template --ref v2.1.0`。
+2. 既存の比較の run は comparison.json を持たない。比較の指標を `lab.toml` の `[compare] keys` に入れると、それを引用している文書が L027 になる。
+   条件のそろっていなかった run は `labkit runs archive <id> ... --reason "条件不一致: <何が違ったか>"` で退避し、それを根拠にした主張は
+   `labkit claim retract`、比較は設定に `[compare]` を書き run.compare を通して再実行する。
+3. 退避済みの run の数値を引用している文書（開発ログを含む）は L032 の error になる。引用を外すか、根拠にするなら `--undo`。
+   移行中に一時的に警告へ戻すなら `[check] archived_citation = "warn"`（人間が編集）。
+
 ## v2.0.0 — 2026-11-10
 
 完全自律にし、**主線から絶対にずれず、しかし面白い芽を拾い続ける**ことと、**資源を必ずどれかの線に使う**ことを機械的な関門にした（ADR 0002）。

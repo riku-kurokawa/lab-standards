@@ -33,7 +33,14 @@ skip = []                  # 一時的に無効化するチェックコード（
 max_file_lines = 300       # L018: src・scripts のファイルの行数（空行を除く）の上限（警告）。人間が一度に読める大きさ
 max_lines_allowed = []     # 上限を外すファイル（glob）。理由を書く
 dirty_citation = "warn"    # dirty な run を文書が結果として引用したとき（"warn" | "error"。claims.md は常に error）
+archived_citation = "error" # 退避済みの run の数値の引用（L032。"error" | "warn"。ID だけの言及は警告）
 # claim_docs = ["docs/**/*.md", "literature/surveys/*.md"]   # 引用を照合する文書（既定）
+
+[compare]
+# 比較は 1 軸だけを変える（labkit.compare）。required: すべての比較で腕が明示すべき条件の鍵（無いと run.compare が拒否）
+# 例: ["dof", "inputs", "predictor", "element_model", "quantisation", "scoring", "eval_set", "tuning_budget", "normalisation"]
+required = []
+keys = []                  # 比較の指標（例: ["speedup"]）。matched な comparison.json の無い run からの引用は L027
 
 [state]
 file = "docs/state.md"     # L037: H1 は 1 つ・同じ H2 は 1 回（error）、max_lines 超は警告。履歴は git に任せ、積み上げない

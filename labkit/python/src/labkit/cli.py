@@ -144,6 +144,9 @@ def cmd_lit(a) -> int:
 def cmd_runs(a) -> int:
     from labkit.runs import archive_candidates, archive_runs, find_run, list_runs, mark_run, runs_table, verdict_run
 
+    ids_given, a.run_id = list(a.run_id or []), (a.run_id or [None])[0]
+    if len(ids_given) > 1 and a.action != "archive":
+        raise SystemExit(f"runs {a.action} は run を 1 つだけ受け取る（複数を受け取るのは archive）")
     if a.action == "list":
         for m in list_runs(include_archived=a.all):
             if a.status and m.get("status") != a.status:
@@ -169,7 +172,12 @@ def cmd_runs(a) -> int:
         m = mark_run(a.run_id, a.to, a.reason or "")
         print(f"{m['run_id']}: status={m['status']}")
     elif a.action == "archive":
-        ids = [a.run_id] if a.run_id else []
+        ids = ids_given
+        if ids and not a.undo and not (a.reason or "").strip():
+            raise SystemExit(
+                'run を名指しで退避するときは理由を残す: runs archive <run_id> ... --reason "条件不一致: ..."'
+            )
+        reason = a.reason or ("uncited" if a.uncited else f"status={a.status}" if a.status else "")
         if a.status or a.uncited:
             statuses = tuple(a.status.split(",")) if a.status else ()
             older = (7.0 if a.uncited else 0.0) if a.older_than is None else a.older_than  # 引用前の新しい run を守る
@@ -181,12 +189,13 @@ def cmd_runs(a) -> int:
             ]
         if not ids:
             raise SystemExit(
-                "runs archive <run_id> | --status failed,interrupted | --uncited [--older-than N] [--dry-run] [--undo]"
+                'runs archive <run_id> [<run_id> ...] --reason "..." | --status failed,interrupted | --uncited '
+                "[--older-than N] [--dry-run] [--undo]"
             )
         if a.dry_run:
             print("\n".join(ids) or "候補はありません")
             return 0
-        done = archive_runs(ids, a.reason or "", undo=a.undo)
+        done = archive_runs(ids, reason, undo=a.undo)
         print(
             f"{'退避を取り消し' if a.undo else '退避'}: {len(done)} 件（削除はしていない。一覧は `labkit runs list --all`）"
         )
@@ -525,11 +534,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="run の一覧・詳細・記録・退避・予想の判定・表の連結（list / show / mark / archive / verdict / table）",
     )
     s.add_argument("action", choices=["list", "show", "mark", "archive", "verdict", "table"])
-    s.add_argument("run_id", nargs="?", help="table: run の name か ID の部分文字列")
+    s.add_argument("run_id", nargs="*", help="run ID（archive は複数可）。table: run の name か ID の部分文字列")
     s.add_argument("--status", help="list: 絞り込み / archive: 退避する状態（failed,interrupted）")
     s.add_argument("--all", action="store_true", help="list/table: 退避済み（table は dirty・未完了も）を含める")
     s.add_argument("--to", choices=["failed", "interrupted", "finished"], help="mark: 記録する状態")
-    s.add_argument("--reason", help="mark/archive: 理由")
+    s.add_argument("--reason", help="mark/archive: 理由（archive で run を名指しするときは必須）")
     s.add_argument(
         "--uncited", action="store_true", help="archive: 文書に引用されず他の run の入力でもない finished を候補に"
     )

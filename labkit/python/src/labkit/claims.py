@@ -61,7 +61,7 @@ def run_problem(meta: dict | None) -> str:
     return ""
 
 
-def _evidence(root: Path, spec: str, runs: dict) -> str:
+def _evidence(root: Path, spec: str, runs: dict, comp_keys: set[str] = frozenset()) -> str:
     """ "<run>:<key>[:<unit>][:<digits>]" → `値 単位 [run:<id>:<key>]`（labkit cite）。位置で読む（単位を省くなら `::<digits>`）."""
     from labkit.check import cite
     from labkit.runs import find_run
@@ -79,6 +79,11 @@ def _evidence(root: Path, spec: str, runs: dict) -> str:
         raise ValueError(
             f"根拠 run {rid} は {bad}。clean に再実行してから主張にする（dirty・failed・退避済みの結果は主張にしない）"
         )
+    if key in comp_keys:
+        from labkit.compare import comparison_problem
+
+        if why := comparison_problem(runs[rid]["_dir"], key):
+            raise ValueError(f"根拠 run {rid}: {why}。比較は 1 軸だけを変える（run.compare で宣言して再実行）")
     return cite(rid, key, digits=digits, unit=unit, root=root)
 
 
@@ -88,9 +93,12 @@ def add_claim(root: Path, text: str, evidence: list[str], *, note: str = "") -> 
     if not evidence:
         raise ValueError("根拠（--evidence <run_id>:<key>）を 1 つ以上付ける。run に無い量は主張にしない")
     from labkit.check import run_index
+    from labkit.compare import comparison_keys
+    from labkit.config import load_lab
 
     runs = run_index(root)
-    cells = "; ".join(_evidence(root, e, runs) for e in evidence)
+    comp_keys = comparison_keys(root, load_lab(root), runs)
+    cells = "; ".join(_evidence(root, e, runs, comp_keys) for e in evidence)
     rows = list_claims(root)
     cid = f"C{(max((int(r['id'][1:]) for r in rows), default=0) + 1):03d}"
     p = _path(root)

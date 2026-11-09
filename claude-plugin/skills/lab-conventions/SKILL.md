@@ -43,6 +43,15 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 | データパス | `datapath("processed", "f.parquet")` |
 | 図 | `fig("figspecs/a.toml", run)` |
 | 数値の引用 | `cite(run_id, "snr_db", digits=1, unit="dB")` |
+| 比較の宣言 | `run.compare([Arm(name, conditions), ...], vary=None, keys=None, comparator_sweep=None, rel_tol=0.0)`（`from labkit.compare import Arm`） |
+
+## 比較は 1 軸だけを変える（ceteris paribus）
+
+- 腕（手法・設計・設定）の比較が成り立つのは、宣言した軸（`vary`）以外の条件がすべての腕で同一で、それを**機械が確かめた**ときだけ。文章で「同条件」と書いても根拠にならない。
+  条件には駆動の自由度（P / PG / PA）・与える入力（目標・null 行・目的）・予測器・素子モデル・量子化・遅延・採点関数・評価集合と分割・調整の予算（試した構成の数）・反復／時間の予算・場と力のモデル・正規化（電力の定義）・幾何の規則を含める。
+- 設定に `[compare] vary = ["method"]`・`keys = ["<比較の指標>"]` を事前に書き、entry の中で `run.compare([Arm("ours", {...}), Arm("flat", {...})], comparator_sweep={"flat": {"height_mm": [...], "chosen": ..., "scores": [...]}})`。
+  vary 以外が違う・鍵が欠ける・`lab.toml` の `[compare] required` が無い・比較対象（自由パラメータを持つもの）が掃引の最良でないと `ConditionMismatch` で run は failed になる。目的を受け取れない腕は `Arm(..., not_applicable="理由")`（対象外。負けではない）。
+- 比較の指標を引用・主張できるのは `comparison.json` が matched の run だけ（L027、`labkit claim add`）。条件のそろっていなかった run は `labkit runs archive <id> ... --reason "条件不一致: ..."` で退避し、その数値の引用は L032 の error。
 
 ## 人間の入口
 

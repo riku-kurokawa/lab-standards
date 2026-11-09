@@ -143,11 +143,36 @@ class Run:
             f.write(line + "\n")
         self._beat()
 
+    def compare(
+        self,
+        arms: list,
+        vary: list[str] | None = None,
+        keys: list[str] | None = None,
+        comparator_sweep: dict | None = None,
+        rel_tol: float = 0.0,
+    ) -> dict:
+        """腕の条件が vary 以外で同一であることを確かめて comparison.json を書く（labkit.compare.declare）.
+        vary・keys を省くと設定の [compare] を使う。合わなければ ConditionMismatch（run は failed）."""
+        from labkit.compare import declare
+
+        return declare(self, arms, vary, comparator_sweep, keys=keys, rel_tol=rel_tol)
+
     def add_input(self, path: str | os.PathLike) -> None:
         self.meta.setdefault("inputs", []).append(describe_input(Path(path), self.root, self._max_bytes()))
         write_json_atomic(self.dir / "meta.json", self.meta)
 
     # ---- 内部 ----
+    def _compare_missing(self) -> str:
+        """設定が [compare] を宣言したのに、条件の一致した comparison.json が無い（比較が機械で確かめられていない）."""
+        if not self.config.get("compare"):
+            return ""
+        from labkit.compare import read_comparison
+
+        c = read_comparison(self.dir)
+        if c is None:
+            return "設定が [compare] を宣言したのに run.compare(...) が呼ばれていない（比較の条件の同一性が未確認）"
+        return "" if c.get("matched") is True else "comparison.json が matched=false（条件がそろっていない比較）"
+
     def _max_bytes(self) -> float:
         return float(self.lab["runs"]["hash_max_gb"]) * 1024**3
 
@@ -178,6 +203,9 @@ class Run:
             )
         check_prediction(self.config.get("prediction"))
         check_pass(self.config.get("pass"))
+        from labkit.compare import check_compare_config
+
+        check_compare_config(self.config.get("compare"))
         from labkit.focus import check_run_start
 
         serves = check_run_start(self.root, self.name, self.config, (self.git or {}).get("commit"))
@@ -253,7 +281,11 @@ class Run:
         _current.reset(self._token)
         self.meta["finished"] = now_iso()
         self.meta["duration_s"] = round(time.time() - self._t0, 3)
-        if exc_type is None:
+        if exc_type is None and (why := self._compare_missing()):
+            self.meta["status"] = "failed"
+            self.meta["error"] = why
+            self.log(why)
+        elif exc_type is None:
             self.meta["status"] = "finished"
             # 事前に書いた合否（[[pass]]）と予想の判定。判定が失敗しても run は finished にする（結果は失われない）
             for i, crit in enumerate(self.config.get("pass") or [], 1):
