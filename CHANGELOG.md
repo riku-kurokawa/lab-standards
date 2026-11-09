@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.7.0 — 2026-11-09
+
+accelerated-diff-pat で、メモリ不足で実行環境が計算を止めるたびに、エージェントが「人間の再開の指示まで起動しない」と同じ拍を
+十数時間〜1 日以上くり返した（3 回、うち 1 回は自分の起動した重い計算が原因）。v1.5.0 のループ停止の拒否は、止まらずに何もしない拍をすり抜けさせていた。
+
+### 変更
+- `labkit beat end` は、判断と結果が（数字・空白・句読点を除いて）同じで run を伴わない拍が `[autonomy] stall_beats` 回（既定 3、0 で無効）続くと記録を拒む。
+  メッセージは、資源の停止は人間の停止ではないこと、原因を外して自分で再開するか人間を要しない仕事を始めることを示す。待つしかないときは `--stall-reason` で記録でき、
+  開発ログの拍の行に「停滞」として残る。`labkit beat start` は同じ拍が 2 回続いた時点で停滞を表示する。
+- 雛形 CLAUDE.md・skill `beat`: 資源で止まった計算は自分で再開する、重い計算は上限を決めてから起動する。
+
+### 移行
+- `labkit standards unlink --to v1.7.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`。
+- 既定で有効。無効にするなら `lab.toml` の `[autonomy]` に `stall_beats = 0`（人間が編集）。
+
 ## v1.6.0 — 2026-11-05
 
 ボトルネックは人間のレビュー時間である。nla-solver・accelerated-diff-pat の 5 日間の自律運用で、人間が読まされていたもの

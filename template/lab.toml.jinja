@@ -69,6 +69,7 @@ allow_self_stop = false    # /loop を Claude が自分で止めること（Cron
 # 長い自律運用: backlog の未着手の項目（`- [ ] ...`）が min_open 件未満なら終了時チェックが止める（計算待ちで止まらない）
 backlog = ""               # 例: "docs/backlog.md"。空で無効
 min_open = 0
+stall_beats = 3            # 判断と結果が（数字を除いて）同じで run の無い拍がこの回数続くと `labkit beat end` が記録を拒む。0 で無効
 
 [gate]
 # 承認ゲート: 保護ブランチへの push/merge・tag・gh release/merge・labkit raw freeze。feat ブランチへの push は自由

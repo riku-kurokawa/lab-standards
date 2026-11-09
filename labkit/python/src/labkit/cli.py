@@ -254,7 +254,14 @@ def cmd_beat(a) -> int:
     if a.action == "start":
         print(beat.start(root))
     elif a.action == "end":
-        r = beat.end(root, predicted=a.predicted or "", observed=a.observed or "", decided=a.decided or "", runs=a.runs)
+        r = beat.end(
+            root,
+            predicted=a.predicted or "",
+            observed=a.observed or "",
+            decided=a.decided or "",
+            runs=a.runs,
+            stall_reason=a.stall_reason or "",
+        )
         print(f"拍 {r['beat']} を記録しました（{r['time'][11:16]}）。開発ログの自動ブロックに写した")
     else:
         print(beat.log(root, a.date))
@@ -569,6 +576,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--observed", help="end: 結果")
     s.add_argument("--decided", help="end: 判断")
     s.add_argument("--runs", nargs="*", help="end: この拍の run ID")
+    s.add_argument("--stall-reason", help="end: 同じ判断の拍が続くときに、それでも待つ理由（停滞として記録される）")
     s.add_argument("--date", help="log: 日付（既定 今日）")
     s.set_defaults(func=cmd_beat)
 

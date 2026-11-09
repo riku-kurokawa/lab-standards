@@ -110,6 +110,37 @@ def status_lines(root: Path) -> list[str]:
     return lines
 
 
+def _norm(text: str) -> str:
+    """停滞の比較用: 数字・空白・句読点を落とす（open 730 → 729 のような数の揺れは同じ判断とみなす）."""
+    return re.sub(r"[\d\s、。,.:;（）()/・\-]+", "", text or "")
+
+
+def stall_limit(root: Path) -> int:
+    from labkit.config import load_lab
+
+    return int(load_lab(root)["autonomy"].get("stall_beats", 3) or 0)
+
+
+def stalled_run(beats: list[dict]) -> int:
+    """末尾から、判断と結果が（数字を除いて）同じ拍がいくつ続いているか."""
+    ends = [b for b in beats if b.get("event") == "end"]
+    if not ends:
+        return 0
+    key = (_norm(ends[-1].get("decided", "")), _norm(ends[-1].get("observed", "")))
+    n = 0
+    for b in reversed(ends):
+        if (_norm(b.get("decided", "")), _norm(b.get("observed", ""))) != key or b.get("runs"):
+            break
+        n += 1
+    return n
+
+
+STALL_HELP = (
+    "何もしない拍が続いています。資源の停止（メモリ不足・OOM・時間切れ）は人間の停止ではありません: 原因を外して止まった計算を自分で再開するか、"
+    "台帳の open の統合・人間を要しない仕事を同じ拍で始めてください。本当に待つしかないなら `--stall-reason` に理由を書くと記録できます（開発ログと digest に停滞として残る）"
+)
+
+
 def start(root: Path) -> str:
     cur = current(root)
     if cur is None:
@@ -134,6 +165,9 @@ def start(root: Path) -> str:
     if last:
         out.append(f"- 前の拍 {last.get('beat')} の判断: {last.get('decided') or '（未記入）'}")
     out.append(f"- 再注入: `/loop {cur.get('interval', '20m')} /lab-rules:beat`")
+    k = stalled_run(beats)
+    if k >= 2:
+        out.append(f"- **停滞: 同じ判断・結果の拍が {k} 回続いている。** {STALL_HELP}")
     out += status_lines(root)
     for k, p in parts:
         out += ["", f"## {k}: prompts/{p.name}", "", p.read_text(encoding="utf-8").rstrip()]
@@ -141,7 +175,13 @@ def start(root: Path) -> str:
 
 
 def end(
-    root: Path, *, predicted: str = "", observed: str = "", decided: str = "", runs: list[str] | None = None
+    root: Path,
+    *,
+    predicted: str = "",
+    observed: str = "",
+    decided: str = "",
+    runs: list[str] | None = None,
+    stall_reason: str = "",
 ) -> dict:
     if not decided.strip():
         raise ValueError("--decided（この拍の判断）は必須です。人間が読むのはこの 1 行")
@@ -151,6 +191,11 @@ def end(
         raise ValueError("閉じる拍がありません（`labkit beat start` で始めた拍だけ閉じられる。二重の end も不可）")
     rec = {"event": "end", "beat": n, "time": now_iso(), "predicted": predicted, "observed": observed}
     rec.update(decided=decided, runs=runs or [])
+    limit = stall_limit(root)
+    if limit and not runs and stalled_run([*beats, rec]) >= limit:
+        if not stall_reason.strip():
+            raise ValueError(f"同じ判断・結果の拍が {limit} 回続くので記録しません。{STALL_HELP}")
+        rec["stall_reason"] = stall_reason
     _append(root, rec)
     from labkit.devlog import update
 
@@ -170,6 +215,7 @@ def beats_block(root: Path, date: str) -> list[str]:
         t = b.get("time", "")[11:16]
         lines.append(
             f"- 拍 {b.get('beat')}（{t}）予想: {b.get('predicted') or '—'} / 結果: {b.get('observed') or '—'} / 判断: {b.get('decided') or '—'}"
+            + (f" / **停滞**: {b['stall_reason']}" if b.get("stall_reason") else "")
         )
         if b.get("runs"):
             lines.append("  run: " + ", ".join(b["runs"]))

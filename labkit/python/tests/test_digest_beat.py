@@ -86,6 +86,26 @@ def test_beat_start_end_and_devlog_block(git_project):
     assert "法則を見つける" not in s2 and "無効のままの関門: runs.require_prediction / runs.require_clean" in s2
 
 
+def test_beat_end_refuses_a_stall(git_project):
+    p = git_project
+    write(p / "prompts" / "goal_v1.md", "# 目標\n")
+    write(p / "prompts" / "beat_v1.md", "# 1 拍\n")
+    beat.ensure_current(p, "goal_v1.md", "beat_v1.md")
+    idle = dict(predicted="変化なし", decided="止められた計算は人間の再開の指示まで起動しない")
+    for k in (730, 730):
+        beat.start(p)
+        beat.end(p, observed=f"open {k}、計算は停止のまま", **idle)
+    assert "停滞: 同じ判断・結果の拍が 2 回" in beat.start(p)
+    with pytest.raises(ValueError, match="人間の停止ではありません"):
+        beat.end(p, observed="open 729、計算は停止のまま", **idle)  # 数字の揺れは同じ判断
+    rec = beat.end(p, observed="open 729、計算は停止のまま", stall_reason="実機の測定待ちで代替なし", **idle)
+    assert rec["stall_reason"] and "**停滞**: 実機の測定待ち" in beat.log(p)
+    beat.start(p)
+    beat.end(p, observed="open 729、計算は停止のまま", runs=["r1"], **idle)  # run を出した拍は停滞でない
+    beat.start(p)
+    assert beat.end(p, observed="census を再開した", decided="メモリが戻ったので再開した")["beat"] == 5
+
+
 def test_digest_builds_one_page(git_project):
     p = git_project
     pytest.importorskip("h5py")

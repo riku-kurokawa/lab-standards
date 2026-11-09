@@ -115,7 +115,7 @@ DEFAULTS: dict = {
     # allow_self_stop: /loop を Claude が自分で止めること（CronDelete・ScheduleWakeup の stop）を許すか。止めるのは人間
     "claude": {"require_devlog": True, "max_stop_blocks": 3, "allow_self_stop": False},
     # 長い自律運用: backlog（"- [ ] ..." の行）に未着手の項目が min_open 件未満なら Stop hook が終了を止める。空文字で無効
-    "autonomy": {"backlog": "", "min_open": 0},
+    "autonomy": {"backlog": "", "min_open": 0, "stall_beats": 3},
     "gate": {"enabled": True, "protected_branches": ["main", "master"], "approval_ttl_hours": 24},
 }
 
