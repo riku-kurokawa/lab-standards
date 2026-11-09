@@ -33,7 +33,7 @@ lab-standards/
 | Functional core, imperative shell | 計算は `src/`（純粋関数）、I/O は `scripts/`。check が依存の向きを検査 |
 | 設定とコードの分離 | `configs/experiments/*.toml`（extends 継承）、環境別パス `configs/paths/*.toml` |
 | 派生物は再生成可能 | `data/interim`・`processed`（サイドカー付き）・`data/cache`（サイドカー不要）・`runs` |
-| 図はテンプレートのみ | `figspecs/*.toml` + `labkit fig`（13 種、複数パネル可）。来歴は `.figmeta.json` |
+| 図はテンプレートのみ | `figspecs/*.toml` + `labkit fig`（13 種、複数パネル可）。来歴は `.figmeta.json`。比べる図は軸・色の範囲をそろえ（`share`・`clim = "shared"`）、`style = "slide"` で発表の文字、文字・凡例の重なりと小さい文字は保存の前に検査（`[fig] overlap`） |
 | 形式の統一 | 配列は HDF5、表は Parquet。pickle は禁止、`np.save` は警告 |
 | 報告は実データと照合 | 開発ログの数値（`12.3 dB [run:<id>:<key>]`）を `labkit check` が runs/ と突き合わせる。判断欄が空の開発ログは記録ではない |
 | 完全自律 | 承認・却下・回答・委任は無い（v2.0.0）。push・merge・tag・raw freeze も Claude が行う。守るのは成果物（data/raw の既存ファイル・runs/・lab.toml・台帳は hooks が止める）。人間への連絡は `labkit queue ask`（一方通行、返事は待たない） |

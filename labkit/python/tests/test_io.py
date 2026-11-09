@@ -142,3 +142,56 @@ def test_written_text_files_use_lf(project):
     (project / "data" / "raw" / "in.bin").write_bytes(b"abc")
     for f in [*run.dir.glob("*.json"), *run.dir.glob("*.jsonl"), run.dir / "log.txt", freeze(chmod=False)]:
         assert b"\r\n" not in f.read_bytes(), f.name
+
+
+def test_figures_compare_on_same_scale_and_do_not_overlap(project):
+    """比較の図: 色の範囲と軸をそろえ、発表の大きさの文字にし、文字・凡例の重なりを保存の前に止める."""
+    from labkit.viz import render
+
+    xg, yg = np.linspace(0, 1, 20), np.linspace(0, 2, 30)
+    a = np.outer(xg, yg)
+    with Run("figq") as run:
+        save(runpath(run, "f.h5"), {"a": a, "b": 3 * a, "d": a - 1.5 * a, "x": xg, "y": yg})
+        t = np.linspace(0, 1, 200)
+        save(runpath(run, "s.h5"), {"t": t, "u": np.sin(6 * t), "v": np.cos(6 * t)})
+    fs = project / "figspecs"
+    (fs / "cmp.toml").write_text(
+        'template = "panels"\nlayout = [1, 3]\nsize = [12.0, 3.5]\nstyle = "slide"\nshare = "both"\nclim = "shared"\n'
+        '[[panel]]\ntemplate = "heatmap"\ndata = {file = "f.h5", z = "a", x = "x", y = "y"}\nlabels = {title = "A"}\n'
+        '[[panel]]\ntemplate = "heatmap"\ndata = {file = "f.h5", z = "b", x = "x", y = "y"}\nlabels = {title = "B"}\n'
+        '[[panel]]\ntemplate = "heatmap"\ndata = {file = "f.h5", z = "d", x = "x", y = "y", diverging = true}\nlabels = {title = "B-A"}\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    render(fs / "cmp.toml", run_id=run.run_id)
+    fm = json.loads((run.dir / "figures" / "cmp.figmeta.json").read_text(encoding="utf-8"))
+    cl = [p.get("options", {}).get("clim") for p in fm["spec"]["panel"]]
+    assert cl[0] == cl[1] == [0.0, pytest.approx(6.0)]  # 2 枚の色の範囲は同じ（大きいほうに合わせる）
+    assert cl[2] == [pytest.approx(-1.0), pytest.approx(1.0)]  # 差は 0 中心
+    # 凡例を外に出せば重ならない
+    (fs / "leg.toml").write_text(
+        'template = "timeseries"\nstyle = "slide"\nsize = [8.0, 4.5]\n[data]\nfile = "s.h5"\nx = "t"\ny = ["u", "v"]\n'
+        'legend = ["u", "v"]\n[options]\nlegend_loc = "outside"\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    render(fs / "leg.toml", run_id=run.run_id)
+    assert json.loads((run.dir / "figures" / "leg.figmeta.json").read_text(encoding="utf-8"))["layout_issues"] == []
+    # 狭い図に大きい文字: 既定（warn）は記録だけ、overlap = "error" なら保存しない
+    crowded = (
+        'template = "panels"\nlayout = [1, 4]\nsize = [3.0, 1.2]\nstyle = "slide"\n'
+        + '[[panel]]\ntemplate = "timeseries"\ndata = {file = "s.h5", x = "t", y = "u"}\n'
+        + 'labels = {title = "a long panel title", x = "time since the start [s]", y = "pressure amplitude [Pa]"}\n'
+    ) + ('[[panel]]\ntemplate = "timeseries"\ndata = {file = "s.h5", x = "t", y = "v"}\n' * 3)
+    (fs / "crowd.toml").write_text(crowded, encoding="utf-8", newline="\n")
+    render(fs / "crowd.toml", run_id=run.run_id)
+    assert json.loads((run.dir / "figures" / "crowd.figmeta.json").read_text(encoding="utf-8"))["layout_issues"]
+    with open(project / "lab.toml", "a", encoding="utf-8", newline="\n") as f:
+        f.write('[fig]\noverlap = "error"\n')
+    with pytest.raises(ValueError, match="重なって|小さい"):
+        render(fs / "crowd.toml", run_id=run.run_id)
+    (fs / "bad.toml").write_text(
+        'template = "heatmap"\nstyle = "poster"\n[data]\nfile = "f.h5"\nz = "a"\n', encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="style"):
+        render(fs / "bad.toml", run_id=run.run_id)

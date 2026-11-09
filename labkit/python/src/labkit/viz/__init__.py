@@ -15,7 +15,21 @@ from labkit._version import __version__
 from labkit.config import find_root, read_toml
 from labkit.viz.templates import REGISTRY, Context
 
-COMMON_KEYS = {"template", "name", "size", "data", "labels", "options", "description", "layout", "panel"}
+COMMON_KEYS = {
+    "template",
+    "name",
+    "size",
+    "data",
+    "labels",
+    "options",
+    "description",
+    "layout",
+    "panel",
+    "style",
+    "share",
+    "clim",
+}
+SHARE = {"x": ("all", False), "y": (False, "all"), "both": ("all", "all")}
 
 
 def _validate(spec: dict, where: str) -> None:
@@ -39,8 +53,35 @@ def load_spec(path: str | Path) -> dict:
             if p.get("template") == "panels":
                 raise ValueError(f"{path}: panel の入れ子はできません")
             _validate(p, f"{path} panel[{i}]")
+    if spec.get("share", "x") not in SHARE:
+        raise ValueError(f"{path}: share は {sorted(SHARE)} のいずれか")
+    if "clim" in spec and spec["clim"] != "shared":
+        raise ValueError(f'{path}: clim は "shared" だけ（各パネルの範囲は options.clim = [下, 上]）')
     spec.setdefault("name", Path(path).stem)
     return spec
+
+
+def _shared_clim(spec: dict, ctx) -> None:
+    """panels の clim = "shared": ヒートマップのパネルの色の範囲を全パネルの最小・最大（diverging は絶対値の最大）にそろえる."""
+    import numpy as np
+
+    from labkit.viz.templates import _get
+
+    hm = [p for p in spec["panel"] if p["template"] == "heatmap" and "clim" not in p.get("options", {})]
+    if not hm:
+        return
+    zs = [np.asarray(_get(ctx.load(p["data"]["file"]), p["data"]["z"]), dtype=float) for p in hm]
+    for kind in (True, False):
+        group = [(p, z) for p, z in zip(hm, zs, strict=True) if bool(p["data"].get("diverging")) is kind]
+        if not group:
+            continue
+        if kind:
+            lim = max(float(np.nanmax(np.abs(z))) for _, z in group)
+            clim = [-lim, lim]
+        else:
+            clim = [min(float(np.nanmin(z)) for _, z in group), max(float(np.nanmax(z)) for _, z in group)]
+        for p, _ in group:
+            p.setdefault("options", {})["clim"] = clim
 
 
 def render(spec_path: str | Path, run_id: str | None = None, out_dir: str | Path | None = None) -> list[Path]:
@@ -79,27 +120,61 @@ def render(spec_path: str | Path, run_id: str | None = None, out_dir: str | Path
         used.append(mf)
         return [json.loads(line) for line in mf.read_text(encoding="utf-8").splitlines() if line.strip()]
 
-    style.apply()
+    from labkit.config import load_lab
+    from labkit.viz import layout
+
+    kind = spec.get("style", "paper")
+    style.apply(kind)
     import matplotlib.pyplot as plt
 
     ctx = Context(load=load, metrics=metrics)
     if spec["template"] == "panels":
         rows, cols = spec.get("layout", [1, len(spec["panel"])])
-        fig, axes = plt.subplots(rows, cols, figsize=style.figsize(spec.get("size", "double")), squeeze=False)
+        sx, sy = SHARE[spec["share"]] if "share" in spec else (False, False)
+        fig, axes = plt.subplots(
+            rows,
+            cols,
+            figsize=style.figsize(spec.get("size", "double")),
+            squeeze=False,
+            sharex=sx,
+            sharey=sy,
+            layout="constrained",
+        )
         parts = list(zip(spec["panel"], axes.ravel(), strict=False))
+        for ax in axes.ravel()[len(spec["panel"]) :]:
+            ax.set_visible(False)
+        if spec.get("clim") == "shared":
+            _shared_clim(spec, ctx)
     else:
-        fig, ax = plt.subplots(figsize=style.figsize(spec.get("size", "single")))
+        fig, ax = plt.subplots(figsize=style.figsize(spec.get("size", "single")), layout="constrained")
         parts = [(spec, ax)]
     try:
         for i, (sub, ax) in enumerate(parts):
             REGISTRY[sub["template"]].func(sub, ctx, ax)
-            if len(parts) > 1:
+            if len(parts) > 1:  # 見出しは左に (a) と題の 1 つだけ（中央の題と二重にしない）
+                ax.set_title("")
                 ax.set_title(f"({chr(97 + i)}) {sub.get('labels', {}).get('title', '')}".strip(), loc="left")
+        if spec["template"] == "panels" and spec.get("share") in SHARE:
+            for ax in axes.ravel():  # そろえた軸の内側の目盛りの文字と軸名は外側の 1 つだけ
+                if ax.get_visible():
+                    ax.label_outer()
     except KeyError as e:  # [data] のキー、配列名、列名の打ち間違い
         raise ValueError(
             f"{spec_path}: '{e.args[0] if e.args else e}' がありません（[data] の指定、またはデータの配列名・列名を確認）"
         ) from e
     name = spec["name"]
+    issues = layout.problems(fig, style.fonts(kind)["min"])
+    if issues:
+        mode = load_lab(root).get("fig", {}).get("overlap", "warn")
+        msg = f"{spec_path}: 図の体裁の問題 {len(issues)} 件:\n  " + "\n  ".join(issues)
+        if mode == "error":
+            plt.close(fig)
+            raise ValueError(
+                msg + '\n（size を大きく、ラベルを短く、legend_loc を変える。lab.toml の [fig] overlap = "error"）'
+            )
+        import sys
+
+        print(msg, file=sys.stderr)
     paths = []
     for ext in ("pdf", "png"):
         p = out / f"{name}.{ext}"
@@ -119,6 +194,7 @@ def render(spec_path: str | Path, run_id: str | None = None, out_dir: str | Path
             "data": [{"path": rel_or_abs(p, root), "sha256": sha256_file(p)} for p in dict.fromkeys(used)],
             "created": now_iso(),
             "labkit_version": __version__,
+            "layout_issues": issues,
         },
     )
     return paths

@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.1.0 — 2026-11-10
+
+論文・発表の比較の図を、テンプレートのまま適切な体裁で出せるようにし、体裁を機械的に検査する。
+
+### 追加
+- figspec の `style = "paper" | "slide"`（文字 8 pt / 16 pt、最小 6 pt / 12 pt。slide は線も太く）。
+- panels の `share = "x" | "y" | "both"`（軸の範囲をそろえ、内側の目盛りの文字と軸名は外側だけ）と `clim = "shared"`（ヒートマップの色の範囲を全パネルでそろえる。diverging は 0 中心の共通の範囲）。
+- heatmap の `options.clim = [下, 上]`、凡例の `options.legend_loc = "outside"`。
+- 図の体裁の検査（`labkit.viz.layout`）: 描かれる文字どうしの重なり、凡例とデータ点の重なり、style の最小より小さい文字。
+  結果は figmeta の `layout_issues`。`lab.toml` の `[fig] overlap = "error"` なら保存しない（既定 "warn"、雛形は "error"）。
+
+### 変更
+- panels の見出しは左の「(a) 題」だけにした（中央の題との二重表示を直した）。図は constrained layout で配置する。
+
+### 移行
+- `labkit standards unlink --to v2.1.0`。既存の figspec はそのまま動く（検査は既定で警告だけ）。厳しくするなら `lab.toml` に `[fig] overlap = "error"`（人間が編集）。
+
 ## v2.0.0 — 2026-11-10
 
 完全自律にし、**主線から絶対にずれず、しかし面白い芽を拾い続ける**ことと、**資源を必ずどれかの線に使う**ことを機械的な関門にした（ADR 0002）。

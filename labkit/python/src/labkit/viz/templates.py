@@ -90,7 +90,11 @@ def _as_list(v) -> list:
 def _legend(ax, spec, n):
     opt = spec.get("options", {})
     if n > 1 or opt.get("legend"):
-        ax.legend(loc=opt.get("legend_loc", "best"))
+        loc = opt.get("legend_loc", "best")
+        if loc == "outside":  # データと重ならないよう軸の外（右）に置く
+            ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0)
+        else:
+            ax.legend(loc=loc)
 
 
 def _groups(df, hue):
@@ -320,11 +324,16 @@ def heatmap(spec, ctx, ax):
     if z.ndim != 2:
         raise ValueError(f"heatmap の z は 2 次元配列が必要です（shape={z.shape}）")
     kw: dict[str, Any] = {"shading": "auto", "rasterized": True}
+    clim = spec.get("options", {}).get(
+        "clim"
+    )  # 比べる図で色の範囲をそろえる（panels の clim = "shared" が自動で入れる）
     if d.get("diverging"):
-        lim = float(np.nanmax(np.abs(z)))
+        lim = float(max(abs(c) for c in clim)) if clim else float(np.nanmax(np.abs(z)))
         kw.update(cmap=DIVERGING_CMAP, vmin=-lim, vmax=lim)
     else:
         kw.update(cmap=SEQUENTIAL_CMAP)
+        if clim:
+            kw.update(vmin=float(clim[0]), vmax=float(clim[1]))
     if "x" in d and "y" in d:  # 規約 z[i, j] = (x[i], y[j])。matplotlib は C[row=y, col=x] なので転置（形は検査する）
         x, y = _get(data, d["x"]), _get(data, d["y"])
         if z.shape != (len(x), len(y)):
@@ -418,7 +427,8 @@ def convergence(spec, ctx, ax):
 @template(
     "panels",
     [],
-    "複数パネル。layout = [行, 列]、[[panel]] に各パネルの template / data / labels / options（(a)(b)… の見出しを付ける）",
+    "複数パネル。layout = [行, 列]、[[panel]] に各パネルの template / data / labels / options（(a)(b)… の見出しを付ける）。"
+    'share = "x" | "y" | "both" で軸の範囲をそろえ、clim = "shared" でヒートマップの色の範囲をそろえる',
     'layout = [1, 2]\n[[panel]]\ntemplate = "timeseries"\ndata = {file = "s.h5", x = "t", y = "x"}\n[[panel]]\ntemplate = "psd"\ndata = {file = "s.h5", signal = "x", fs = 1000.0}',
 )
 def panels(spec, ctx, ax):
