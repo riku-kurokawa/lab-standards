@@ -123,7 +123,7 @@ Claude: labkit main set "2 次元の 5 手法の比較表を完成させる"
 | L032 / L033 / L034 | 引用した run が無い（failed・link・退避済みの ID だけの言及は警告、退避済みの数値の引用は `check.archived_citation`（既定 error）、dirty は `check.dirty_citation`、既定 warn） / 数値が metrics.json と一致しない / 結果節の数値に引用が無い（警告。引用を含む行は対象外）。対象は `check.claim_docs`（既定 docs/**/*.md と surveys）。自動ブロックと DIGEST は見ない |
 | L025 / L026 | 主線の期限切れの open な項目（警告） / 主線・芽の台帳の書式（ID の重複・状態・期限・根拠の無い done・serves の無い promoted） |
 | L036 | 主張の台帳 `docs/claims.md` の書式、撤回の理由、open な主張の根拠が無い・failed・dirty・退避済みの run |
-| L027 | 比較は 1 軸だけ（`labkit.compare`）: 比較の指標（comparison.json・設定・lab.toml の `[compare] keys`）の引用・主張が matched な comparison.json の run を指していない／`[compare]` を宣言した finished の run に一致した comparison.json が無い（退避済みは対象外） |
+| L027 | 比較は 1 軸だけ（`labkit.compare`）。凍結した config.json・metrics.json・comparisons.json（meta の outputs の hash を照合）から計算し直す: `[compare.<名>]` の run の比較がそろっていない・記録が無い・改変されている／台帳の open な主張の指標が matched な比較の keys でも `[report] noncomparative` でもない（既定で拒否）・複数 run の根拠に axis が無いか軸以外の設定・commit が違う／他の文書の数値の引用がそろわない比較の指標（error）・未宣言の指標（`check.undeclared_citation`、既定 warn） |
 | L038 | 結果・主張の節が scratch/ のファイルを根拠にしている（警告） |
 | 体裁（pre-commit・CI） | |
 | L001 / L004 / L050 | トップレベルの不許可ファイル / 衝突マーカー / 本体を link したまま |

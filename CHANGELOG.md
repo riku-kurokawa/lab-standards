@@ -7,31 +7,39 @@ accelerated-diff-pat で、腕のあいだで条件（駆動の自由度・与�
 宣言した軸以外の条件がすべての腕で同一で、それを機械が確かめたときだけ）。条件のそろっていなかった run は、消さずに根拠から外す。
 
 ### 追加
-- `labkit.compare`: `Arm(name, conditions, not_applicable="")`、`declare(run_or_dir, arms, vary=None, comparator_sweep=None, *, keys=None, rel_tol=0.0)`、
-  `run.compare(arms, vary=None, keys=None, comparator_sweep=None, rel_tol=0.0)`。腕の条件の鍵の集合が同じで、vary 以外の値が（正準 JSON で、
-  浮動小数は厳密に、または明示した rel_tol で）一致し、`lab.toml` の `[compare] required` の条件が揃い、比較対象の自由パラメータが宣言した掃引の
-  最良（`{arm: {<param>: [値], chosen, scores, minimize?}}`）であることを確かめ、run に `comparison.json`（腕・vary・keys・vary 以外の条件の
-  sha256 指紋・matched）を書く。合わなければ matched=false と差分を書いて `ConditionMismatch`（run は failed）。目的を受け取れない腕は
-  `not_applicable` で「対象外」とし、照合から外して別に記録する（負けにしない）。
-- 設定の `[compare] vary = [...]`・`keys = [...]`（事前の宣言）: run.compare の vary・keys が違えば拒否。宣言したのに run.compare を呼ばない run は failed。
-- check L027（error）: 比較の指標（comparison.json・設定・`lab.toml` の `[compare] keys`）の引用が、matched な comparison.json でその指標を宣言した run を
-  指していない。`[compare]` を宣言した finished の run に一致した comparison.json が無い（退避済みは対象外）。
-- `labkit claim add`: 根拠の指標が比較の指標なら、その run の comparison.json が matched でないと差分を示して拒否する。
-- `labkit runs archive <run_id> [<run_id> ...] --reason "..."`: finished を含む run を名指しで複数退避する（名指しのときは理由が必須。削除はしない）。
+- 比較は run の前に設定へ書く（凍結されて config.json に残る）:
+  `[compare.<名>]` `vary = "<軸 1 つ>"`・`keys = [...]`・`objective`（任意）、`[compare.<名>.common]`、`[compare.<名>.arms.<腕>]`、
+  `[compare.<名>.sweep]`（arm・param・values・metric（`{value}` を含む指標名）・direction。`[[...sweep]]` で複数）、`[compare.<名>.capability]`（腕 → 受け取れる目的）。
+  1 run に名前つきの比較を複数置け、1 つの指標は 1 つの比較だけに属す。
+- `labkit.compare`: `arm_conditions(cfg, name)`（腕の条件 = common ∪ 腕の表）、`chosen(run, name)`（掃引の最良を run の記録から）、`ConditionMismatch`。
+  Run は開始前に `check_config` で検査し（vary が 1 軸でない・腕の表に軸と掃引の param 以外の鍵がある・`lab.toml` の `[compare] required` が common に
+  無いか空・掃引の値の数が腕で違う・capability に objective が無い・対象外でない腕が 2 本未満・指標が 2 つの比較や noncomparative に重なる、のどれでも
+  run を作らない）、終了時に 1 回だけ `comparisons.json` を書く（掃引のスコアは run の metrics から読み、腕の値が最良でなければ不一致）。
+  不一致・2 回目の記録・running でない記録はすべて run を failed にする。
+- 設定の `[report] noncomparative = ["<glob>"]`: 比較ではない指標の宣言。主張の根拠は既定で拒否し、matched な比較の keys か noncomparative だけを通す。
+- check L027（error）: 凍結した config.json・metrics.json・comparisons.json（meta の outputs の hash を照合）から比較を計算し直す（記録の matched は信用しない）。
+  台帳の open な主張の根拠の指標が宣言されていない、複数 run の根拠に axis が無い、軸以外の凍結した設定か commit が違う、も L027。
+  他の文書の数値の引用は、そろわない比較の指標なら error、未宣言の指標は `check.undeclared_citation`（既定 warn）。
+- `labkit claim add ... --axis <設定の鍵>`: 根拠が複数の run にまたがるときの比較の軸（根拠の欄の先頭に `axis=<鍵>;` が残る）。
+- `labkit runs archive <run_id> [<run_id> ...] --reason "..."`: finished を含む run を名指しで複数退避する（削除はしない）。
+  退避と取り消し（`--undo`）は理由が必須で、`meta.json` の `archive_log` に積む（取り消しても履歴は消えない）。
+- 雛形 `lab.toml` の `[compare] required` に汎用の既定（degrees_of_freedom・inputs・objective・model・precision・scoring・eval_set・
+  tuning_budget・compute_budget・normalisation）。分野の条件はプロジェクトがここに列挙する（人間が編集）。
 
 ### 変更
 - L032: 退避済みの run の数値の引用 `値 [run:<id>:<key>]` は `check.archived_citation`（既定 error）。ID だけの言及は従来どおり警告。
-  主張の台帳の撤回済みの行（履歴）は引用の照合から外した。
-- 雛形 CLAUDE.md・`lab.toml`（`[compare]`、`archived_citation`）、skill new-experiment・lab-conventions に「比較は 1 軸だけを変える（ceteris paribus）」。
+  主張の台帳の撤回済みの行（状態の列で判定）は引用の照合から外した。
+- 雛形 CLAUDE.md・`lab.toml`・example 設定（`[report] noncomparative`）、skill new-experiment・lab-conventions に「比較は 1 軸だけを変える（ceteris paribus）」。
 
 ### 移行
 1. `labkit standards unlink --to v2.1.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`、
    雛形の差分は `labkit standards template --ref v2.1.0`。
-2. 既存の比較の run は comparison.json を持たない。比較の指標を `lab.toml` の `[compare] keys` に入れると、それを引用している文書が L027 になる。
-   条件のそろっていなかった run は `labkit runs archive <id> ... --reason "条件不一致: <何が違ったか>"` で退避し、それを根拠にした主張は
-   `labkit claim retract`、比較は設定に `[compare]` を書き run.compare を通して再実行する。
-3. 退避済みの run の数値を引用している文書（開発ログを含む）は L032 の error になる。引用を外すか、根拠にするなら `--undo`。
-   移行中に一時的に警告へ戻すなら `[check] archived_citation = "warn"`（人間が編集）。
+2. **主張の根拠は既定で拒否になる**。v2.1.0 より前の run の設定には `[report] noncomparative` も `[compare.<名>]` も無いので、それを根拠にした
+   open な主張はすべて L027 になる。比較でない指標は設定に `[report] noncomparative` を書いて clean に再実行し、根拠を差し替える。比較は
+   `[compare.<名>]` を書いて再実行する。再実行しない主張は `labkit claim retract`。他の文書の未宣言の引用は警告（`check.undeclared_citation`）。
+3. 条件のそろっていなかった run は `labkit runs archive <id> ... --reason "条件不一致: <何が違ったか>"` で退避する。
+   退避済みの run の数値を引用している文書（開発ログを含む）は L032 の error になる。移行中に一時的に警告へ戻すなら `[check] archived_citation = "warn"`（人間が編集）。
+4. `lab.toml` の `[compare] required` に分野の条件を列挙する（人間が編集）。既存の設定に無ければ既定は空で、required の照合は働かない。
 
 ## v2.0.0 — 2026-11-10
 

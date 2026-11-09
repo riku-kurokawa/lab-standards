@@ -11,9 +11,11 @@
          退避済みの run の数値の引用 `値 [run:<id>:<key>]` は check.archived_citation（既定 error）、
          dirty な run の引用は check.dirty_citation（既定 warn）。状態の指摘は (文書, 種類) ごとに 1 件。自動ブロック・DIGEST・
          台帳の撤回済みの行は見ない
-    L027 比較は 1 軸だけ（compare.py）: 比較の指標（comparison.json・設定・lab.toml の [compare] keys）の引用が、条件の一致
-         （comparison.json の matched=true）を確かめた run を指していない。設定が [compare] を宣言した finished の run に
-         一致した comparison.json が無い（退避済みは対象外）
+    L027 比較は 1 軸だけ（compare.py）。凍結した config.json・metrics.json・comparisons.json（meta の outputs の hash を照合）から
+         比較を計算し直す（記録の matched は信用しない）: [compare] を宣言した finished の run の比較がそろっていない・記録が無い・
+         改変されている（退避済みは対象外）。台帳の open な主張の根拠の指標が matched な比較の指標でも非比較の宣言
+         （[report] noncomparative）でもない（既定で拒否）、複数 run の根拠に axis が無い・軸以外の設定か commit が違う。
+         他の文書の数値の引用は、そろわない比較の指標なら error、未宣言の指標は check.undeclared_citation（既定 warn）
     L033 `12.3 dB [run:<run_id>:<key>]` の数値が metrics.json と一致しない
     L034 「結果・観察」節の小数・指数表記の数値に引用が無い（警告。引用を含む行は対象外）
     L036 主張の台帳 docs/claims.md の書式、撤回の理由、open な主張の根拠が dirty/failed/退避済み/無い run（claims.py）
@@ -374,31 +376,22 @@ class Checker:
             )
 
     def _l027_run(self, d: Path, meta: dict) -> None:
-        """設定が [compare] を宣言した finished の run に、条件の一致した comparison.json が無い."""
+        """[compare] を宣言した finished の run の比較を、凍結した成果物から計算し直す."""
         if meta["status"] != "finished" or meta.get("archived"):
             return
-        from labkit.compare import read_comparison
+        from labkit.compare import COMPARISON_FILE, run_status
 
-        c = read_comparison(d)
-        try:
-            declared = (
-                bool((read_json(d / "config.json") or {}).get("compare")) if (d / "config.json").is_file() else False
-            )
-        except (json.JSONDecodeError, AttributeError):
-            declared = False
-        if c is not None and c.get("matched") is not True:
-            why = "; ".join(c.get("diff") or ["matched=false"])
+        if not (d / "config.json").is_file() or not (
+            (d / COMPARISON_FILE).exists() or '"compare"' in (d / "config.json").read_text(encoding="utf-8")
+        ):
+            return
+        if probs := run_status(d, meta, self.lab)["problems"]:
             self.add(
                 "L027",
                 d,
-                f"比較の条件がそろっていない: {why}。結果にしないなら `labkit runs archive {d.name} --reason ...`",
-            )
-        elif declared and c is None:
-            self.add(
-                "L027",
-                d,
-                "設定が [compare] を宣言したのに comparison.json が無い（run.compare で条件の同一性を確かめていない）。"
-                f"`labkit runs archive {d.name} --reason ...` で退避し、run.compare を通して再実行する",
+                "比較の条件がそろっていない（ceteris paribus）: "
+                + "; ".join(probs[:5])
+                + f"。結果にしないなら `labkit runs archive {d.name} --reason ...`",
             )
 
     def _l021(self, d: Path, meta: dict) -> None:
@@ -501,14 +494,15 @@ class Checker:
 
     # ---- 報告と実データの照合 ----
     def citations(self) -> None:
-        from labkit.claims import CLAIMS_FILE
-        from labkit.compare import comparison_keys, comparison_problem
+        from labkit.claims import AXIS_RE, CLAIMS_FILE, ROW_RE
+        from labkit.compare import evidence_problems, key_problem, run_status
 
         runs = run_index(self.root)
+        undeclared_sev = self.lab["check"]["undeclared_citation"]
+        status_cache: dict[str, dict] = {}
         cache: dict[str, dict] = {}
         dirty_sev = self.lab["check"]["dirty_citation"]
         archived_sev = self.lab["check"]["archived_citation"]
-        comp_keys = comparison_keys(self.root, self.lab, runs)
         devlog_dir = self.root / self.lab["devlog"]["dir"]
         reviews_dir = self.root / "docs/reviews"
 
@@ -524,10 +518,10 @@ class Checker:
         # 同じ文書が多数の run を何十回も引用するので、状態の指摘は (文書, 種類) ごとに 1 件にまとめる（最初の行、run 数、箇所数）
         agg: dict[tuple[str, str], list] = {}
 
-        def note(doc: str, rid: str, kind: str, n: int, msg: str, sev: str) -> None:
+        def note(doc: str, rid: str, kind: str, n: int, msg: str, sev: str, code: str = "L032") -> None:
             if sev == "off":
                 return
-            a = agg.setdefault((doc, kind), [n, set(), 0, msg, sev])
+            a = agg.setdefault((doc, kind), [n, set(), 0, msg, sev, code])
             a[1].add(rid)
             a[2] += 1
 
@@ -536,8 +530,14 @@ class Checker:
             is_claims = p == self.root / CLAIMS_FILE
             doc = p.relative_to(self.root).as_posix()
             where = f"{doc}:{n}"
-            if is_claims and re.search(r"\|\s*retracted\s*\|", line):
-                continue  # 撤回済みの主張は履歴（根拠が崩れたことは撤回の理由に書いてある）
+            row = ROW_RE.match(line) if is_claims else None
+            if row and row.group(5) == "retracted":
+                continue  # 撤回済みの主張は履歴（根拠が崩れたことは撤回の理由に書いてある）。状態の列で判定する
+            if row and row.group(5) == "open":
+                cites = [(m.group("run"), m.group("key")) for m in CITE_RE.finditer(row.group(4))]
+                axis = (AXIS_RE.search(row.group(4)) or [None, None])[1]
+                for why in evidence_problems(runs, self.lab, cites, axis):
+                    self.add("L027", where, f"{row.group(1)} の根拠: {why}（比較は 1 軸だけを変える。既定で拒否）")
             for rid in set(RUN_ID_RE.findall(line)):
                 if rid not in runs:
                     self.add("L032", where, f"run {rid} が runs/ にありません（HPC の run なら meta.json を同期する）")
@@ -578,10 +578,13 @@ class Checker:
                 if runs[rid].get("archived"):
                     msg = f"run {rid} は退避済み（labkit runs archive）の数値を引用している。退避した結果は根拠にしない"
                     note(doc, rid, "archived-cite", n, msg, archived_sev)
-                if key in comp_keys and (why := comparison_problem(runs[rid]["_dir"], key)):
-                    self.add(
-                        "L027", where, f"run {rid}: {why}（比較は 1 軸だけを変える。run.compare で宣言して再実行）"
-                    )
+                if not is_claims and p.parent != reviews_dir:
+                    st = status_cache.setdefault(rid, run_status(runs[rid]["_dir"], runs[rid], self.lab))
+                    kind, why = key_problem(st, key)
+                    if kind == "unmatched":
+                        self.add("L027", where, f"run {rid}: {why}（比較は 1 軸だけを変える）")
+                    elif kind == "undeclared":
+                        note(doc, rid, "undeclared", n, f"run {rid}: {why}", undeclared_sev, "L027")
                 vals = metrics(rid)
                 if key not in vals:
                     self.add("L033", where, f"run {rid} の metrics.json に {key} がありません")
@@ -609,9 +612,9 @@ class Checker:
                     "scratch/ のファイルは検証できません。根拠にするなら src に entry を書いて commit し `labkit run` の run を引用する",
                     "warn",
                 )
-        for (doc, _), (first, rids, count, msg, sev) in agg.items():
+        for (doc, _), (first, rids, count, msg, sev, code) in agg.items():
             more = f"（この文書で {len(rids)} run・{count} 箇所）" if count > 1 else ""
-            self.add("L032", f"{doc}:{first}", msg + more, sev)
+            self.add(code, f"{doc}:{first}", msg + more, sev)
 
     def claims_ledger(self) -> None:
         from labkit.claims import check_claims

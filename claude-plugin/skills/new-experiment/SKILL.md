@@ -38,11 +38,12 @@ description: lab.toml のあるプロジェクトで新しい実験・解析・�
    （`runs.require_clean = true` なら run が始まらない。雛形は true）。小さな試行は scratch で行い、正式な run は commit 後に行う。
 5. **予想の判定を見る**: `uv run labkit runs list` の `予想:hit|miss|partial`。自由記述の予想だけの run は `labkit runs verdict <id> --say hit|miss|partial --note "..."`（判定の無い run は L024）。
 6. **パラメータを振るとき**: 設定ファイルをコピーせず、`[sweep]` か上書き引数（`filter.cutoff_hz=80`）で振る。複数 run の同名の表は `labkit runs table <name> [--md]` で連結する（集計スクリプトを書かない）。多数なら HPC の配列ジョブ（skill: hpc-job）。
-6b. **比較は 1 軸だけを変える（ceteris paribus）**: 手法・設計・設定を比べる run は、設定に `[compare] vary = ["<変える軸>"]`・`keys = ["<比較の指標>"]` を書き、
-   entry を `run(cfg, run)` にして `run.compare([Arm("ours", conds_a), Arm("base", conds_b)], comparator_sweep=...)` を呼ぶ（`from labkit.compare import Arm`）。
-   conditions には vary 以外の全条件（自由度・入力・予測器・素子モデル・量子化・遅延・採点・評価集合・調整予算・反復予算・場と力のモデル・正規化・幾何の規則）を同じ鍵で書く。
-   1 つでも違えば `ConditionMismatch` で run は failed。比較対象の自由パラメータ（平板の高さなど）は宣言した掃引の最良を選ぶ（chosen が scores の最良でないと拒否）。
-   目的を受け取れない腕は `Arm(..., not_applicable="理由")`（対象外。負けではない）。比較の指標の引用と `claim add` は matched の run だけ（L027）。
+6b. **比較は 1 軸だけを変える（ceteris paribus）**: 手法・設計・設定を比べる run は、run の前に設定へ
+   `[compare.<名>] vary = "<軸 1 つ>"`・`keys = [...]`、`[compare.<名>.common]`（vary 以外の全条件。`lab.toml` の `[compare] required` を含む）、
+   `[compare.<名>.arms.<腕>]`（軸の値だけ）を書く。entry は `arm_conditions(cfg, "<名>")` で腕の条件を読む（手で dict を書かない）。
+   比較対象の自由パラメータは `[compare.<名>.sweep]` を宣言し、値ごとのスコアを `log_metric` して `chosen(run, "<名>")` の値で評価する。
+   対象外は `objective` と `[compare.<名>.capability]` で宣言した腕だけ。比較でない指標は `[report] noncomparative` に書く（書かない指標は主張の根拠にできない）。
+   1 つでも合わなければ run は始まらないか failed。複数 run にまたがる主張は `claim add --axis <設定の鍵>`（軸以外の設定と commit が同一）。
 7. **図を作る**: skill: make-figure。
 8. **記録する**: 開発ログに目的・結果（`labkit cite` の書式）・判断を書く（skill: write-devlog）。確定した主張は `labkit claim add "<1 文>" --evidence <run>:<key>[:<unit>][:<digits>]` で台帳に入れる。重要な判断は ADR に。
 
@@ -51,7 +52,7 @@ description: lab.toml のあるプロジェクトで新しい実験・解析・�
 - run を消したり上書きしたりしない（失敗も記録）。コードか設定を直して新しい run を作る。
 - 異常終了（OOM・kill・時間切れ）で running のまま残った run は `labkit runs mark <id> --to failed --reason "..."`。開始直後に止めて meta.json の無いディレクトリが残ったら `--to interrupted`。
 - failed / interrupted は `labkit runs archive --status failed,interrupted` で退避する（削除はしない。一覧と DIGEST から消え、`runs list --all` で出る。引用すると L032 の警告）。
-  引用されていない古い finished は `labkit runs archive --uncited --older-than 14 --dry-run` で候補を見てから退避する。Claude が実行してよい。間違えたら `--undo`。
+  引用されていない古い finished は `labkit runs archive --uncited --older-than 14 --dry-run` で候補を見てから退避する。Claude が実行してよい。間違えたら `--undo --reason`（履歴は残る）。
 - 条件のそろっていなかった比較（L027）は `labkit runs archive <id> [<id> ...] --reason "条件不一致: <何が違ったか>"` で退避し、それを根拠にした主張は retract する。
   退避した run の数値を文書で引用すると L032 の error（`check.archived_citation`）。消すのではなく視界と根拠から外す（meta.json に理由が残る）。
 - 崩れた主張は `labkit claim retract C00N --reason "..."`（撤回は成果。旧値は消さない）。

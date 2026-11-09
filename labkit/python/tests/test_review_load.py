@@ -69,7 +69,7 @@ def test_dirty_and_archived_citations(git_project):
     archive_runs([run.run_id], "試行", root=p)
     assert any("退避済み" in i.message for i in issues(p, "L032"))
     assert not list_runs(p) and len(list_runs(p, include_archived=True)) == 1
-    archive_runs([run.run_id], "", undo=True, root=p)
+    archive_runs([run.run_id], "誤り", undo=True, root=p)
     assert len(list_runs(p)) == 1
 
 
@@ -227,7 +227,7 @@ def test_labkit_version_mismatch(git_project, monkeypatch):
 
 def test_claims_ledger(git_project):
     p = git_project
-    with Run("c", {"seed": 0}) as run:
+    with Run("c", {"seed": 0, "report": {"noncomparative": ["loss_pct"]}}) as run:
         run.log_metric("loss_pct", 13.21)
     with pytest.raises(ValueError, match="根拠"):
         claims.add_claim(p, "根拠なし", [])

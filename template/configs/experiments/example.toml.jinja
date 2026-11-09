@@ -18,3 +18,18 @@ range = [8.0, 20.0]
 [[pass]]
 key = "snr_db"
 min = 8.0
+
+# 指標の宣言（既定で拒否）: 主張の根拠にできるのは、ここで非比較と宣言した指標か、matched な比較（[compare.<名>] keys）の指標だけ
+[report]
+noncomparative = ["snr_db", "pass_*"]
+
+# 腕（手法・設計・設定）を比べるなら、変える軸 1 つと腕を run の前に書く（labkit.compare。条件は common と腕の表から導出）
+# [compare.lowpass]
+# vary = "filter"                      # 変える軸はちょうど 1 つ
+# keys = ["snr_gain_db"]               # この比較の指標
+# [compare.lowpass.common]             # 全腕で同一の条件（lab.toml の [compare] required をすべて含む）
+# eval_set = "synthetic-v1"
+# [compare.lowpass.arms.butter]
+# filter = "butterworth"
+# [compare.lowpass.arms.moving]
+# filter = "moving_average"            # 自由パラメータ（窓長など）は [compare.lowpass.sweep] で掃引の最良にする

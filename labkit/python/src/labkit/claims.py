@@ -6,6 +6,8 @@
 
 | ID | 日付 | 主張 | 根拠 | 状態 | 備考 |
 根拠は `labkit cite` の書式（L033 が metrics と照合する）。状態は open / retracted の 2 値。
+根拠の指標は既定で拒否: run の設定で matched な比較（[compare.<名>] keys）か非比較（[report] noncomparative）と宣言した
+ものだけ（L027）。根拠が複数の run にまたがるなら `--axis <設定の鍵>` を宣言し、根拠の欄の先頭に `axis=<鍵>;` が残る。
 「支持されているか」は保存せず、check のたびに根拠の run の状態（dirty・failed・退避・欠落）から判定する（L036）。
 """
 
@@ -61,7 +63,10 @@ def run_problem(meta: dict | None) -> str:
     return ""
 
 
-def _evidence(root: Path, spec: str, runs: dict, comp_keys: set[str] = frozenset()) -> str:
+AXIS_RE = re.compile(r"(?:^|[\s;])axis=([\w.\-]+)")
+
+
+def _evidence(root: Path, spec: str, runs: dict) -> tuple[str, str, str]:
     """ "<run>:<key>[:<unit>][:<digits>]" → `値 単位 [run:<id>:<key>]`（labkit cite）。位置で読む（単位を省くなら `::<digits>`）."""
     from labkit.check import cite
     from labkit.runs import find_run
@@ -79,26 +84,25 @@ def _evidence(root: Path, spec: str, runs: dict, comp_keys: set[str] = frozenset
         raise ValueError(
             f"根拠 run {rid} は {bad}。clean に再実行してから主張にする（dirty・failed・退避済みの結果は主張にしない）"
         )
-    if key in comp_keys:
-        from labkit.compare import comparison_problem
-
-        if why := comparison_problem(runs[rid]["_dir"], key):
-            raise ValueError(f"根拠 run {rid}: {why}。比較は 1 軸だけを変える（run.compare で宣言して再実行）")
-    return cite(rid, key, digits=digits, unit=unit, root=root)
+    return rid, key, cite(rid, key, digits=digits, unit=unit, root=root)
 
 
-def add_claim(root: Path, text: str, evidence: list[str], *, note: str = "") -> dict:
+def add_claim(root: Path, text: str, evidence: list[str], *, note: str = "", axis: str | None = None) -> dict:
     if not text.strip():
         raise ValueError("主張の文が空です")
     if not evidence:
         raise ValueError("根拠（--evidence <run_id>:<key>）を 1 つ以上付ける。run に無い量は主張にしない")
     from labkit.check import run_index
-    from labkit.compare import comparison_keys
+    from labkit.compare import evidence_problems
     from labkit.config import load_lab
 
+    if axis is not None and not re.fullmatch(r"[\w.\-]+", axis):
+        raise ValueError(f"axis は設定の鍵（ドット区切り）: {axis!r}")
     runs = run_index(root)
-    comp_keys = comparison_keys(root, load_lab(root), runs)
-    cells = "; ".join(_evidence(root, e, runs, comp_keys) for e in evidence)
+    got = [_evidence(root, e, runs) for e in evidence]
+    if probs := evidence_problems(runs, load_lab(root), [(r, k) for r, k, _ in got], axis):
+        raise ValueError("根拠にできません（比較は 1 軸だけを変える。既定で拒否）:\n  " + "\n  ".join(probs))
+    cells = "; ".join(([f"axis={axis}"] if axis else []) + [c for _, _, c in got])
     rows = list_claims(root)
     cid = f"C{(max((int(r['id'][1:]) for r in rows), default=0) + 1):03d}"
     p = _path(root)

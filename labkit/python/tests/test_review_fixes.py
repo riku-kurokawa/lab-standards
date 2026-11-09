@@ -83,7 +83,7 @@ def test_archive_undo_with_filter_and_uncited_age(project):
     assert archive_candidates(statuses=("failed",), root=project) == []
     back = [m["run_id"] for m in archive_candidates(statuses=("failed",), archived=True, root=project)]
     assert back == ids
-    archive_runs(back, "", undo=True, root=project)
+    archive_runs(back, "誤り", undo=True, root=project)
     assert len(list_runs(project)) == 2
 
 
@@ -129,7 +129,7 @@ def test_session_survives_broken_current_toml(git_project):
 
 def test_claim_add_rejects_bad_evidence_and_parses_positionally(git_project):
     p = git_project
-    with Run("good", {"seed": 0}) as good:
+    with Run("good", {"seed": 0, "report": {"noncomparative": ["ratio"]}}) as good:
         good.log_metric("ratio", 0.21608)
     (p / "scripts" / "n.py").write_text("x = 1\n", encoding="utf-8", newline="\n")
     with Run("dirty", {"seed": 0}) as dirty:
@@ -139,7 +139,7 @@ def test_claim_add_rejects_bad_evidence_and_parses_positionally(git_project):
     archive_runs([good.run_id], "x", root=p)
     with pytest.raises(ValueError, match="退避済み"):
         claims.add_claim(p, "x", [f"{good.run_id}:ratio"])
-    archive_runs([good.run_id], "", undo=True, root=p)
+    archive_runs([good.run_id], "誤り", undo=True, root=p)
     c = claims.add_claim(p, "無次元", [f"{good.run_id}:ratio:1", f"{good.run_id}:ratio::3", f"{good.run_id}:ratio:%:1"])
     assert (
         c["evidence"]

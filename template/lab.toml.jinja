@@ -34,13 +34,25 @@ max_file_lines = 300       # L018: src・scripts のファイルの行数（空�
 max_lines_allowed = []     # 上限を外すファイル（glob）。理由を書く
 dirty_citation = "warn"    # dirty な run を文書が結果として引用したとき（"warn" | "error"。claims.md は常に error）
 archived_citation = "error" # 退避済みの run の数値の引用（L032。"error" | "warn"。ID だけの言及は警告）
+undeclared_citation = "warn" # 比較とも非比較とも宣言していない指標の数値の引用（L027。claims.md は常に error）
 # claim_docs = ["docs/**/*.md", "literature/surveys/*.md"]   # 引用を照合する文書（既定）
 
 [compare]
-# 比較は 1 軸だけを変える（labkit.compare）。required: すべての比較で腕が明示すべき条件の鍵（無いと run.compare が拒否）
-# 例: ["dof", "inputs", "predictor", "element_model", "quantisation", "scoring", "eval_set", "tuning_budget", "normalisation"]
-required = []
-keys = []                  # 比較の指標（例: ["speedup"]）。matched な comparison.json の無い run からの引用は L027
+# 比較は 1 軸だけを変える（labkit.compare）。required: すべての比較の [compare.<名>.common] が明示すべき条件の鍵。
+# 無い・空なら run を始めない。以下は汎用の既定。**プロジェクトの分野の条件（例: 駆動の自由度 P/PG/PA、予測器、素子モデル、
+# 遅延、場と力のモデル、幾何の規則）をここに列挙すること**（人間が決める。Claude は lab.toml を編集しない）
+required = [
+  "degrees_of_freedom",    # 各腕が動かせる自由度（例: 位相だけ / 位相と振幅）
+  "inputs",                # 与える入力（目標・制約）
+  "objective",             # 目的関数
+  "model",                 # 予測器・物理モデル
+  "precision",             # 数値精度・量子化
+  "scoring",               # 採点関数
+  "eval_set",              # 評価集合と分割
+  "tuning_budget",         # 調整に使った構成の数
+  "compute_budget",        # 反復数・時間の予算
+  "normalisation",         # 正規化（電力・出力の定義）
+]
 
 [state]
 file = "docs/state.md"     # L037: H1 は 1 つ・同じ H2 は 1 回（error）、max_lines 超は警告。履歴は git に任せ、積み上げない

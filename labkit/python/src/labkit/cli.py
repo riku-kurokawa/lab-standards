@@ -173,11 +173,15 @@ def cmd_runs(a) -> int:
         print(f"{m['run_id']}: status={m['status']}")
     elif a.action == "archive":
         ids = ids_given
-        if ids and not a.undo and not (a.reason or "").strip():
+        if ids and not (a.reason or "").strip():
             raise SystemExit(
-                'run を名指しで退避するときは理由を残す: runs archive <run_id> ... --reason "条件不一致: ..."'
+                'run を名指しで退避・取り消すときは理由を残す: runs archive <run_id> ... --reason "条件不一致: ..."'
             )
         reason = a.reason or ("uncited" if a.uncited else f"status={a.status}" if a.status else "")
+        if a.undo and not (a.reason or "").strip():
+            raise SystemExit(
+                '退避の取り消しは理由を残す: runs archive ... --undo --reason "..."（archive_log に積まれる）'
+            )
         if a.status or a.uncited:
             statuses = tuple(a.status.split(",")) if a.status else ()
             older = (7.0 if a.uncited else 0.0) if a.older_than is None else a.older_than  # 引用前の新しい run を守る
@@ -236,8 +240,10 @@ def cmd_claim(a) -> int:
     root = find_root()
     if a.action == "add":
         if not a.text:
-            raise SystemExit('claim add "<主張 1 文>" --evidence <run_id>:<key>[:<unit>][:<digits>] ... [--note ...]')
-        c = claims.add_claim(root, a.text, a.evidence or [], note=a.note or "")
+            raise SystemExit(
+                'claim add "<主張 1 文>" --evidence <run_id>:<key>[:<unit>][:<digits>] ... [--axis <設定の鍵>] [--note ...]'
+            )
+        c = claims.add_claim(root, a.text, a.evidence or [], note=a.note or "", axis=a.axis)
         print(f"{c['id']}  {c['text']}  ← {c['evidence']}")
     elif a.action == "retract":
         c = claims.retract_claim(root, a.text or "", a.reason or "")
@@ -556,6 +562,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("text", nargs="?", help="add: 主張 1 文 / retract: ID")
     s.add_argument("--evidence", nargs="*", help="add: <run_id>:<key>[:<unit>][:<digits>]")
     s.add_argument("--note", help="add: 備考（prereg:<slug> など）")
+    s.add_argument(
+        "--axis",
+        help="add: 根拠が複数の run にまたがるときの比較の軸（設定の鍵。軸以外の凍結した設定は同一であること）",
+    )
     s.add_argument("--reason", help="retract: 撤回の理由")
     s.add_argument("--status", choices=["open", "retracted"], help="list: 絞り込み")
     s.set_defaults(func=cmd_claim)

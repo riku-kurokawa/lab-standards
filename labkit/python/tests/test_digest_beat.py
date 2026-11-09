@@ -115,7 +115,8 @@ def test_digest_builds_one_page(git_project):
     from labkit.viz import render
 
     assert "まだ無い" in staleness(p)
-    with Run("good", {"seed": 0, "prediction": {"basis": "桁", "claims": [{"key": "snr_db", "range": [0, 5]}]}}) as run:
+    pred = {"basis": "桁", "claims": [{"key": "snr_db", "range": [0, 5]}]}
+    with Run("good", {"seed": 0, "prediction": pred, "report": {"noncomparative": ["snr_db"]}}) as run:
         run.log_metric("snr_db", 12.3)
         save(runpath(run, "s.h5"), {"t": np.arange(10.0), "x": np.sin(np.arange(10.0))})
     write(

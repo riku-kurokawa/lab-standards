@@ -43,15 +43,21 @@ description: lab.toml があるプロジェクトで、ファイルを作る・�
 | データパス | `datapath("processed", "f.parquet")` |
 | 図 | `fig("figspecs/a.toml", run)` |
 | 数値の引用 | `cite(run_id, "snr_db", digits=1, unit="dB")` |
-| 比較の宣言 | `run.compare([Arm(name, conditions), ...], vary=None, keys=None, comparator_sweep=None, rel_tol=0.0)`（`from labkit.compare import Arm`） |
+| 比較の条件 | 設定の `[compare.<名>]`（vary・keys・common・arms・sweep・capability・objective）。entry は `arm_conditions(cfg, "<名>")`・`chosen(run, "<名>")`（`from labkit.compare import ...`） |
 
 ## 比較は 1 軸だけを変える（ceteris paribus）
 
-- 腕（手法・設計・設定）の比較が成り立つのは、宣言した軸（`vary`）以外の条件がすべての腕で同一で、それを**機械が確かめた**ときだけ。文章で「同条件」と書いても根拠にならない。
-  条件には駆動の自由度（P / PG / PA）・与える入力（目標・null 行・目的）・予測器・素子モデル・量子化・遅延・採点関数・評価集合と分割・調整の予算（試した構成の数）・反復／時間の予算・場と力のモデル・正規化（電力の定義）・幾何の規則を含める。
-- 設定に `[compare] vary = ["method"]`・`keys = ["<比較の指標>"]` を事前に書き、entry の中で `run.compare([Arm("ours", {...}), Arm("flat", {...})], comparator_sweep={"flat": {"height_mm": [...], "chosen": ..., "scores": [...]}})`。
-  vary 以外が違う・鍵が欠ける・`lab.toml` の `[compare] required` が無い・比較対象（自由パラメータを持つもの）が掃引の最良でないと `ConditionMismatch` で run は failed になる。目的を受け取れない腕は `Arm(..., not_applicable="理由")`（対象外。負けではない）。
-- 比較の指標を引用・主張できるのは `comparison.json` が matched の run だけ（L027、`labkit claim add`）。条件のそろっていなかった run は `labkit runs archive <id> ... --reason "条件不一致: ..."` で退避し、その数値の引用は L032 の error。
+- 腕（手法・設計・設定）の比較が成り立つのは、**宣言した 1 軸（`vary`）以外の条件がすべての腕で同一**で、それを**機械が凍結した設定から確かめた**ときだけ。文章や手書きの dict で「同条件」と書いても根拠にならない。
+- 比較は run の前に設定へ書く: `[compare.<名>]` に `vary = "<軸 1 つ>"`・`keys = ["<この比較の指標>"]`、`[compare.<名>.common]` に全腕で同一の条件、
+  `[compare.<名>.arms.<腕>]` に軸の値だけ。腕の条件は common ∪ 腕の表から導出され（entry は `labkit.compare.arm_conditions(cfg, "<名>")` で読む）、
+  腕の表に軸以外の鍵があれば run は始まらない。`lab.toml` の `[compare] required`（人間が分野の条件を列挙する）が common に無い・空でも始まらない。
+- 比較対象の自由パラメータ（平板の高さなど）は `[compare.<名>.sweep]`（arm・param・values・metric = "..{value}.."・direction）で掃引を宣言し、
+  値ごとのスコアを `log_metric` する。最良は run の記録から決まり（`labkit.compare.chosen(run, "<名>")`）、腕の値が最良でなければ run は failed。掃引の値の数は腕の間で同じ。
+- 目的を受け取れない腕が「対象外」（負けではない）になるのは、`[compare.<名>] objective` と `[compare.<名>.capability]`（腕 → 受け取れる目的）を run の前に宣言したときだけ。
+- 比較の記録 `comparisons.json` は Run の終了時に 1 回だけ書かれ、meta の outputs に hash が載る。L027 は凍結した config.json・metrics.json から計算し直す（記録の matched は信用しない）。
+- **主張の根拠は既定で拒否**: 指標は matched な比較の `keys` か、設定の `[report] noncomparative = ["<glob>"]`（比較ではない指標）に run の前に書いたものだけ。
+  根拠が複数の run にまたがるなら `labkit claim add ... --axis <設定の鍵>`。軸以外の凍結した設定と commit が同一でなければ拒否する。
+- 条件のそろっていなかった run は `labkit runs archive <id> ... --reason "条件不一致: ..."` で退避し（削除しない。取り消しも理由つきで履歴に残る）、その数値の引用は L032 の error。
 
 ## 人間の入口
 
