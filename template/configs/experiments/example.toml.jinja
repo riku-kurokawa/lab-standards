@@ -27,9 +27,9 @@ noncomparative = ["snr_db", "pass_*"]
 # [compare.lowpass]
 # vary = "filter"                      # 変える軸はちょうど 1 つ
 # keys = ["snr_gain_db"]               # この比較の指標
+# better = "max"                       # 指標の良い向き（掃引の direction はこれと同じ）
 # [compare.lowpass.common]             # 全腕で同一の条件（lab.toml の [compare] required をすべて含む）
 # eval_set = "synthetic-v1"
-# better = "max"                       # 指標の良い向き（掃引の direction はこれと同じ）
 # [compare.lowpass.arms.butter]
 # filter = "butter"                    # 軸の値は 1 語で腕の名前（か levels = [...] の値）。[compare] の外に腕の名前の鍵を置かない
 # [compare.lowpass.arms.moving]
