@@ -7,7 +7,7 @@
 | ID | 日付 | 主張 | 根拠 | 状態 | 備考 |
 根拠は `labkit cite` の書式（L033 が metrics と照合する）。状態は open / retracted の 2 値。
 根拠の指標は既定で拒否: run の設定で matched な比較（[compare.<名>] keys）か非比較（[report] noncomparative）と宣言した
-ものだけ（L027）。根拠が複数の run にまたがるなら `--axis <設定の鍵>` を宣言し、根拠の欄の先頭に `axis=<鍵>;` が残る。
+ものだけ（L027）。本文と備考に書いた引用も同じ基準で照合する。根拠が複数の run にまたがるなら `--axis <設定の鍵>` を宣言し、根拠の欄の先頭に `axis=<鍵>;` が残る。
 「支持されているか」は保存せず、check のたびに根拠の run の状態（dirty・failed・退避・欠落）から判定する（L036）。
 """
 
@@ -92,15 +92,23 @@ def add_claim(root: Path, text: str, evidence: list[str], *, note: str = "", axi
         raise ValueError("主張の文が空です")
     if not evidence:
         raise ValueError("根拠（--evidence <run_id>:<key>）を 1 つ以上付ける。run に無い量は主張にしない")
-    from labkit.check import run_index
+    from labkit.check import CITE_RE, run_index
     from labkit.compare import evidence_problems
     from labkit.config import load_lab
 
     if axis is not None and not re.fullmatch(r"[\w.\-]+", axis):
         raise ValueError(f"axis は設定の鍵（ドット区切り）: {axis!r}")
+    if axis is not None and any(seg.startswith("_") for seg in axis.split(".")):
+        raise ValueError(f"axis {axis!r} は内部の鍵（_git_commit など）。設定の鍵を 1 つ選ぶ")
     runs = run_index(root)
     got = [_evidence(root, e, runs) for e in evidence]
-    if probs := evidence_problems(runs, load_lab(root), [(r, k) for r, k, _ in got], axis):
+    # 本文と備考の引用も根拠と同じ基準で照合する（台帳の行のどこに書いた数値も既定で拒否）
+    inline = [(m.group("run"), m.group("key")) for m in CITE_RE.finditer(f"{text} {note}")]
+    for rid, _ in inline:
+        if bad := run_problem(runs.get(rid)):
+            raise ValueError(f"本文・備考の引用の run {rid} は {bad}")
+    cites = [(r, k) for r, k, _ in got] + inline
+    if probs := evidence_problems(runs, load_lab(root), cites, axis):
         raise ValueError("根拠にできません（比較は 1 軸だけを変える。既定で拒否）:\n  " + "\n  ".join(probs))
     cells = "; ".join(([f"axis={axis}"] if axis else []) + [c for _, _, c in got])
     rows = list_claims(root)

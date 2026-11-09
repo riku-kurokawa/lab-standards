@@ -122,6 +122,7 @@ class Run:
         self._t0 = 0.0
         self._last: dict[str, Any] = {}
         self.meta: dict[str, Any] = {}
+        self._config0: str | None = None  # 開始時に凍結した設定（正準 JSON）。途中の書き換えを終了時に検出する
 
     # ---- 公開 API ----
     def path(self, *parts: str) -> Path:
@@ -200,6 +201,10 @@ class Run:
             for f in files:
                 shutil.copy2(f, cdir / rel_or_abs(Path(f), self.root / "configs").replace("/", "__"))
         write_json_atomic(self.dir / "config.json", self.config)
+        from labkit.compare import canonical
+
+        self._config0 = canonical(self.config)
+        config_sha256 = sha256_file(self.dir / "config.json")
         manifest = _manifest_lookup(self.root)
         paths = load_paths(self.root)
         self.meta = {
@@ -221,6 +226,7 @@ class Run:
             "git": self.git,
             "env": env_info(self.root),
             "seed": self.config.get("seed"),
+            "config_sha256": config_sha256,  # 開始時の config.json の hash（終了時・記録時・check で照合する）
             "serves": serves or None,
             "prediction": self.config.get("prediction"),
             "slurm": slurm_info(),
@@ -257,11 +263,14 @@ class Run:
         self.meta["finished"] = now_iso()
         self.meta["duration_s"] = round(time.time() - self._t0, 3)
         compare_problems: list[str] = []
-        if exc_type is None and self.config.get("compare"):
-            from labkit.compare import record
+        if exc_type is None:
+            from labkit.compare import COMPARISON_FILE, config_drift, record
 
-            try:  # 比較の記録は終了時に 1 回だけ（掃引のスコアは run の metrics から）
-                compare_problems = record(self)
+            try:  # 設定が途中で変わっていないこと、比較の記録は終了時に 1 回だけ（掃引のスコアは run の metrics から）
+                if why := config_drift(self):
+                    compare_problems = [why]
+                elif json.loads(self._config0 or "{}").get("compare") or (self.dir / COMPARISON_FILE).exists():
+                    compare_problems = record(self)
             except Exception as e:  # 記録できない比較は一致とみなさない（run を running のまま残さない）
                 compare_problems = [f"比較を記録できない: {type(e).__name__}: {e}"]
         if compare_problems:
@@ -432,6 +441,27 @@ def _shell_meta(d: Path) -> dict:
     return meta
 
 
+def _check_finishable(d: Path, meta: dict, root: Path | None) -> None:
+    """`runs mark finished` の関門: 比較の run は Run の終了時にしか記録できない。設定は開始時の hash と同じで、同じ検査を通ること."""
+    from labkit.compare import COMPARISON_FILE, check_config
+
+    cf = d / "config.json"
+    if (d / COMPARISON_FILE).exists():
+        raise ValueError(
+            f"{d.name} に {COMPARISON_FILE} がある。比較は Run の終了時にしか記録しない（failed か interrupted で記録する）"
+        )
+    if not cf.is_file():
+        return
+    cfg = read_json(cf)
+    if cfg.get("compare"):
+        raise ValueError(
+            f"{d.name} は比較（[compare]）を宣言している。終了時の記録が無い比較の run は finished にできない（failed か interrupted）"
+        )
+    if meta.get("config_sha256") and sha256_file(cf) != meta["config_sha256"]:
+        raise ValueError(f"{d.name} の config.json が開始時の hash（meta.config_sha256）と違う。finished にできない")
+    check_config(cfg, load_lab(root or find_root()))
+
+
 def mark_run(run_id: str, status: str, reason: str = "", root: Path | None = None) -> dict:
     """異常終了（OOM・kill・時間切れ）で running のまま残った run、または meta.json の無い殻の状態を記録する。
     Claude が実行してよい（削除はしない。殻は最小の meta を書いて記録として残す）."""
@@ -441,6 +471,8 @@ def mark_run(run_id: str, status: str, reason: str = "", root: Path | None = Non
     meta = read_json(d / "meta.json") if (d / "meta.json").is_file() else _shell_meta(d)
     if meta.get("status") != "running":
         raise ValueError(f"{d.name} は status={meta.get('status')}（running の run だけ mark できる）")
+    if status == "finished":
+        _check_finishable(d, meta, root)
     freeze_run(d, writable=True)
     meta.update(status=status, finished=now_iso(), error=f"marked {status} by labkit runs mark: {reason}".strip())
     if not (d / "metrics.json").exists():

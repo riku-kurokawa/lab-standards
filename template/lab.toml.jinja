@@ -53,6 +53,9 @@ required = [
   "compute_budget",        # 反復数・時間の予算
   "normalisation",         # 正規化（電力・出力の定義）
 ]
+# 対象外（目的を受け取れない手法）の独立した宣言。手法（軸の値）= [受け取れる目的]。設定の capability（著者の宣言）と食い違えば拒否
+# [compare.capability]
+# gs = ["focus"]
 
 [state]
 file = "docs/state.md"     # L037: H1 は 1 つ・同じ H2 は 1 回（error）、max_lines 超は警告。履歴は git に任せ、積み上げない

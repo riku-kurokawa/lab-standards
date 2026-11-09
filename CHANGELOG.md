@@ -31,6 +31,29 @@ accelerated-diff-pat で、腕のあいだで条件（駆動の自由度・与�
   主張の台帳の撤回済みの行（状態の列で判定）は引用の照合から外した。
 - 雛形 CLAUDE.md・`lab.toml`・example 設定（`[report] noncomparative`）、skill new-experiment・lab-conventions に「比較は 1 軸だけを変える（ceteris paribus）」。
 
+### 2 回目のレビューで塞いだ抜け道（A–O。抜け道ごとに `tests/test_compare.py` の test_a〜test_o）
+脅威モデル: 防ぐのは、善意だが雑な・近道をする著者やエージェントによる**偶然の・都合のよい不一致を引用できてしまうこと**。
+完了した run の意図した偽造は手元の照合では防ぎきれない（安価な緩和だけを入れ、残る危険は docs/harness.md に明記）。
+- A: `[report] noncomparative` のワイルドカードは前に 2 文字以上の固定の接頭辞が要る（`*`・`?*`・`*_db`・`[a-z]*` は拒否）。比べる語（vs・minus・over など）を含む指標は非比較にできない。
+- B: 非比較の glob と、それに当たる指標は、腕の名前・比較の指標の語幹を含めない（`raw_ours_vs_flat` は引用できない。L027 の error）。
+- C: `[compare]` の外（`[compare.<名>.common]` の中も）に腕の名前を含む鍵・表（`[solver.ours]`・`flat_steps`）があれば run を始めない。
+- D: 軸の値は 1 語（`+ / , ; :` や空白で束ねない）で、腕の名前か `[compare.<名>] levels = [...]` の値。
+- E: 調整の予算は腕ごとの**総試行数**で同じ。1 腕でも掃引するなら、対象外でない全腕を掃引する。
+- F: `_git_commit` など `_` で始まる内部の鍵は実験間の軸にできない。
+- G: 台帳の行の本文・備考の引用も根拠と同じ基準で照合する（`claim add` と L027）。
+- H: 他の文書の未宣言の指標は error（開発ログだけ `check.undeclared_citation`、既定 warn）。run をまたぐ段落（空行・見出しで区切る）は、同じ段落の
+  `axis=<鍵>` と軸以外の設定・commit の同一性を照合する（state・papers・reports は error、開発ログは警告）。
+- I（緩和）: `labkit runs mark <id> finished` は、比較を宣言した run・comparisons.json のある run を拒否し（failed / interrupted で記録する）、
+  開始時の config の hash と設定の検査をやり直す。
+- J（緩和）: Run は開始時の config.json の hash を `meta.config_sha256` に残し、L027・`claim add` が照合する（outputs だけを直した改変を検出）。
+  meta.json ごと書き換える偽造は検出できない（残る危険）。
+- K: 対象外の独立した宣言は `lab.toml` の `[compare.capability]`（手法 = 受け取れる目的。人間が書く）。設定の capability は著者の宣言として
+  comparisons.json（`not_applicable.<腕>.source`・`author_declared_not_applicable`）と L027 の警告に出る。`lab.toml` と食い違えば拒否。
+- L: `[compare] required` の値に `n/a`・`none`・`null`・`-`・`tbd`・`unknown`・`?`・`未定` などのプレースホルダは空とみなす。
+- M: entry が `run.config` や config.json を run の途中で書き換えると run は failed（メモリ上の設定と config.json の hash を終了時・記録時に照合）。
+- N: 掃引があるなら比較に `better = "max" | "min"` が要り、掃引の direction は同じ。掃引の metric は比較の指標（keys の 1 つ）を含む名前。
+- O: 実験間の照合は `[compare.<名>]` の common・arms・sweep なども比べる（除くのは keys とラベルだけ）。
+
 ### 移行
 1. `labkit standards unlink --to v2.1.0`（Windows では続けて `uv sync --reinstall-package labkit`）、plugin は `/plugin marketplace update lab-standards`、
    雛形の差分は `labkit standards template --ref v2.1.0`。
@@ -40,6 +63,8 @@ accelerated-diff-pat で、腕のあいだで条件（駆動の自由度・与�
 3. 条件のそろっていなかった run は `labkit runs archive <id> ... --reason "条件不一致: <何が違ったか>"` で退避する。
    退避済みの run の数値を引用している文書（開発ログを含む）は L032 の error になる。移行中に一時的に警告へ戻すなら `[check] archived_citation = "warn"`（人間が編集）。
 4. `lab.toml` の `[compare] required` に分野の条件を列挙する（人間が編集）。既存の設定に無ければ既定は空で、required の照合は働かない。
+   対象外を使うなら `[compare.capability]` に手法ごとの受け取れる目的を登録する（人間が編集。無ければ設定の capability は著者の宣言として警告）。
+5. 掃引を使う比較は `better` を書き、掃引の metric に比較の指標を含め、全腕を同じ総試行数で掃引する。文書で別 run の数値を並べる段落には `axis=<鍵>` を書く。
 
 ## v2.0.0 — 2026-11-10
 

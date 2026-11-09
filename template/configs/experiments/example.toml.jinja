@@ -29,7 +29,20 @@ noncomparative = ["snr_db", "pass_*"]
 # keys = ["snr_gain_db"]               # この比較の指標
 # [compare.lowpass.common]             # 全腕で同一の条件（lab.toml の [compare] required をすべて含む）
 # eval_set = "synthetic-v1"
+# better = "max"                       # 指標の良い向き（掃引の direction はこれと同じ）
 # [compare.lowpass.arms.butter]
-# filter = "butterworth"
+# filter = "butter"                    # 軸の値は 1 語で腕の名前（か levels = [...] の値）。[compare] の外に腕の名前の鍵を置かない
 # [compare.lowpass.arms.moving]
-# filter = "moving_average"            # 自由パラメータ（窓長など）は [compare.lowpass.sweep] で掃引の最良にする
+# filter = "moving"
+# [[compare.lowpass.sweep]]            # 自由パラメータは掃引の最良。1 腕でも調整するなら全腕を同じ総試行数で
+# arm = "moving"
+# param = "window"
+# values = [3, 5, 9]
+# metric = "snr_gain_db_moving_w{value}"   # 比較の指標を含む名前
+# direction = "max"
+# [[compare.lowpass.sweep]]
+# arm = "butter"
+# param = "order"
+# values = [2, 4, 6]
+# metric = "snr_gain_db_butter_o{value}"
+# direction = "max"

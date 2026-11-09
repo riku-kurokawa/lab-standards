@@ -11,11 +11,13 @@
          退避済みの run の数値の引用 `値 [run:<id>:<key>]` は check.archived_citation（既定 error）、
          dirty な run の引用は check.dirty_citation（既定 warn）。状態の指摘は (文書, 種類) ごとに 1 件。自動ブロック・DIGEST・
          台帳の撤回済みの行は見ない
-    L027 比較は 1 軸だけ（compare.py）。凍結した config.json・metrics.json・comparisons.json（meta の outputs の hash を照合）から
-         比較を計算し直す（記録の matched は信用しない）: [compare] を宣言した finished の run の比較がそろっていない・記録が無い・
-         改変されている（退避済みは対象外）。台帳の open な主張の根拠の指標が matched な比較の指標でも非比較の宣言
-         （[report] noncomparative）でもない（既定で拒否）、複数 run の根拠に axis が無い・軸以外の設定か commit が違う。
-         他の文書の数値の引用は、そろわない比較の指標なら error、未宣言の指標は check.undeclared_citation（既定 warn）
+    L027 比較は 1 軸だけ（compare.py）。凍結した config.json・metrics.json・comparisons.json（meta の outputs と config_sha256 の
+         hash を照合）から比較を計算し直す（記録の matched は信用しない）: [compare] を宣言した finished の run の比較がそろっていない・
+         記録が無い・改変されている（退避済みは対象外）。対象外が著者の宣言だけ（lab.toml の [compare.capability] に無い）なら警告。
+         台帳の open な主張（本文・根拠・備考のすべての引用）の指標が matched な比較の指標でも非比較の宣言（[report] noncomparative。
+         腕の名前・比較の指標の語幹・比べる語を含まない）でもない（既定で拒否）、複数 run の根拠に axis が無い・軸以外の設定
+         （[compare.<名>] の common・arms を含む）か commit が違う。他の文書の数値の引用: そろわない比較の指標、未宣言の指標、
+         run をまたぐ段落（同じ段落に axis=<鍵> が無い・軸以外が違う）は error。開発ログだけ check.undeclared_citation（既定 warn）
     L033 `12.3 dB [run:<run_id>:<key>]` の数値が metrics.json と一致しない
     L034 「結果・観察」節の小数・指数表記の数値に引用が無い（警告。引用を含む行は対象外）
     L036 主張の台帳 docs/claims.md の書式、撤回の理由、open な主張の根拠が dirty/failed/退避済み/無い run（claims.py）
@@ -385,7 +387,15 @@ class Checker:
             (d / COMPARISON_FILE).exists() or '"compare"' in (d / "config.json").read_text(encoding="utf-8")
         ):
             return
-        if probs := run_status(d, meta, self.lab)["problems"]:
+        st = run_status(d, meta, self.lab)
+        for a in st["author_excluded"]:
+            self.add(
+                "L027",
+                d,
+                f"対象外 {a} は著者の宣言だけ（lab.toml の [compare.capability] に無い）。人間が lab.toml に登録すると独立した宣言になる",
+                "warn",
+            )
+        if probs := st["problems"]:
             self.add(
                 "L027",
                 d,
@@ -495,7 +505,7 @@ class Checker:
     # ---- 報告と実データの照合 ----
     def citations(self) -> None:
         from labkit.claims import AXIS_RE, CLAIMS_FILE, ROW_RE
-        from labkit.compare import evidence_problems, key_problem, run_status
+        from labkit.compare import cross_run_problem, evidence_problems, key_problem, run_status
 
         runs = run_index(self.root)
         undeclared_sev = self.lab["check"]["undeclared_citation"]
@@ -517,6 +527,9 @@ class Checker:
 
         # 同じ文書が多数の run を何十回も引用するので、状態の指摘は (文書, 種類) ごとに 1 件にまとめる（最初の行、run 数、箇所数）
         agg: dict[tuple[str, str], list] = {}
+        # 段落（空行・見出しで区切る）ごとの引用の run と axis=<鍵>。run をまたぐ段落は実験間の比較として照合する
+        paras: dict[tuple[str, int], dict] = {}
+        para_id, last_p = 0, None
 
         def note(doc: str, rid: str, kind: str, n: int, msg: str, sev: str, code: str = "L032") -> None:
             if sev == "off":
@@ -530,11 +543,17 @@ class Checker:
             is_claims = p == self.root / CLAIMS_FILE
             doc = p.relative_to(self.root).as_posix()
             where = f"{doc}:{n}"
+            if p != last_p or not line.strip() or line.lstrip().startswith("#"):
+                para_id, last_p = para_id + 1, p
+            para = paras.setdefault((doc, para_id), {"where": where, "rids": set(), "axis": None, "devlog": is_devlog})
+            if not is_claims and p.parent != reviews_dir and (ax := AXIS_RE.search(line)):
+                para["axis"] = ax[1]
             row = ROW_RE.match(line) if is_claims else None
             if row and row.group(5) == "retracted":
                 continue  # 撤回済みの主張は履歴（根拠が崩れたことは撤回の理由に書いてある）。状態の列で判定する
             if row and row.group(5) == "open":
-                cites = [(m.group("run"), m.group("key")) for m in CITE_RE.finditer(row.group(4))]
+                cells = " ".join((row.group(3), row.group(4), row.group(6)))  # 本文・根拠・備考のすべての引用
+                cites = [(m.group("run"), m.group("key")) for m in CITE_RE.finditer(cells)]
                 axis = (AXIS_RE.search(row.group(4)) or [None, None])[1]
                 for why in evidence_problems(runs, self.lab, cites, axis):
                     self.add("L027", where, f"{row.group(1)} の根拠: {why}（比較は 1 軸だけを変える。既定で拒否）")
@@ -579,10 +598,11 @@ class Checker:
                     msg = f"run {rid} は退避済み（labkit runs archive）の数値を引用している。退避した結果は根拠にしない"
                     note(doc, rid, "archived-cite", n, msg, archived_sev)
                 if not is_claims and p.parent != reviews_dir:
+                    para["rids"].add(rid)
                     st = status_cache.setdefault(rid, run_status(runs[rid]["_dir"], runs[rid], self.lab))
                     kind, why = key_problem(st, key)
-                    if kind == "unmatched":
-                        self.add("L027", where, f"run {rid}: {why}（比較は 1 軸だけを変える）")
+                    if kind == "unmatched" or (kind == "undeclared" and not is_devlog):
+                        self.add("L027", where, f"run {rid}: {why}（比較は 1 軸だけを変える。既定で拒否）")
                     elif kind == "undeclared":
                         note(doc, rid, "undeclared", n, f"run {rid}: {why}", undeclared_sev, "L027")
                 vals = metrics(rid)
@@ -612,6 +632,13 @@ class Checker:
                     "scratch/ のファイルは検証できません。根拠にするなら src に entry を書いて commit し `labkit run` の run を引用する",
                     "warn",
                 )
+        for (doc, _), pa in paras.items():
+            if len(pa["rids"]) > 1 and (why := cross_run_problem(runs, sorted(pa["rids"]), pa["axis"])):
+                msg = f"段落の引用が run をまたぐ: {why}（同じ段落に axis=<設定の鍵> を書き、軸以外が同一の run だけを並べる）"
+                if pa["devlog"]:
+                    note(doc, "", "cross-run", int(pa["where"].rsplit(":", 1)[1]), msg, undeclared_sev, "L027")
+                else:
+                    self.add("L027", pa["where"], msg)
         for (doc, _), (first, rids, count, msg, sev, code) in agg.items():
             more = f"（この文書で {len(rids)} run・{count} 箇所）" if count > 1 else ""
             self.add(code, f"{doc}:{first}", msg + more, sev)

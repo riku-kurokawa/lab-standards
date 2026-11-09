@@ -40,10 +40,12 @@ description: lab.toml のあるプロジェクトで新しい実験・解析・�
 6. **パラメータを振るとき**: 設定ファイルをコピーせず、`[sweep]` か上書き引数（`filter.cutoff_hz=80`）で振る。複数 run の同名の表は `labkit runs table <name> [--md]` で連結する（集計スクリプトを書かない）。多数なら HPC の配列ジョブ（skill: hpc-job）。
 6b. **比較は 1 軸だけを変える（ceteris paribus）**: 手法・設計・設定を比べる run は、run の前に設定へ
    `[compare.<名>] vary = "<軸 1 つ>"`・`keys = [...]`、`[compare.<名>.common]`（vary 以外の全条件。`lab.toml` の `[compare] required` を含む）、
-   `[compare.<名>.arms.<腕>]`（軸の値だけ）を書く。entry は `arm_conditions(cfg, "<名>")` で腕の条件を読む（手で dict を書かない）。
-   比較対象の自由パラメータは `[compare.<名>.sweep]` を宣言し、値ごとのスコアを `log_metric` して `chosen(run, "<名>")` の値で評価する。
-   対象外は `objective` と `[compare.<名>.capability]` で宣言した腕だけ。比較でない指標は `[report] noncomparative` に書く（書かない指標は主張の根拠にできない）。
-   1 つでも合わなければ run は始まらないか failed。複数 run にまたがる主張は `claim add --axis <設定の鍵>`（軸以外の設定と commit が同一）。
+   `[compare.<名>.arms.<腕>]`（軸の値だけ。1 語で腕の名前か `levels` の値）を書く。entry は `arm_conditions(cfg, "<名>")` で腕の条件を読む（手で dict を書かない。
+   `[compare]` の外に腕の名前の表・鍵を置かない）。自由パラメータは `[[compare.<名>.sweep]]` を宣言し（metric は比較の指標を含む名前、direction は `better`。
+   1 腕でも調整するなら全腕を同じ総試行数で）、値ごとのスコアを `log_metric` して `chosen(run, "<名>")` の値で評価する。
+   対象外は `objective` と capability（人間の `lab.toml` の `[compare.capability]` が独立した宣言）で決まる腕だけ。比較でない指標は `[report] noncomparative` に書く
+   （書かない指標は主張の根拠にできない。`*` のような広い glob、腕の名前・比べる語を含む名前は不可）。`run.config` を途中で書き換えない。
+   1 つでも合わなければ run は始まらないか failed。複数 run にまたがる主張・段落は `--axis <設定の鍵>` / `axis=<鍵>`（軸以外の設定と commit が同一）。
 7. **図を作る**: skill: make-figure。
 8. **記録する**: 開発ログに目的・結果（`labkit cite` の書式）・判断を書く（skill: write-devlog）。確定した主張は `labkit claim add "<1 文>" --evidence <run>:<key>[:<unit>][:<digits>]` で台帳に入れる。重要な判断は ADR に。
 

@@ -37,7 +37,24 @@ Stop hook が毎回見るのはこれだけ（体裁の検査は pre-commit と 
 | 主張の台帳 | `docs/claims.md` の各行の書式、撤回の理由、open な主張の根拠（L036。根拠の run が無い・failed・dirty・退避済みなら違反）。台帳は `labkit claim` だけが書く |
 | 予想の判定 | `[prediction]` の表（basis・claims の key と range/point+tol）は finished 時に metrics と照合され `prediction_result`（hit/miss/partial/undeterminable）が meta.json に残る。自由記述の予想は `labkit runs verdict --say`（self_reported）。判定の無い run は警告（L024） |
 | 退避 | `labkit runs archive` は削除せず meta.json に `archived` を書く。`runs list`・DIGEST・`runs table` から隠れ、ID の言及は警告・数値の引用は error（L032、`check.archived_citation`）。名指しは `runs archive <id> ... --reason`。`--undo --reason` で戻る（`archive_log` に履歴が残る） |
-| 比較の条件 | 設定の `[compare.<名>]`（vary は 1 軸、腕の条件は common ∪ 腕の表から導出、掃引・capability も事前の宣言）を Run が開始前に検査し、終了時に 1 回だけ `comparisons.json` を書く（hash は meta の outputs）。L027 は凍結した設定から計算し直す。主張の根拠は matched な比較の指標か `[report] noncomparative` だけ（既定で拒否）、複数 run は `--axis` と軸以外の設定・commit の同一性 |
+| 比較の条件 | 設定の `[compare.<名>]`（vary は 1 軸で値は 1 語、腕の条件は common ∪ 腕の表から導出、`[compare]` の外に腕の名前の鍵を置かない、掃引は比較の指標と `better` で全腕同じ総試行数、対象外は `lab.toml` の `[compare.capability]` か著者の宣言）を Run が開始前に検査し、config.json の hash を `meta.config_sha256` に残し、終了時に設定が変わっていないことを確かめてから 1 回だけ `comparisons.json` を書く（hash は meta の outputs）。L027 は凍結した設定から計算し直す。主張の根拠は matched な比較の指標か `[report] noncomparative`（広い glob・腕の名前・比べる語は不可）だけ（既定で拒否）、複数 run・run をまたぐ段落は axis と軸以外の設定（`[compare]` の common・arms を含む）・commit の同一性 |
+
+### 比較の脅威モデルと残る危険
+
+比較の関門（compare.py・L027・`claim add`）が防ぐのは、**善意だが雑な、あるいは近道をする著者・エージェント**が設定・コード・主張を書くときの
+**偶然の・都合のよい不一致を引用できてしまうこと**である。具体的には: `noncomparative = ["*"]` のようなワイルドカード、宣言した比較の外に置いた
+腕どうしの脇の指標（`raw_ours_vs_flat`）、`[solver.ours]` のような腕ごとの表、`"ours+lr0.1+fp64"` のように文字列に束ねた軸、腕ごとに違う調整の量や向き、
+`n/a`・`未定` で埋めた必須の条件、著者だけの「対象外」、古い・run の途中で変えた設定、`_git_commit` を軸にした実験間の比較、文章の中に並べた別 run の数値。
+これらは run を始めない・failed にする・L027 の error・`claim add` の拒否のどれかになる（`labkit/python/tests/test_compare.py` に抜け道ごとのテスト）。
+
+**防げないもの（残る危険）**: 完了した run のファイルを意図して偽造すること。run のディレクトリは chmod で書き込み可能に戻せ、`meta.json` 自体は
+どこにも hash が固定されていない。config.json・metrics.json・comparisons.json を書き換え、`meta.json` の outputs と `config_sha256` まで計算し直せば、
+手元のファイルの照合（L027）は通る。kill してから running の run を書き換えることも同じ。入れた緩和は安価なものだけ:
+開始時の config.json の hash（`meta.config_sha256`）を終了時・記録時・check で照合する（outputs だけを直した改変は検出する）、`labkit runs mark ... finished` は
+比較を宣言した run・comparisons.json のある run を拒否し、開始時の hash と設定の検査をやり直す。意図した偽造を防ぐには、meta.json の hash を run の外
+（git に commit した台帳・追記だけの記録・別の計算機）に固定する必要があり、本体はまだそれを持たない。比較の結論を外に出す前には、人間か
+独立した再実行が run を再現すること。また、entry のコードが `arm_conditions`・`chosen` の値を本当にソルバに渡したかは機械では証明できない
+（設定が唯一の出所であることまでを保証する）。
 
 ## 2. 主線と芽（完全自律の中で、主線から絶対にずれず、芽を拾い続ける）
 
