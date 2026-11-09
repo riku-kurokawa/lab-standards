@@ -8,7 +8,7 @@
     L023 run を実行した labkit の版がプロジェクトの固定版と違う（警告。(版, 実行環境) ごとに 1 件。環境の同期漏れ）
     L030 開発ログの書式違反・必須欄（目的 / 判断と理由 / 未解決）が空
     L032 文書（check.claim_docs）が引用する run ID が runs/ に無い。failed/link の run と、退避済みの run の ID だけの言及は警告、
-         退避済みの run の数値の引用 `値 [run:<id>:<key>]` は check.archived_citation（既定 error）、
+         退避済みの run の数値の引用 `値 [run:<id>:<key>]` は check.archived_citation（既定 error。履歴の文書では警告）、
          dirty な run の引用は check.dirty_citation（既定 warn）。状態の指摘は (文書, 種類) ごとに 1 件。自動ブロック・DIGEST・
          台帳の撤回済みの行は見ない
     L027 比較は 1 軸だけ（compare.py）。凍結した config.json・metrics.json・comparisons.json（meta の outputs と config_sha256 の
@@ -17,10 +17,14 @@
          台帳の open な主張（本文・根拠・備考のすべての引用）の指標が matched な比較の指標でも非比較の宣言（[report] noncomparative。
          腕の名前・比較の指標の語幹・比べる語を含まない）でもない（既定で拒否）、複数 run の根拠に axis が無い・軸以外の設定
          （[compare.<名>] の common・arms を含む）か commit が違う。他の文書の数値の引用: そろわない比較の指標、未宣言の指標、
-         同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引く文書（段落・表を区別しない文書ごと。文書に axis=<鍵> が無い・軸以外が違う）は error。開発ログだけ check.undeclared_citation（既定 warn）
+         同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引く文書（段落・表を区別しない文書ごと。文書に axis=<鍵> が無い・軸以外が違う）は error。
+         履歴の文書（check.history_docs: 開発ログ・事前登録・ADR・レビュー。書いた時点の記録で、後の規則に合わせて書き換えない）では
+         警告（未宣言と run をまたぐ同じ指標は check.undeclared_citation、既定 warn）。現在の文書（台帳・state・papers・reports など）は error
          1 行（表の行も）に 2 つ以上の run の値、または 1 つの matched な比較の keys ではない同じ run の 2 つ以上の値を並べる行は警告
          （開発ログは出さない）。同じ行に open な主張の ID（根拠がその行の引用を含む）があるか、run をまたぐだけで同じ行の axis=<鍵> が
          通れば出さない。文の意味は機械に読めないので、比較は台帳（claim add）で強制し、文書の並置は警告だけ（残る危険）
+         legacy の run（labkit < 2.2.0。meta.config_sha256 が無い。compare.is_legacy）は比較の run ではない（run 単位の照合をせず、
+         設定の compare という表は無視）。その 1 つの値の引用は警告、主張に並べた 2 つ以上の値・文書で run をまたぐ同じ指標は error
     L033 `12.3 dB [run:<run_id>:<key>]` の数値が metrics.json と一致しない
     L034 「結果・観察」節の小数・指数表記の数値に引用が無い（警告。引用を含む行は対象外）
     L036 主張の台帳 docs/claims.md の書式、撤回の理由、open な主張の根拠が dirty/failed/退避済み/無い run（claims.py）
@@ -383,9 +387,10 @@ class Checker:
 
     def _l027_run(self, d: Path, meta: dict) -> None:
         """[compare] を宣言した finished の run の比較を、凍結した成果物から計算し直す."""
-        if meta["status"] != "finished" or meta.get("archived"):
-            return
-        from labkit.compare import COMPARISON_FILE, run_status
+        from labkit.compare import COMPARISON_FILE, is_legacy, run_status
+
+        if meta["status"] != "finished" or meta.get("archived") or is_legacy(meta):
+            return  # legacy（labkit < 2.2.0）の run は比較の run ではない（設定の compare という表は別の意味）
 
         if not (d / "config.json").is_file() or not (
             (d / COMPARISON_FILE).exists() or '"compare"' in (d / "config.json").read_text(encoding="utf-8")
@@ -518,6 +523,7 @@ class Checker:
         dirty_sev = self.lab["check"]["dirty_citation"]
         archived_sev = self.lab["check"]["archived_citation"]
         devlog_dir = self.root / self.lab["devlog"]["dir"]
+        history = [h.rstrip("/") + "/" for h in self.lab["check"]["history_docs"]]
         reviews_dir = self.root / "docs/reviews"
 
         def metrics(rid: str) -> dict:
@@ -575,10 +581,12 @@ class Checker:
 
         for p, n, line, section in doc_lines(self.root, self.lab):
             is_devlog = p.parent == devlog_dir
-            is_claims = p == self.root / CLAIMS_FILE
             doc = p.relative_to(self.root).as_posix()
+            # 履歴の文書（書いた時点の記録。後の規則に合わせて書き換えない）では L027・L032 の引用の指摘を警告にする
+            is_history = is_devlog or any(doc.startswith(h) for h in history)
+            is_claims = p == self.root / CLAIMS_FILE
             where = f"{doc}:{n}"
-            dd = docs.setdefault(doc, {"cites": [], "axes": [], "devlog": is_devlog})
+            dd = docs.setdefault(doc, {"cites": [], "axes": [], "history": is_history})
             if not is_claims and p.parent != reviews_dir:
                 dd["axes"] += [a for a in AXIS_RE.findall(line) if a not in dd["axes"]]
             row = ROW_RE.match(line) if is_claims else None
@@ -588,8 +596,11 @@ class Checker:
                 cells = " ".join((row.group(3), row.group(4), row.group(6)))  # 本文・根拠・備考のすべての引用
                 cites = [(m.group("run"), m.group("key")) for m in CITE_RE.finditer(cells)]
                 axis = (AXIS_RE.search(row.group(4)) or [None, None])[1]
-                for why in evidence_problems(runs, self.lab, cites, axis):
+                warns: list[str] = []
+                for why in evidence_problems(runs, self.lab, cites, axis, warns):
                     self.add("L027", where, f"{row.group(1)} の根拠: {why}（比較は 1 軸だけを変える。既定で拒否）")
+                for why in warns:
+                    self.add("L027", where, f"{row.group(1)} の根拠: {why}", "warn")
             for rid in set(RUN_ID_RE.findall(line)):
                 if rid not in runs:
                     self.add("L032", where, f"run {rid} が runs/ にありません（HPC の run なら meta.json を同期する）")
@@ -630,14 +641,22 @@ class Checker:
                     continue
                 if runs[rid].get("archived"):
                     msg = f"run {rid} は退避済み（labkit runs archive）の数値を引用している。退避した結果は根拠にしない"
-                    note(doc, rid, "archived-cite", n, msg, archived_sev)
+                    # 開発ログは履歴（書き換えない）なので警告。他の文書・台帳は check.archived_citation
+                    sev = "warn" if is_history and archived_sev == "error" else archived_sev
+                    note(doc, rid, "archived-cite", n, msg, sev)
                 if not is_claims and p.parent != reviews_dir:
                     dd["cites"].append((rid, key, n))
                     line_cites.append((rid, key))
                     st = status_cache.setdefault(rid, run_status(runs[rid]["_dir"], runs[rid], self.lab))
                     kind, why = key_problem(st, key)
-                    if kind == "unmatched" or (kind == "undeclared" and not is_devlog):
+                    if (
+                        kind == "legacy"
+                    ):  # 1 つの値の引用は警告（並べた値・run をまたぐ同じ指標は下の照合が error にする）
+                        note(doc, rid, "legacy", n, f"run {rid}: {why}", "warn", "L027")
+                    elif kind in ("unmatched", "undeclared") and not is_history:
                         self.add("L027", where, f"run {rid}: {why}（比較は 1 軸だけを変える。既定で拒否）")
+                    elif kind == "unmatched":
+                        note(doc, rid, "unmatched", n, f"run {rid}: {why}", "warn", "L027")
                     elif kind == "undeclared":
                         note(doc, rid, "undeclared", n, f"run {rid}: {why}", undeclared_sev, "L027")
                 vals = metrics(rid)
@@ -686,7 +705,7 @@ class Checker:
                         f"文書の指標 {key!r} の引用が run をまたぐ: {whys[0]}（文書に axis=<設定の鍵> を書き、"
                         "軸以外が同一の run だけを並べる。段落・表を分けても同じ文書なら比較）"
                     )
-                    if dd["devlog"]:
+                    if dd["history"]:
                         note(doc, "", "cross-run", cs[0][1], msg, undeclared_sev, "L027")
                     else:
                         self.add("L027", f"{doc}:{cs[0][1]}", msg)

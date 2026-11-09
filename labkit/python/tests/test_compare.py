@@ -640,3 +640,109 @@ def test_t_residual_risks_are_documented():
     doc = (Path(__file__).resolve().parents[3] / "docs" / "harness.md").read_text(encoding="utf-8")
     assert "比べる語の一覧は経験則" in doc and "entry が arm_conditions を無視しうる" in doc
     assert "文書の並置は警告だけ" in doc
+
+
+# ---- v2.2.1: labkit < 2.2.0 の run（legacy）の移行 ----
+def legacy(name, metrics, version="1.6.0", old_config=None):
+    """labkit < 2.2.0 が作った run を模す: meta.config_sha256 を消し、labkit_version を古くする（old_config は旧版の設定）."""
+    r = plain(name, metrics)
+    freeze_run(r.dir, writable=True)
+    if old_config is not None:
+        write(r.dir / "config.json", json.dumps(old_config))
+    meta = status(r)
+    meta.pop("config_sha256")
+    meta["labkit_version"] = version
+    write(r.dir / "meta.json", json.dumps(meta))
+    freeze_run(r.dir)
+    return r
+
+
+def test_v_legacy_run_is_detected_by_hash_and_version():
+    from labkit.compare import is_legacy
+
+    assert is_legacy({"labkit_version": "1.6.0"}) and is_legacy({})
+    assert not is_legacy({"labkit_version": "1.6.0", "config_sha256": "ab"})
+    assert not is_legacy({"labkit_version": "2.2.0"})  # 2.2.0 以降から hash を消しても legacy にならない
+
+
+def test_v_legacy_single_value_citation_warns(project):
+    r = legacy("old", {"vmax_q35": 1.5})
+    claims.add_claim(project, "1.5", [f"{r.run_id}:vmax_q35"])  # 1 つの値の主張は通る（警告）
+    write(project / "docs" / "papers" / "draft.md", f"# 草稿\n\n1.5 [run:{r.run_id}:vmax_q35]\n")
+    write(
+        project / "docs" / "state.md",
+        f"# 状態\n\n1.5 [run:{r.run_id}:vmax_q35]\n\n再掲 1.5 [run:{r.run_id}:vmax_q35]\n",
+    )
+    got = issues(project, "L027")
+    assert got and all(i.severity == "warn" for i in got) and all("legacy" in i.message for i in got)
+    assert {i.where.split(":")[0] for i in got} >= {"docs/claims.md", "docs/papers/draft.md"}
+
+
+def test_v_legacy_two_values_in_a_claim_or_across_runs_error(project):
+    r = legacy("old", {"g_single": 1.0, "g_bi": 2.0})
+    with pytest.raises(ValueError, match="legacy"):
+        claims.add_claim(project, "bi は single の 2 倍", [f"{r.run_id}:g_single", f"{r.run_id}:g_bi"])
+    write(
+        project / "docs" / "claims.md",
+        claims.HEADER
+        + f"| C001 | 2026-11-10 | 2 倍 | 1 [run:{r.run_id}:g_single]; 2 [run:{r.run_id}:g_bi] | open | |\n",
+    )
+    errors = [i for i in issues(project, "L027") if i.severity == "error"]
+    assert [i.where for i in errors] == ["docs/claims.md:7"] and "legacy" in errors[0].message
+    # 文書で run をまたぐ同じ指標は比較（error のまま）。1 つの run だけなら出さない
+    s = legacy("old2", {"g_single": 1.1})
+    write(project / "docs" / "claims.md", claims.HEADER)
+    write(project / "docs" / "state.md", f"# 状態\n\n1 [run:{r.run_id}:g_single]\n\n1.1 [run:{s.run_id}:g_single]\n")
+    errors = [i for i in state_l027(project) if i.severity == "error"]
+    assert len(errors) == 1 and "legacy" in errors[0].message
+    write(project / "docs" / "state.md", f"# 状態\n\n1 [run:{r.run_id}:g_single]\n\n再掲 1 [run:{r.run_id}:g_single]\n")
+    assert not [i for i in state_l027(project) if i.severity == "error"]
+
+
+def test_v_legacy_run_with_a_compare_table_is_not_a_comparison(project):
+    r = legacy(
+        "old", {"t_ms": 3.0}, old_config={"compare": {"baseline": "jax", "repeats": 5}}
+    )  # 2.2.0 より前の別の意味の表
+    assert not [i for i in issues(project, "L027") if i.where.startswith("runs/")]
+    claims.add_claim(project, "3 ms", [f"{r.run_id}:t_ms"])
+    # 2.2.0 以降の run から hash を消すと legacy にならず、従来どおり hash の欠落として error
+    n = legacy("new", {"t_ms": 3.0}, version="2.2.0", old_config={"compare": {"baseline": "jax"}})
+    got = [i for i in issues(project, "L027") if i.where.startswith("runs/")]
+    assert [(i.where, i.severity) for i in got] == [(f"runs/{n.run_id}", "error")] and "hash" in got[0].message
+
+
+def test_v_archived_citation_in_devlog_is_a_warning(git_project):
+    p = git_project
+    with Run("a", {"seed": 0, "report": {"noncomparative": ["e"]}}) as r:
+        r.log_metric("e", 0.5)
+    assert main(["runs", "archive", r.run_id, "--reason", "条件不一致"]) == 0
+    write(p / "docs" / "devlog" / "2026-11-10.md", f"# x\n\n0.5 [run:{r.run_id}:e]\n")
+    write(p / "docs" / "state.md", f"# 状態\n\n0.5 [run:{r.run_id}:e]\n")
+    got = [i for i in issues(p, "L032") if "退避済み" in i.message and "数値" in i.message]
+    assert {(i.where.split(":")[0], i.severity) for i in got} == {
+        ("docs/devlog/2026-11-10.md", "warn"),
+        ("docs/state.md", "error"),
+    }
+
+
+def test_v_history_documents_warn_living_documents_error(project):
+    """事前登録・ADR は書いた時点の記録（後の規則に合わせて書き換えない）なので警告。reports などは error のまま."""
+    a = plain("a", {"gain": 1.0}, lr=0.1)
+    b = plain("b", {"gain": 2.0}, lr=0.2)
+    text = f"# 記録\n\n1 [run:{a.run_id}:gain]\n\n2 [run:{b.run_id}:gain]\n"
+    for d in ("prereg/p.md", "decisions/0001-x.md", "reports/r.md", "protocols/q.md"):
+        write(project / "docs" / d, text)
+
+    def sev(prefix):
+        return {i.severity for i in issues(project, "L027") if i.where.startswith(f"docs/{prefix}")}
+
+    assert sev("prereg") == {"warn"} and sev("decisions") == {"warn"}
+    assert "error" in sev("reports") and "error" in sev("protocols")
+    # プロジェクトは履歴の接頭辞を足せる
+    lab = (project / "lab.toml").read_text(encoding="utf-8")
+    hist = 'history_docs = ["docs/devlog/", "docs/prereg/", "docs/decisions/", "docs/reviews/", "docs/protocols/"]\n'
+    write(
+        project / "lab.toml",
+        lab.replace("[check]\n", "[check]\n" + hist) if "[check]\n" in lab else lab + "\n[check]\n" + hist,
+    )
+    assert sev("protocols") == {"warn"} and "error" in sev("reports")

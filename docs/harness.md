@@ -56,6 +56,8 @@ Stop hook が毎回見るのはこれだけ（体裁の検査は pre-commit と 
 独立した再実行が run を再現すること。また、entry のコードが `arm_conditions`・`chosen` の値を本当にソルバに渡したかは機械では証明できない
 （設定が唯一の出所であることまでを保証する）。
 
+**legacy run（v2.2.1）**: labkit < 2.2.0 の run（`meta.config_sha256` が無く `labkit_version` が 2.2.0 より前）は比較の宣言を持たないので、その 1 つの値の引用は警告に下げる（2 つ以上の値を並べる主張と run をまたぐ同じ指標は error のまま）。新しい run の `meta.json` から `config_sha256` を消し `labkit_version` まで古く書き換えれば legacy に見せられる（上と同じ meta.json の偽造で、手元の照合では防げない）。履歴の文書（`check.history_docs`）では引用の L027・L032 を警告にするので、現在の主張は台帳・state・papers・reports に書く。
+
 残る危険はほかに 3 つある（どれも機械では閉じられないので、レビューで見る）:
 
 - **文書の並置は警告だけ**: 比較は主張の台帳（`labkit claim add`）を通すことで強制する（ceteris paribus を確かめ、拒否する）。

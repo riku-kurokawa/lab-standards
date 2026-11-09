@@ -44,6 +44,10 @@ metrics.json（meta の outputs と config_sha256 の hash を照合）から比
 完了した run のファイルを意図して偽造すること（chmod して meta・metrics を書き換える、kill してから偽造する）は手元のファイルの
 照合だけでは防ぎきれない。安価な緩和（開始時の config の hash、`runs mark finished` が比較の run を拒否し同じ検査をやり直す）だけを入れ、
 残る危険は docs/harness.md に明記する.
+
+旧 run（legacy、`is_legacy`）: labkit < 2.2.0 が作った run は meta.config_sha256 も [compare]・[report] の宣言も持たない。
+比較の run ではない（run 単位の L027 は当てず、設定の `compare` という表は別の意味として無視する）。その 1 つの値の引用は
+非比較と機械が確かめていないので警告。2 つ以上の値を並べる主張・run をまたぐ文書の同じ指標は、比較を照合できないので error.
 """
 
 from __future__ import annotations
@@ -72,6 +76,29 @@ _SEP_RE = re.compile(r"[\s+/,;:|&=]")  # 軸の値に複数の条件を束ねる
 _TOK_RE = re.compile(r"[\s_.\-/{}+,;:=*?!|&\[\]()]+")
 _PLACEHOLDERS = {"n/a", "na", "none", "null", "-", "--", "tbd", "todo", "unknown", "?", "??", "未定", "不明"}
 _COMPARATIVE = {"vs", "versus", "minus", "over", "speedup", "beats", "wins"}  # 非比較の指標に置けない比べる語
+
+
+LEGACY_NOTE = (
+    "legacy run（labkit < 2.2.0。meta.config_sha256 と [compare]・[report] の宣言が無い）: 非比較であることを機械が確かめていない。"
+    "宣言を書いて再実行すると error の無い引用になる"
+)
+
+
+def _version(v: Any) -> tuple[int, ...]:
+    m = re.match(r"^(\d+)\.(\d+)\.(\d+)", str(v or ""))
+    return tuple(int(x) for x in m.groups()) if m else ()
+
+
+def is_legacy(meta: dict | None) -> bool:
+    """labkit < 2.2.0 が作った run: meta.config_sha256 が無く、labkit_version が 2.2.0 より前（または記録が無い）.
+
+    2.2.0 以降の run から config_sha256 を消しても legacy にはならない（版の記録と食い違う。従来どおり hash の欠落として error）.
+    """
+    m = meta or {}
+    if m.get("config_sha256"):
+        return False
+    v = _version(m.get("labkit_version"))
+    return not v or v < (2, 2, 0)
 
 
 class ConditionMismatch(ValueError):
@@ -522,7 +549,20 @@ def nc_key_problem(cfg: dict, key: str) -> str:
 
 
 def run_status(d: Path, meta: dict, lab: dict) -> dict:
-    """run の比較を凍結した設定から計算し直す: {problems, matched_keys, unmatched_keys, noncomparative, author_excluded}."""
+    """run の比較を凍結した設定から計算し直す: {problems, matched_keys, unmatched_keys, noncomparative, author_excluded, legacy}.
+
+    legacy の run は比較の宣言を持たない（設定の `compare` という表は別の意味として読まない）."""
+    if is_legacy(meta):
+        return {
+            "problems": [],
+            "matched_keys": set(),
+            "unmatched_keys": set(),
+            "cfg": {},
+            "owner": {},
+            "author_excluded": [],
+            "noncomparative": [],
+            "legacy": True,
+        }
     cfg, why = _frozen(d, meta, "config.json")
     st: dict = {
         "problems": [why] if why else [],
@@ -557,7 +597,10 @@ def run_status(d: Path, meta: dict, lab: dict) -> dict:
 
 
 def key_problem(st: dict, key: str) -> tuple[str, str]:
-    """(種類, 理由)。種類は "" | "unmatched"（条件のそろわない比較の指標・腕どうしの数値に見える非比較）| "undeclared"."""
+    """(種類, 理由)。種類は "" | "unmatched"（条件のそろわない比較の指標・腕どうしの数値に見える非比較）| "undeclared"
+    | "legacy"（labkit < 2.2.0 の run の値。1 つだけなら警告）."""
+    if st.get("legacy"):
+        return "legacy", f"{key}: {LEGACY_NOTE}"
     if key in st["matched_keys"]:
         return "", ""
     if key in st["unmatched_keys"]:
@@ -595,6 +638,11 @@ def cross_run_problem(runs: dict, rids: list[str], axis: str | None) -> str:
     rids = sorted(set(rids))
     if len(rids) < 2:
         return ""
+    if old := [r for r in rids if is_legacy(runs[r])]:
+        return (
+            f"run {', '.join(old)}: legacy run（labkit < 2.2.0）は凍結した設定の hash を持たず、"
+            "run をまたぐ比較の条件を照合できない（宣言を書いて再実行した run で比べる）"
+        )
     if not axis:
         return f"根拠が {len(rids)} 個の run にまたがる。比較の軸を axis=<設定の鍵> で宣言する（--axis）"
     if any(seg.startswith("_") for seg in axis.split(".")):
@@ -618,11 +666,14 @@ def cross_run_problem(runs: dict, rids: list[str], axis: str | None) -> str:
     return ""
 
 
-def evidence_problems(runs: dict, lab: dict, cites: list[tuple[str, str]], axis: str | None) -> list[str]:
+def evidence_problems(
+    runs: dict, lab: dict, cites: list[tuple[str, str]], axis: str | None, warnings: list[str] | None = None
+) -> list[str]:
     """主張の根拠（既定で拒否）: 各指標は matched な比較の指標か非比較の宣言。複数 run は軸以外が同一.
 
     主張は既定で比較とみなす: 2 つ以上の値を引くなら、1 つの run の中の値は 1 つの matched な比較の keys だけで、
     非比較の指標は 1 つまで（同じ run の非比較の値を 2 つ並べると、宣言していない比較になる）。
+    legacy の run（is_legacy）の値は、主張の値が 1 つだけなら警告（warnings に足す）、2 つ以上なら比較を照合できないので error.
     """
     out, cache, keys = [], {}, {}
     for rid, key in cites:
@@ -630,9 +681,25 @@ def evidence_problems(runs: dict, lab: dict, cites: list[tuple[str, str]], axis:
             continue
         st = cache.setdefault(rid, run_status(runs[rid]["_dir"], runs[rid], lab))
         keys.setdefault(rid, set()).add(key)
-        if kind := key_problem(st, key)[1]:
-            out.append(f"run {rid}: {kind}")
-    if len({(r, k) for r, ks in keys.items() for k in ks}) > 1:
+        kind, why = key_problem(st, key)
+        if kind == "legacy":
+            continue
+        if why:
+            out.append(f"run {rid}: {why}")
+    n_values = len({(r, k) for r, ks in keys.items() for k in ks})
+    legacy = sorted(r for r in keys if cache[r].get("legacy"))
+    if legacy and n_values == 1:
+        if warnings is not None:
+            warnings.append(f"run {legacy[0]}: {LEGACY_NOTE}")
+        return out
+    if legacy:
+        out += [
+            f"run {r}: 1 つの主張が legacy run（labkit < 2.2.0）の値を含む {n_values} 個の値を並べている"
+            "（主張は既定で比較。legacy run では比較の条件を照合できない。宣言を書いて再実行した run で出す）"
+            for r in legacy
+        ]
+        return out
+    if n_values > 1:
         for rid, ks in keys.items():
             owners = sorted({cache[rid]["owner"][k] for k in ks if k in cache[rid]["owner"]})
             nc = sorted(k for k in ks if k not in cache[rid]["owner"])

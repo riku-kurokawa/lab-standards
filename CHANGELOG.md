@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.2.1 — 2026-11-10
+
+v2.2.0 の比較の関門は既定で拒否なので、v2.2.0 より前に作った run（`meta.config_sha256` も `[compare]`・`[report]` の宣言も無い）を
+引用する既存のプロジェクトで `labkit check --claims` が 1400 件を超える L027 を出し、strict と Stop hook で自律運用が止まった。
+人の設定なしで移行できるよう、旧 run の扱いを規則として決める。新しい run の扱いは v2.2.0 のまま。
+
+### 移行の規則（legacy run）
+- **legacy run** = `meta.json` に `config_sha256` が無く、`labkit_version` が 2.2.0 より前（または記録が無い）の run（`labkit.compare.is_legacy`）。
+  2.2.0 以降の run から `config_sha256` を消しても legacy にはならない（版の記録と食い違うので、従来どおり hash の欠落として error）。
+- legacy run は比較の run ではない: run 単位の L027（比較の記録が無い・hash が無い）は当てない。旧版の設定にある `compare` という表は
+  別の意味（基準の手法・繰り返し数など）として無視する。
+- legacy run の **1 つの値**（1 つの run の 1 つの指標）を引く主張・文書は L027 の **警告**（非比較であることを機械が確かめていない。
+  宣言を書いて再実行すると error の無い引用になる）。`labkit claim add` も 1 つの値なら通す。
+- legacy run の値を含む **2 つ以上の値** を並べる主張は **error** のまま（主張は既定で比較。legacy run では比較の条件を照合できない）。
+  文書で同じ指標を 2 つ以上の run から引く規則も error のまま（legacy run を含めば照合できないと示す）。1 つの run だけの引用には出ない。
+
+### 履歴の文書と現在の文書
+- `check.history_docs`（既定 `docs/devlog/`・`docs/prereg/`・`docs/decisions/`・`docs/reviews/`、プロジェクトが足せる）を履歴の文書とする。
+  事前登録・ADR・開発ログ・レビューは書いた時点の記録で、後からできた規則に合わせて書き換えると記録の意味（何をいつ予想し決めたか）が失われる。
+  履歴の文書では引用の L027（未宣言・そろわない比較の指標・run をまたぐ同じ指標）と L032（退避済みの run の数値の引用）を警告にする
+  （未宣言と run をまたぐ同じ指標は `check.undeclared_citation`、既定 warn）。
+- 現在の文書（`docs/claims.md`・`docs/state.md`・`docs/papers/`・`docs/reports/`・`docs/protocols/` など、履歴以外のすべて）は v2.2.0 のまま error。
+
 ## v2.2.0 — 2026-11-10
 
 accelerated-diff-pat で、腕のあいだで条件（駆動の自由度・与える入力・正規化など）がそろっていない比較が「同条件」と文章で書かれたまま

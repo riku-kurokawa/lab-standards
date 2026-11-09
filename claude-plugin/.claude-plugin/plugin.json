@@ -1,7 +1,7 @@
 {
   "name": "lab-rules",
   "displayName": "Lab Rules",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "lab-standards 規約の強制（完全自律。成果物の保護・独立レビュー・終了時の検証）、主線と芽の関門・資源の紐付け、主張の台帳・人間の入口（DIGEST）・1 拍の入口（labkit beat）と、実験・図・開発ログ・移行・長い自律運用の手順 skills、ぶっちゃけ点検 agent",
   "author": {
     "name": "lab-standards"

@@ -36,6 +36,7 @@ dirty_citation = "warn"    # dirty な run を文書が結果として引用し�
 archived_citation = "error" # 退避済みの run の数値の引用（L032。"error" | "warn"。ID だけの言及は警告）
 undeclared_citation = "warn" # 比較とも非比較とも宣言していない指標の数値の引用（L027。claims.md は常に error）
 # claim_docs = ["docs/**/*.md", "literature/surveys/*.md"]   # 引用を照合する文書（既定）
+# history_docs = ["docs/devlog/", "docs/prereg/", "docs/decisions/", "docs/reviews/"]  # 履歴の文書（既定。書き換えない記録なので L027・L032 の引用は警告）
 
 [compare]
 # 比較は 1 軸だけを変える（labkit.compare）。required: すべての比較の [compare.<名>.common] が明示すべき条件の鍵。

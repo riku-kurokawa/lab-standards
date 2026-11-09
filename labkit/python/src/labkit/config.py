@@ -95,6 +95,9 @@ DEFAULTS: dict = {
         # 開発ログの数値の引用の指標が比較とも非比較とも宣言されていない・文書の同じ指標の引用が run をまたぐ（L027）: "warn" | "error" | "off"。
         # 他の文書（state・papers・reports など）では常に error、claims.md は台帳の照合（error）
         "undeclared_citation": "warn",
+        # 履歴の文書（書いた時点の記録。事前登録や ADR を後の規則に合わせて書き換えると記録の意味が無くなる）の接頭辞。
+        # ここでは引用の L027（未宣言・そろわない比較・run をまたぐ同じ指標）と L032（退避済みの数値の引用）を警告にする
+        "history_docs": ["docs/devlog/", "docs/prereg/", "docs/decisions/", "docs/reviews/"],
         "dirty_citation": "warn",  # dirty な run を結果として引用したとき: "warn" | "error" | "off"（claims.md は常に error）
         # L018: src・scripts のファイルの行数（空行を除く）の上限。人間が一度に読める大きさ。0 で無効
         "max_file_lines": 300,
