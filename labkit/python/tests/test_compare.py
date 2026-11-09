@@ -400,9 +400,9 @@ def test_h_cross_run_numbers_in_other_docs(project):
     line = f"ours 3.0 [run:{a.run_id}:gain] > flat 1.0 [run:{b.run_id}:gain]"
     write(project / "docs" / "state.md", f"# 状態\n\n{line}\n")
     got = state_issues()
-    assert got and all(i.severity == "error" for i in got) and "axis" in got[0].message
-    write(project / "docs" / "state.md", f"# 状態\n\naxis=lr\n{line}\n")
-    assert not state_issues()  # 軸 lr だけが違う段落は通る
+    assert any(i.severity == "error" and "axis" in i.message for i in got)
+    write(project / "docs" / "state.md", f"# 状態\n\naxis=lr {line}\n")
+    assert not state_issues()  # 軸 lr だけが違う行は通る（行の並置の警告も同じ行の axis で消える）
     c = plain("c", {"gain": 1.0}, lr=0.001, extra=1, report={"noncomparative": ["gain"]})
     write(project / "docs" / "state.md", f"# 状態\n\naxis=lr\n3.0 [run:{a.run_id}:gain] > 1.0 [run:{c.run_id}:gain]\n")
     assert any("extra" in i.message and i.severity == "error" for i in state_issues())
@@ -558,7 +558,7 @@ def test_r_cross_run_check_is_per_document(project):
     assert any("extra" in i.message for i in state_issues())
     c = plain("c", {"gain_x": 1.0}, lr=0.001, extra=5, report={"noncomparative": ["gain_x"]})
     write(project / "docs" / "state.md", f"# 状態\n\n3.0 [run:{a.run_id}:gain]\n\n1.0 [run:{c.run_id}:gain_x]\n")
-    assert not state_issues()  # 違う指標は実験間の比較ではない
+    assert not state_issues()  # 別の行の違う指標は機械には比較と分からない（残る危険。同じ行なら test_u の警告）
 
 
 def test_s_cross_run_axis_value_is_one_word(project):
@@ -568,8 +568,75 @@ def test_s_cross_run_axis_value_is_one_word(project):
         claims.add_claim(project, "a と b", [f"{a.run_id}:t", f"{b.run_id}:t"], axis="preset")
 
 
+# ---- 4 回目のレビュー: 文書の並置は行ごとの警告（文の意味は機械に読めない。比較は台帳で強制する） ----
+def state_l027(project):
+    return [i for i in issues(project, "L027") if i.where.startswith("docs/state.md")]
+
+
+def state(project, text):
+    write(project / "docs" / "state.md", f"# 状態\n\n{text}\n")
+
+
+def matched_run():
+    with Run("m", {**cfg(), "report": {"noncomparative": ["snr_*"]}}) as m:
+        m.log_metric("gain_db", 2.0)
+        m.log_metric("snr_db", 12.0)
+    return m
+
+
+def test_u_document_lines_juxtaposing_values_are_warned(project):
+    # 1: 設定の違う 2 run の、名前の違う非比較の指標を 1 行に並べる
+    a = plain("a", {"gain_ours": 3.0}, lr=0.1, report={"noncomparative": ["gain_ours"]})
+    b = plain("b", {"gain_flat": 1.0}, lr=0.001, extra=5, report={"noncomparative": ["gain_flat"]})
+    state(project, f"ours 3.0 [run:{a.run_id}:gain_ours] は flat 1.0 [run:{b.run_id}:gain_flat] より良い")
+    got = state_l027(project)
+    assert got and all(i.severity == "warn" for i in got) and "台帳" in got[0].message
+    # 2: matched な比較の run の値を、設定の違う別の run の値の隣に置く
+    m = matched_run()
+    o = plain("o", {"gain_db_x": 1.0}, lr=9, report={"noncomparative": ["gain_db_x"]})
+    state(project, f"2.0 [run:{m.run_id}:gain_db] vs 1.0 [run:{o.run_id}:gain_db_x]")
+    got = state_l027(project)
+    assert got and all(i.severity == "warn" for i in got)
+    # 3: 1 つの run の 2 つの非比較の値（台帳なら拒否される並置）。表の行も 1 行
+    r = plain("noc", {"gain_ours": 3.0, "gain_flat": 1.0}, report={"noncomparative": ["gain_ours", "gain_flat"]})
+    state(project, f"| ours | 3.0 [run:{r.run_id}:gain_ours] | flat | 1.0 [run:{r.run_id}:gain_flat] |")
+    got = state_l027(project)
+    assert got and all(i.severity == "warn" for i in got) and "gain_flat" in got[0].message
+    # 同じ指標の run またぎは文書ごとの error のまま（行の警告も出る）
+    c = plain("c", {"gain": 3.0}, lr=0.1, report={"noncomparative": ["gain"]})
+    d = plain("d", {"gain": 1.0}, lr=0.001, extra=5, report={"noncomparative": ["gain"]})
+    state(project, f"ours 3.0 [run:{c.run_id}:gain] > flat 1.0 [run:{d.run_id}:gain]")
+    got = state_l027(project)
+    assert any(i.severity == "error" for i in got) and any(i.severity == "warn" for i in got)
+    # 1 つの値だけの行は出さない
+    state(project, f"利得 2.0 [run:{m.run_id}:gain_db]\n\nSNR 12 [run:{m.run_id}:snr_db]")
+    assert not state_l027(project)
+    # 開発ログは行の警告を出さない
+    state(project, "")
+    devlog = project / "docs" / "devlog" / "2026-11-10.md"
+    write(devlog, f"# x\n\n2.0 [run:{m.run_id}:gain_db] vs 1.0 [run:{o.run_id}:gain_db_x]\n")
+    assert not [i for i in issues(project, "L027") if "devlog" in i.where and "台帳" in i.message]
+
+
+def test_u_claim_id_exempts_the_line_only_when_its_evidence_covers_it(project):
+    m = matched_run()
+    line = f"利得 2.0 [run:{m.run_id}:gain_db]（SNR 12 [run:{m.run_id}:snr_db]）"
+    state(project, line)
+    assert state_l027(project) and all(i.severity == "warn" for i in state_l027(project))
+    cid = claims.add_claim(project, "利得 2 dB（SNR 12 dB）", [f"{m.run_id}:gain_db", f"{m.run_id}:snr_db"])["id"]
+    state(project, f"{cid}: {line}")
+    assert not state_l027(project)  # 台帳を通した主張の ID がある行は出さない
+    one = claims.add_claim(project, "利得 2 dB", [f"{m.run_id}:gain_db"])["id"]
+    state(project, f"{one}: {line}")
+    assert state_l027(project)  # 根拠が行の引用を覆わない主張の ID では消えない
+    claims.retract_claim(project, cid, reason="test")
+    state(project, f"{cid}: {line}")
+    assert state_l027(project)  # 撤回した主張の ID では消えない
+
+
 def test_t_residual_risks_are_documented():
     from pathlib import Path
 
     doc = (Path(__file__).resolve().parents[3] / "docs" / "harness.md").read_text(encoding="utf-8")
     assert "比べる語の一覧は経験則" in doc and "entry が arm_conditions を無視しうる" in doc
+    assert "文書の並置は警告だけ" in doc

@@ -37,14 +37,14 @@ Stop hook が毎回見るのはこれだけ（体裁の検査は pre-commit と 
 | 主張の台帳 | `docs/claims.md` の各行の書式、撤回の理由、open な主張の根拠（L036。根拠の run が無い・failed・dirty・退避済みなら違反）。台帳は `labkit claim` だけが書く |
 | 予想の判定 | `[prediction]` の表（basis・claims の key と range/point+tol）は finished 時に metrics と照合され `prediction_result`（hit/miss/partial/undeterminable）が meta.json に残る。自由記述の予想は `labkit runs verdict --say`（self_reported）。判定の無い run は警告（L024） |
 | 退避 | `labkit runs archive` は削除せず meta.json に `archived` を書く。`runs list`・DIGEST・`runs table` から隠れ、ID の言及は警告・数値の引用は error（L032、`check.archived_citation`）。名指しは `runs archive <id> ... --reason`。`--undo --reason` で戻る（`archive_log` に履歴が残る） |
-| 比較の条件 | 設定の `[compare.<名>]`（vary は 1 軸で値は 1 語、腕の条件は common ∪ 腕の表から導出、`[compare]` の外に腕を名指す語（腕の名前・軸の値・levels）の鍵を置かない、掃引は比較の指標と `better` で全腕同じ総試行数、対象外は `lab.toml` の `[compare.capability]` か著者の宣言）を Run が開始前に検査し、config.json の hash を `meta.config_sha256` に残し、終了時に設定が変わっていないことを確かめてから 1 回だけ `comparisons.json` を書く（hash は meta の outputs）。L027 は凍結した設定から計算し直す。主張の根拠は matched な比較の指標か `[report] noncomparative`（広い glob・腕を名指す語・比べる語は不可）だけ（既定で拒否）。主張は既定で比較: 2 つ以上の値を引くなら、1 つの run の値は 1 つの matched な比較の keys だけ（非比較は 1 つまで）。複数 run の主張と、同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引く文書（段落・表を区別しない文書ごと）は axis（値は 1 語）と軸以外の設定（`[compare]` の common・arms を含む）・commit の同一性 |
+| 比較の条件 | 設定の `[compare.<名>]`（vary は 1 軸で値は 1 語、腕の条件は common ∪ 腕の表から導出、`[compare]` の外に腕を名指す語（腕の名前・軸の値・levels）の鍵を置かない、掃引は比較の指標と `better` で全腕同じ総試行数、対象外は `lab.toml` の `[compare.capability]` か著者の宣言）を Run が開始前に検査し、config.json の hash を `meta.config_sha256` に残し、終了時に設定が変わっていないことを確かめてから 1 回だけ `comparisons.json` を書く（hash は meta の outputs）。L027 は凍結した設定から計算し直す。主張の根拠は matched な比較の指標か `[report] noncomparative`（広い glob・腕を名指す語・比べる語は不可）だけ（既定で拒否）。主張は既定で比較: 2 つ以上の値を引くなら、1 つの run の値は 1 つの matched な比較の keys だけ（非比較は 1 つまで）。複数 run の主張と、同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引く文書（段落・表を区別しない文書ごと）は axis（値は 1 語）と軸以外の設定（`[compare]` の common・arms を含む）・commit の同一性。**比較は台帳（`claim add`）を通す**: 文書（state・papers・reports など。開発ログを除く）の 1 行（表の行も）に 2 つ以上の run の値か、1 つの matched な比較の keys ではない同じ run の 2 つ以上の値を並べる行は L027 の警告だけ（同じ行に根拠がその引用を覆う open な主張の ID、または run をまたぐだけで通る `axis=<鍵>` があれば出さない） |
 
 ### 比較の脅威モデルと残る危険
 
 比較の関門（compare.py・L027・`claim add`）が防ぐのは、**善意だが雑な、あるいは近道をする著者・エージェント**が設定・コード・主張を書くときの
 **偶然の・都合のよい不一致を引用できてしまうこと**である。具体的には: `noncomparative = ["*"]` のようなワイルドカード、宣言した比較の外に置いた
 腕どうしの脇の指標（`raw_ours_vs_flat`）、`[solver.ours]` のような腕ごとの表、`"ours+lr0.1+fp64"` のように文字列に束ねた軸、腕ごとに違う調整の量や向き、
-`n/a`・`未定` で埋めた必須の条件、著者だけの「対象外」、古い・run の途中で変えた設定、`_git_commit` を軸にした実験間の比較、文章の中に並べた別 run の数値。
+`n/a`・`未定` で埋めた必須の条件、著者だけの「対象外」、古い・run の途中で変えた設定、`_git_commit` を軸にした実験間の比較、文書の中で同じ指標を別 run から並べること（名前の違う指標・同じ run の 2 つの値を 1 行に並べるのは警告だけ。下の残る危険）。
 これらは run を始めない・failed にする・L027 の error・`claim add` の拒否のどれかになる（`labkit/python/tests/test_compare.py` に抜け道ごとのテスト）。
 
 **防げないもの（残る危険）**: 完了した run のファイルを意図して偽造すること。run のディレクトリは chmod で書き込み可能に戻せ、`meta.json` 自体は
@@ -56,7 +56,13 @@ Stop hook が毎回見るのはこれだけ（体裁の検査は pre-commit と 
 独立した再実行が run を再現すること。また、entry のコードが `arm_conditions`・`chosen` の値を本当にソルバに渡したかは機械では証明できない
 （設定が唯一の出所であることまでを保証する）。
 
-残る危険はほかに 2 つある（どちらも機械では閉じられないので、レビューで見る）:
+残る危険はほかに 3 つある（どれも機械では閉じられないので、レビューで見る）:
+
+- **文書の並置は警告だけ**: 比較は主張の台帳（`labkit claim add`）を通すことで強制する（ceteris paribus を確かめ、拒否する）。
+  state.md・papers・reports の文章は意味を機械が読めないので、1 行に別々の run の値や、同じ run の比較でない 2 つの値を並べた行は
+  L027 の**警告**にとどめる（同じ行に、根拠がその引用を覆う open な主張の ID を書けば消える）。同じ指標を run をまたいで引く文書だけは
+  error のまま（腕ごとに run を分けて同じ指標名で並べる形）。行を分けて名前の違う指標を並べた文章（`gain` と `gain_x` を別の段落に）、
+  警告を無視して出した文書は、機械では止まらない。外に出す比較の文は台帳の主張の ID を引く。
 
 - **比べる語の一覧は経験則である**: 非比較の指標の名前の検査は、腕を名指す語（腕の名前・軸の値・levels）・比較の指標の語幹・
   比べる語の一覧（`vs`・`minus`・`over`・`speedup`・`beats`・`wins`）だけを見る。`delta_db`・`improvement_ratio`・`gap`・`rel_*` のような、

@@ -18,6 +18,9 @@
          腕の名前・比較の指標の語幹・比べる語を含まない）でもない（既定で拒否）、複数 run の根拠に axis が無い・軸以外の設定
          （[compare.<名>] の common・arms を含む）か commit が違う。他の文書の数値の引用: そろわない比較の指標、未宣言の指標、
          同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引く文書（段落・表を区別しない文書ごと。文書に axis=<鍵> が無い・軸以外が違う）は error。開発ログだけ check.undeclared_citation（既定 warn）
+         1 行（表の行も）に 2 つ以上の run の値、または 1 つの matched な比較の keys ではない同じ run の 2 つ以上の値を並べる行は警告
+         （開発ログは出さない）。同じ行に open な主張の ID（根拠がその行の引用を含む）があるか、run をまたぐだけで同じ行の axis=<鍵> が
+         通れば出さない。文の意味は機械に読めないので、比較は台帳（claim add）で強制し、文書の並置は警告だけ（残る危険）
     L033 `12.3 dB [run:<run_id>:<key>]` の数値が metrics.json と一致しない
     L034 「結果・観察」節の小数・指数表記の数値に引用が無い（警告。引用を含む行は対象外）
     L036 主張の台帳 docs/claims.md の書式、撤回の理由、open な主張の根拠が dirty/failed/退避済み/無い run（claims.py）
@@ -67,6 +70,7 @@ DATA_EXT = {
     ".pt",
     ".ckpt",
 }
+CLAIM_ID_RE = re.compile(r"\b(C\d{3,})\b")
 RUN_ID_RE = re.compile(r"\b(\d{8}-\d{6}_[a-z0-9-]+_(?:[0-9a-f]{7}|nogit)_[0-9a-f]{4})\b")
 # 引用: 数値 [単位] [run:<id>:<key>]。単位は数字で始まらず括弧・読点を含まない 1 語（m/s^2 可。無次元は "1"）。数値は cite の直前にあること。
 # 符号は Unicode のマイナス（−）も受ける（文書に残りやすい）
@@ -531,6 +535,37 @@ class Checker:
         # 2 つ以上の run から引く文書は、実験間の比較として照合する
         docs: dict[str, dict] = {}
 
+        # 台帳の open な主張 → 根拠の欄の引用 (run, 指標)。文書の行がこの主張の ID を書けば、行の並置は台帳の関門を通ったとみなす
+        ledger: dict[str, set] = {}
+        cf = self.root / CLAIMS_FILE
+        for ln in cf.read_text(encoding="utf-8", errors="replace").splitlines() if cf.is_file() else []:
+            if (r := ROW_RE.match(ln)) and r.group(5) == "open":
+                ledger[r.group(1)] = {(c.group("run"), c.group("key")) for c in CITE_RE.finditer(r.group(4))}
+
+        def juxtaposed(line: str, cites: list[tuple[str, str]]) -> str:
+            """行の並置（警告）: 2 つ以上の run の値、または 1 つの matched な比較の keys ではない同じ run の 2 つ以上の値."""
+            keys: dict[str, set] = {}
+            for rid, key in cites:
+                keys.setdefault(rid, set()).add(key)
+            within = []
+            for rid, ks in keys.items():
+                st = status_cache[rid]
+                if len(ks) > 1 and not (ks <= st["matched_keys"] and len({st["owner"][k] for k in ks}) == 1):
+                    within.append(f"run {rid} の {sorted(ks)}")
+            cross = len(keys) > 1
+            if not (cross or within):
+                return ""
+            if any(set(cites) <= ledger.get(cid, set()) for cid in CLAIM_ID_RE.findall(line)):
+                return ""
+            if not within and any(not cross_run_problem(runs, list(keys), a) for a in AXIS_RE.findall(line)):
+                return ""
+            what = "・".join(([f"{len(keys)} 個の run の値"] if cross else []) + within)
+            return (
+                f"1 行に {what} を並べている（比較に見える）。比較は台帳を通す: `labkit claim add` が 1 軸だけの違いを確かめる。"
+                "通した主張の ID（C001）を同じ行に書くか、run をまたぐだけなら同じ行に axis=<鍵> を書く。"
+                "文書の並置は文の意味を機械が読めないので警告だけ（残る危険。docs/harness.md）"
+            )
+
         def note(doc: str, rid: str, kind: str, n: int, msg: str, sev: str, code: str = "L032") -> None:
             if sev == "off":
                 return
@@ -587,6 +622,7 @@ class Checker:
                     msg = f"run {rid} は dirty（未コミットの差分あり）。結果として引用するなら commit して clean に再実行する"
                     note(doc, rid, "dirty", n, msg, dirty_sev)
             rest = line
+            line_cites: list[tuple[str, str]] = []
             for m in CITE_RE.finditer(line):
                 rest = rest.replace(m.group(0), " ")
                 rid, key, num = m.group("run"), m.group("key"), m.group("num")
@@ -597,6 +633,7 @@ class Checker:
                     note(doc, rid, "archived-cite", n, msg, archived_sev)
                 if not is_claims and p.parent != reviews_dir:
                     dd["cites"].append((rid, key, n))
+                    line_cites.append((rid, key))
                     st = status_cache.setdefault(rid, run_status(runs[rid]["_dir"], runs[rid], self.lab))
                     kind, why = key_problem(st, key)
                     if kind == "unmatched" or (kind == "undeclared" and not is_devlog):
@@ -612,6 +649,8 @@ class Checker:
                     self.add(
                         "L033", where, f"{num} は run {rid} の {key}={vals[key]} と一致しません（表示桁で丸めて比較）"
                     )
+            if not is_devlog and (why := juxtaposed(line, line_cites)):
+                self.add("L027", where, why, "warn")
             results = (is_devlog and section == RESULTS_HEADING) or is_claims
             if results and not line.lstrip().startswith(("#", "<!--")) and not CITE_RE.search(line):
                 rest = RUN_ID_RE.sub(" ", rest)
