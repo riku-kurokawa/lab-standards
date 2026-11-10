@@ -42,7 +42,7 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 | 何 | 仕組み（機械が止める） |
 |---|---|
 | 主線 | `docs/mainline.md`: 1 文（`labkit main set`）と項目（成果物・完了条件・期限。`main add`）。完了は根拠つき（`main done --evidence`） |
-| 空回りしない | 進められる項目（open）が `keep_open`（既定 1）を下回る主線では、どの拍も記録されない。最後の open の項目は、次の項目を足すまで done にも blocked にもできない。人間の行為が無いと進められない項目は `main block <ID> --on <Q番号> --reason`（open に数えない。解けたら `main unblock`）。次の項目の出し方は目標の「尽きたときの出し方」 |
+| 空回りしない | 進められる項目（open）が `keep_open`（既定 1）を下回る主線では、どの拍も記録されない。最後の open の項目は、次の項目を足すまで done にも blocked にもできない。人間の行為が無いと進められない項目は `main block <ID> --on <Q番号> --reason`（open に数えない。解けたら `main unblock`）。同じ項目を名指した拍が、その項目の run も `--runs` も無いまま `idle_beats` 回（既定 4）続くと記録されない。次の項目の出し方は目標の「尽きたときの出し方」 |
 | 主線からずれない | 拍ごとに `beat end --line main:Mxxx\|seed:Sxxx\|other`（主線の拍は、進めた open の項目を名指しする）。直近 `main_window` 拍で主線以外が `(1-main_share)` を超える拍、期限まで `main_guard_hours` 以内（または期限切れ）の項目があるのに主線以外を進めた拍は記録されない |
 | 芽を拾い続ける | `docs/seeds.md`: `labkit seed add "<芽>" --from --test --value`。`seed_every` 拍のあいだ芽が 1 つも無いと拍を閉じられない |
 | 芽を育てる | 芽は主線以外の枠で、最安の方法で確かめる（`--line seed:S00N`、run は `serves = "S00N"`）。主線のどの項目に効くかを言えたら `seed decide --to promote --serves M00N`。言えなければ park か drop（理由つき） |

@@ -15,6 +15,8 @@
     最後の open の項目は、次の項目を足してからでないと done にも blocked にもできない（主線が空のまま回り続ける「空回り」を作らない）。
   - 拍ごとに、どの線を進めたか（--line main:Mxxx | seed:Sxxx | other）を記録する。主線の拍は進めた open の項目を名指しする
     （人間待ちの項目は名指しできない。`main block` で外し、進められる項目を足す）。
+  - 同じ項目を名指した拍が、その項目に紐づく run（serves）も `--runs` も無いまま autonomy.idle_beats 回（既定 4）続くと記録しない
+    （進めていない項目を名指しし続けない。計算の要らない仕事が続くなら `--stall-reason` に理由を書くと停滞として記録される）。
   - 期限切れか、期限まで autonomy.main_guard_hours 時間以内の open の主線があると、main 以外の拍は記録しない。
   - 直近 autonomy.main_window 拍で main の割合が autonomy.main_share を下回る拍は記録しない。
   - autonomy.seed_every 拍のあいだに芽が 1 つも足されないと記録しない（主線だけを回して考えるのをやめない）。
@@ -40,7 +42,7 @@ SEEDS_FILE = "docs/seeds.md"
 MAIN_STATUSES = ("open", "blocked", "done")
 SEED_STATUSES = ("new", "try", "park", "promoted", "drop")
 MAIN_HEADER = (
-    "`labkit main set / add / done / status` で書く（手で編集しない）。主線は 1 文、項目は成果物・完了条件・期限。"
+    "`labkit main set / add / done / block / unblock / status` で書く（手で編集しない）。主線は 1 文、項目は成果物・完了条件・期限。人間の行為が無いと進められない項目は blocked（open に数えない）。"
     "期限切れの項目があるあいだ、主線以外の拍は記録されない（`labkit beat end --line`）。\n\n"
     "| ID | 成果物 | 完了条件 | 期限 | 状態 | 根拠 |\n|---|---|---|---|---|---|\n"
 )
@@ -166,7 +168,9 @@ def main_block(root: Path, mid: str, *, on: str, reason: str) -> dict:
 
     if not reason.strip():
         raise ValueError("--reason（何が無いと進められないか）は必須")
-    state.get_item(root, on)  # 無ければ例外: 待つ相手は `labkit queue ask` で知らせた連絡だけ
+    q = state.get_item(root, on)  # 無ければ例外: 待つ相手は `labkit queue ask` で知らせた連絡だけ
+    if q.get("status") != "open":
+        raise ValueError(f"{on} は閉じた連絡です。待つ相手は open の連絡だけ（`labkit queue ask` で知らせる）")
     m = read_main(root)
     hit = [i for i in m["items"] if i["id"] == mid]
     if not hit or hit[0]["status"] != "open":
@@ -279,6 +283,7 @@ def _conf(root: Path) -> dict:
         "guard": float(a.get("main_guard_hours", 12)),
         "seed_every": int(a.get("seed_every", 8)),
         "fail_repeat": int(a.get("fail_repeat", 3)),
+        "idle_beats": int(a.get("idle_beats", 4) or 0),
     }
 
 
@@ -301,7 +306,22 @@ def recent_ends(root: Path, n: int, days: int = 7) -> list[dict]:
     return out[-n:] if n else []
 
 
-def gate(root: Path, line: str, now: _dt.datetime | None = None) -> None:
+def idle_on(root: Path, mid: str, limit: int) -> bool:
+    """この拍を含めて limit 拍続けて同じ項目を名指し、そのあいだ項目に紐づく run も --runs も無い."""
+    from labkit.runs import list_runs
+
+    ends = recent_ends(root, limit)
+    streak = ends[-(limit - 1) :] if limit > 1 else []
+    if len(streak) < limit - 1 or any(b.get("line") != f"main:{mid}" or b.get("runs") for b in streak):
+        return False
+    since = ends[0].get("time", "") if len(ends) == limit else ""
+    return not any(
+        str(m.get("serves")) == mid and str(m.get("created", "")) >= since
+        for m in list_runs(root, include_archived=True)
+    )
+
+
+def gate(root: Path, line: str, now: _dt.datetime | None = None, *, runs: bool = False, stall_reason: str = "") -> None:
     """beat end の前に呼ぶ。記録してはいけない拍なら ValueError（理由と、やるべきことを示す）."""
     k = _keep_open(root)
     if k > 0 and engaged(root) and len(open_items(root)) < k:
@@ -322,12 +342,19 @@ def gate(root: Path, line: str, now: _dt.datetime | None = None) -> None:
                 + (f"（{mid} は open ではない）" if mid else "")
                 + "。どの項目も進めていないなら other。人間待ちで進められない項目は `labkit main block <ID> --on <Q番号> --reason ...` で外す"
             )
+        idle = int(c["idle_beats"])
+        if idle > 0 and not runs and not stall_reason.strip() and idle_on(root, mid, idle):
+            raise ValueError(
+                f'{mid} を名指した拍が、{mid} に紐づく run（serves = "{mid}"）も --runs も無いまま {idle} 回続きます。'
+                f"人間の行為を待っているなら `labkit main block {mid} --on <Q番号> --reason ...` で外し、進められる項目を進める。"
+                "この拍で進めたのが別の項目ならそれを名指しする。計算の要らない仕事が続いているなら `--stall-reason` に理由を書く（停滞として記録される）"
+            )
     if not is_main(line):
         if p := pressing(root, c["guard"], now):
             i = p[0]
             when = "期限切れ" if i["overdue"] else f"期限 {i['due']} まで {c['guard']:g} 時間以内"
             raise ValueError(
-                f"主線 {i['id']}「{i['what']}」が{when}です。この拍は主線（--line main）に使ってください。芽は `labkit seed add` で記録だけして後で"
+                f"主線 {i['id']}「{i['what']}」が{when}です。この拍は主線（--line main:{i['id']}）に使ってください。芽は `labkit seed add` で記録だけして後で"
             )
         if line.startswith("seed:"):
             sid = line.split(":", 1)[1]
@@ -344,7 +371,7 @@ def gate(root: Path, line: str, now: _dt.datetime | None = None) -> None:
         if other + 1 > budget:
             raise ValueError(
                 f"直近 {c['window']} 拍で主線以外が {other + 1} 拍になり、主線の割合の下限 {c['share']:.0%}"
-                f"（主線以外は {budget} 拍まで）を割ります。この拍は主線（--line main）に使ってください"
+                f"（主線以外は {budget} 拍まで）を割ります。この拍は主線（--line main:Mxxx）に使ってください"
             )
     if c["seed_every"] > 0:
         ends = recent_ends(root, c["seed_every"] - 1)
@@ -363,7 +390,7 @@ def check_run_start(root: Path, name: str, config: dict, commit: str | None) -> 
     from labkit.runs import list_runs
 
     serves = str(config.get("serves", "") or "").strip()
-    if active(root):
+    if active(root) or (engaged(root) and _keep_open(root) > 0):
         if not serves:
             raise ValueError(
                 "設定に `serves` がありません。この計算がどの線に使われるかを書く: 主線の ID（M001）、芽の ID（S003）、"
@@ -439,7 +466,7 @@ def status_lines(root: Path, now: _dt.datetime | None = None) -> list[str]:
     c = _conf(root)
     now = now or _now()
     lines = [f"- 主線: {m['sentence'] or '（未設定）'}"]
-    if _keep_open(root) > 0 and engaged(root) and not any(i["status"] == "open" for i in m["items"]):
+    if engaged(root) and sum(i["status"] == "open" for i in m["items"]) < _keep_open(root):
         lines.append(f"  - **空回りの手前: {REFILL_HELP}**")
     for i in [i for i in m["items"] if i["status"] == "blocked"][:5]:
         lines.append(
@@ -498,8 +525,15 @@ def check(root: Path) -> list[tuple[str, str, str, str]]:
                 out.append(("L025", MAIN_FILE, f"{i['id']}「{i['what']}」が期限 {i['due']} を過ぎて open", "warn"))
             if i["status"] == "done" and not i["evidence"]:
                 out.append(("L026", MAIN_FILE, f"{i['id']} は done なのに根拠が無い", "error"))
-        if _keep_open(root) > 0 and engaged(root) and not open_items(root):
-            out.append(("L025", MAIN_FILE, "進められる項目（open）が無い。`labkit main add` で次の項目を足す", "warn"))
+        if engaged(root) and len(open_items(root)) < _keep_open(root):
+            out.append(
+                (
+                    "L025",
+                    MAIN_FILE,
+                    "進められる項目（open）が下限 autonomy.keep_open を下回る。`labkit main add` で次の項目を足す",
+                    "warn",
+                )
+            )
     if (root / SEEDS_FILE).is_file():
         seen = set()
         for s in list_seeds(root):

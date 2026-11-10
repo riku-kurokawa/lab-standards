@@ -2,7 +2,7 @@
 
     prompts/current.toml      goal = "goal_v8.md"  beat = "beat_v3.md"  interval = "20m"（現行の版。人かエージェントが更新）
     labkit beat start         現行の goal / beat の本文と状態（終わった run・queue・主張）を出し、拍の開始を記録する
-    labkit beat end --predicted ... --observed ... --decided ... --line main|seed:Sxxx|other
+    labkit beat end --predicted ... --observed ... --decided ... --line main:Mxxx|seed:Sxxx|other
                               拍の 3 行と進めた線を記録し、開発ログの自動ブロックに写す（主線と芽の関門は focus.py）
     labkit beat log [--date]  その日の拍（人間が思考の流れを追う）
 
@@ -194,11 +194,13 @@ def end(
         raise ValueError("閉じる拍がありません（`labkit beat start` で始めた拍だけ閉じられる。二重の end も不可）")
     from labkit.focus import gate
 
-    gate(root, line)
+    gate(root, line, runs=bool(runs), stall_reason=stall_reason)
     rec = {"event": "end", "beat": n, "time": now_iso(), "predicted": predicted, "observed": observed}
     rec.update(decided=decided, runs=runs or [])
     if line:
         rec["line"] = line
+    if stall_reason.strip():
+        rec["stall_reason"] = stall_reason
     limit = stall_limit(root)
     if limit and not runs and stalled_run([*beats, rec]) >= limit:
         if not stall_reason.strip():

@@ -84,7 +84,7 @@ nla-solver の 2 週間の運用で、資源と時間が消えた原因はエー
 
 | 関門 | どこで | 何を止めるか |
 |---|---|---|
-| 線の宣言 | `labkit beat end --line main\|seed:Sxxx\|other` | どの線を進めたか言えない拍 |
+| 線の宣言 | `labkit beat end --line main:Mxxx\|seed:Sxxx\|other` | どの線を進めたか言えない拍 |
 | 主線の割合 | 同上（`autonomy.main_share` 0.7・`main_window` 10） | 直近 10 拍で主線以外が 3 拍を超える拍 |
 | 期限の守り | 同上（`main_guard_hours` 12） | 期限切れか期限まで 12 時間以内の項目があるのに主線以外を進めた拍 |
 | 芽の頻度 | 同上（`seed_every` 8） | 8 拍のあいだ芽が 1 つも記録されない拍（主線だけを回して考えるのをやめない） |

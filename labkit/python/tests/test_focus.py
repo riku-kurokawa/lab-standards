@@ -88,7 +88,7 @@ def test_gate_keeps_the_main_line(git_project):
     setup_beats(p)
     # 芽の頻度は別の試験で見る（分の粒度で比べるので、遅い機械ではこの試験の途中で芽の関門が先に働く）
     with open(p / "lab.toml", "a", encoding="utf-8", newline="\n") as f:
-        f.write("[autonomy]\nseed_every = 0\n")
+        f.write("[autonomy]\nseed_every = 0\nidle_beats = 0\n")
     # 主線が無いあいだは何も強制しない（既存プロジェクトの互換）
     assert one_beat(p, "")["beat"] == 1
     focus.main_set(p, "比較表")
@@ -181,7 +181,7 @@ def test_mainline_never_runs_dry(git_project):
     beat.end(p, decided="準備の枝を作った", line=f"main:{a['id']}")
     # 人間待ちは block で外す。待つ相手は queue の連絡だけ。最後の open の項目は、次を足すまで外せない
     q = state.ask_question(p, "保護を外してよいか", options=["外す", "外さない"], assumed="外さない")
-    with pytest.raises(Exception):  # noqa: B017, PT011  無い連絡は待てない
+    with pytest.raises(FileNotFoundError):  # 無い連絡は待てない
         focus.main_block(p, a["id"], on="Q999", reason="保護")
     with pytest.raises(ValueError, match="先に次の項目"):
         focus.main_block(p, a["id"], on=q["id"], reason="保護の解除が要る")
@@ -210,3 +210,70 @@ def test_mainline_never_runs_dry(git_project):
     with open(p / "lab.toml", "a", encoding="utf-8", newline="\n") as f:
         f.write("keep_open = 0\n")
     assert one_beat(p, "")["beat"]
+
+
+def test_naming_an_item_without_touching_it_stops(git_project):
+    """発端の空回り: 人間待ちの項目を open のまま名指しし続ける拍は、idle_beats 回目で記録されない."""
+    from labkit import state
+
+    p = git_project
+    setup_beats(p)
+    with open(p / "lab.toml", "a", encoding="utf-8", newline="\n") as f:
+        f.write("[autonomy]\nseed_every = 0\nidle_beats = 3\n")
+    focus.main_set(p, "比較表")
+    a = focus.main_add(p, "legacy への移動", done_if="人間が保護を外した後に移す", due=far(hours=2))
+    b = focus.main_add(p, "機構", done_if="対照 run", due=far())
+    one_beat(p, f"main:{a['id']}")
+    with pytest.raises(ValueError, match="名指し"):
+        one_beat(p, "main")
+    beat.end(p, decided="返事なし、実行しない", line=f"main:{a['id']}")
+    with pytest.raises(ValueError, match="run（serves"):
+        one_beat(p, f"main:{a['id']}")  # 3 回目: 項目の run が無いので記録しない
+    # 項目に紐づく run があれば進んでいる
+    with Run("move", {"seed": 0, "serves": a["id"]}):
+        pass
+    assert beat.end(p, decided="移動の準備を走らせた", line=f"main:{a['id']}")["line"] == f"main:{a['id']}"
+    # 人間待ちは block: 期限の関門（2 時間後）から外れ、serves にも書けない。閉じた連絡は待てない
+    q = state.ask_question(p, "保護を外してよいか", options=["外す", "外さない"], assumed="外さない")
+    focus.main_block(p, a["id"], on=q["id"], reason="保護の解除が要る")
+    assert not focus.pressing(p, 12)
+    assert one_beat(p, "other")["line"] == "other"
+    with pytest.raises(ValueError, match="open の主線"):
+        with Run("move", {"seed": 0, "serves": a["id"]}):
+            pass
+    state.mark_done(p, q["id"])
+    with pytest.raises(ValueError, match="閉じた連絡"):
+        focus.main_block(p, b["id"], on=q["id"], reason="x")
+    # 計算の要らない仕事が続くときは理由つきで記録できる（停滞として残る）
+    for _ in range(2):
+        one_beat(p, f"main:{b['id']}")
+    beat.start(p)
+    with pytest.raises(ValueError, match="run（serves"):
+        beat.end(p, decided="報告を書いた c", observed="x", line=f"main:{b['id']}")
+    rec = beat.end(
+        p, decided="報告を書いた c", observed="x", line=f"main:{b['id']}", stall_reason="報告の節を書いている"
+    )
+    assert rec["stall_reason"]
+
+
+def test_old_main_records_and_cli(git_project, capsys):
+    from labkit import state
+    from labkit.cli import main as cli
+
+    p = git_project
+    setup_beats(p)
+    focus.main_set(p, "比較表")
+    a = focus.main_add(p, "表", done_if="全マス", due=far())
+    focus.main_add(p, "機構", done_if="対照", due=far())
+    # 旧版の記録（"line": "main"）は主線の拍として数える
+    day = _dt.date.today().isoformat()
+    put(
+        p / ".lab" / "beats" / f"{day}.jsonl",
+        f'{{"event": "end", "beat": 1, "time": "{day}T00:00:00", "line": "main", "decided": "x"}}\n',
+    )
+    assert "主線の割合: 1/1" in "\n".join(focus.status_lines(p))
+    q = state.ask_question(p, "実機で測れるか", options=["はい", "いいえ"], assumed="いいえ")
+    assert cli(["main", "block", a["id"], "--on", q["id"], "--reason", "実機の測定が要る"]) == 0
+    assert "人間待ち" in "\n".join(focus.status_lines(p))
+    assert cli(["main", "unblock", a["id"]]) == 0
+    assert len(focus.open_items(p)) == 2

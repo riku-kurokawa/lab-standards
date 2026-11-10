@@ -38,7 +38,7 @@ lab-standards/
 | 報告は実データと照合 | 開発ログの数値（`12.3 dB [run:<id>:<key>]`）を `labkit check` が runs/ と突き合わせる。判断欄が空の開発ログは記録ではない |
 | 完全自律 | 承認・却下・回答・委任は無い（v2.0.0）。push・merge・tag・raw freeze も Claude が行う。守るのは成果物（data/raw の既存ファイル・runs/・lab.toml・台帳は hooks が止める）。人間への連絡は `labkit queue ask`（一方通行、返事は待たない） |
 | 主線から絶対にずれない | `docs/mainline.md`（1 文 + 成果物・完了条件・期限）。拍ごとに `--line main:Mxxx\|seed:Sxxx\|other` を宣言し（主線の拍は進めた項目を名指し）、主線の割合（既定 70 %）を割る拍・期限が近いのに主線以外を進めた拍は `labkit beat end` が記録しない。完了は根拠つき（`main done --evidence`） |
-| 空回りしない（主線が尽きても回り続けない） | 進められる項目（open）が無い主線では `labkit beat end` がどの拍も記録しない。最後の項目は次を足すまで閉じられず、人間待ちの項目は `main block --on <Q番号>` で open から外す（名指しできない） |
+| 空回りしない（主線が尽きても回り続けない） | 進められる項目（open）が無い主線では `labkit beat end` がどの拍も記録しない。最後の項目は次を足すまで閉じられず、人間待ちの項目は `main block --on <Q番号>` で open から外す（名指しできない）。同じ項目を名指した拍が、その項目の run も無いまま `idle_beats` 回（既定 4）続くと記録しない。機械が見るのは項目の状態と run の紐付けまでで、名指しした項目を実際に進めたかどうかの中身は見ない |
 | ずれないだけでなく、芽を拾い続ける | `docs/seeds.md`（出どころ・最安の確かめ方・当たれば）。`seed_every` 拍（既定 8）芽が無いと拍を閉じられない。芽は主線以外の枠で確かめ、主線のどの項目に効くかを言えたときだけ `seed decide --to promote --serves Mxxx` |
 | 資源は必ずどれかの線に紐づく | 主線に open の項目があるあいだ、run の設定に `serves`（Mxxx / Sxxx / `other:<理由>`）が無いと始まらない。同じ run が `fail_repeat` 回（既定 3）続けて失敗し commit が進んでいなければ次を始めない。`beat start`・digest が直近 24 時間の run 時間を線ごと・状態ごとに示す |
 | レビューは独立 | `docs/reviews/` は lab-reviewer agent だけが書ける |
@@ -82,7 +82,7 @@ make check && make example                              # 動作確認（合成�
 | 人間の入口 | `docs/DIGEST.md` を開く（`labkit beat end` が古くなったら作り直す。今すぐ作るなら `uv run labkit digest [--since YYYY-MM-DD]`、既定は直近 `digest.days` 日） |
 | 主線 | `uv run labkit main set "<1 文>"` / `main add "<成果物>" --done "<完了条件>" --due "YYYY-MM-DD HH:MM"` / `main done M001 --evidence <run\|path\|commit>` / `main block M002 --on Q007 --reason "…"` / `main unblock M002` / `main status` |
 | 芽 | `uv run labkit seed add "<芽>" --from <run\|file> --test "<最安の確かめ方>" --value "<当たれば>"` / `seed decide S001 --to try\|park\|promote\|drop --reason ... [--serves M001]` / `seed list` |
-| 1 拍 | `uv run labkit beat start` → 指示書の手順 → `labkit beat end --line main\|seed:Sxxx\|other --predicted ... --observed ... --decided ... [--runs <id>]` / `beat log`（`/loop 20m /lab-rules:beat`） |
+| 1 拍 | `uv run labkit beat start` → 指示書の手順 → `labkit beat end --line main:Mxxx\|seed:Sxxx\|other --predicted ... --observed ... --decided ... [--runs <id>]` / `beat log`（`/loop 20m /lab-rules:beat`） |
 | 正本の写し | `uv run labkit mirror push`（`configs/paths/*.toml` の `mirror_root`）/ `mirror pull` |
 | 開発ログ / ADR | `uv run labkit devlog`（変更ファイルと run を自動で埋める）/ `uv run labkit adr "タイトル" --slug slug` |
 | 文献 | `uv run labkit lit add --doi 10.x \| --arxiv 2606.09554 --tags ...`（一次情報から取得）/ `lit read <citekey> --by human [--scope full]` / `lit queue [--min-relevance 4]`（人間の読書キュー）/ `lit survey --question ...` / `lit surveys` / `lit index` |
@@ -100,7 +100,7 @@ Claude: labkit main set "2 次元の 5 手法の比較表を完成させる"
         labkit main add "比較表" --done "1 本の集計 run・事前登録の全模型" --due "2026-11-10 09:30"
 拍    : beat start → 主線の残り時間・主線の割合・芽・直近 24 時間の資源の使い道
         run（serves = "M001"）→ 妙な数字に気づく → labkit seed add "交差で符号が反転" --from run:X --test "1 例を 2 角度で" --value "交差の法則"
-        beat end --line main ...       （期限 12 時間前からは main 以外の拍は記録されない）
+        beat end --line main:M001 ...     （期限 12 時間前からは main 以外の拍は記録されない）
 主線後: seed:S001 の拍で最安の確かめ → 主線に効くなら seed decide S001 --to promote --serves M00N、効かなければ park
 ```
 
