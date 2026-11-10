@@ -34,7 +34,7 @@
 体裁（pre-commit / CI）:
     L001 トップレベルの不許可ファイル   L004 衝突マーカー   L050 本体を link したまま
     L005 prompts/current.toml が指す goal/beat が無い、またはより新しい版がある（警告。beat.py）
-    L025 主線（docs/mainline.md）の open な項目が期限切れ（警告）  L026 主線・芽の台帳の書式（ID の重複・状態・期限・根拠。focus.py）
+    L025 主線（docs/mainline.md）の open な項目が期限切れ・進められる項目が無い（警告）  L026 主線・芽の台帳の書式（ID の重複・状態・期限・根拠。focus.py）
     L010 描画ライブラリの直接 import    L011 src → scripts の依存（scripts → scripts は警告）   L012 絶対パスの直書き
     L013 禁止形式（pickle など）        L016 np.save / np.savez / torch.save（labkit.save を使う。警告。tests/ は対象外）
     L017 src のモジュールがどこからも import されていない（警告。configs の entry も使用に数える）

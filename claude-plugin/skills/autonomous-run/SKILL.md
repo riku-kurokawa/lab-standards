@@ -42,7 +42,8 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 | 何 | 仕組み（機械が止める） |
 |---|---|
 | 主線 | `docs/mainline.md`: 1 文（`labkit main set`）と項目（成果物・完了条件・期限。`main add`）。完了は根拠つき（`main done --evidence`） |
-| 主線からずれない | 拍ごとに `beat end --line main\|seed:Sxxx\|other`。直近 `main_window` 拍で主線以外が `(1-main_share)` を超える拍、期限まで `main_guard_hours` 以内（または期限切れ）の項目があるのに主線以外を進めた拍は記録されない |
+| 空回りしない | 進められる項目（open）が `keep_open`（既定 1）を下回る主線では、どの拍も記録されない。最後の open の項目は、次の項目を足すまで done にも blocked にもできない。人間の行為が無いと進められない項目は `main block <ID> --on <Q番号> --reason`（open に数えない。解けたら `main unblock`）。次の項目の出し方は目標の「尽きたときの出し方」 |
+| 主線からずれない | 拍ごとに `beat end --line main:Mxxx\|seed:Sxxx\|other`（主線の拍は、進めた open の項目を名指しする）。直近 `main_window` 拍で主線以外が `(1-main_share)` を超える拍、期限まで `main_guard_hours` 以内（または期限切れ）の項目があるのに主線以外を進めた拍は記録されない |
 | 芽を拾い続ける | `docs/seeds.md`: `labkit seed add "<芽>" --from --test --value`。`seed_every` 拍のあいだ芽が 1 つも無いと拍を閉じられない |
 | 芽を育てる | 芽は主線以外の枠で、最安の方法で確かめる（`--line seed:S00N`、run は `serves = "S00N"`）。主線のどの項目に効くかを言えたら `seed decide --to promote --serves M00N`。言えなければ park か drop（理由つき） |
 | 資源の紐付け | 主線に open の項目があるあいだ、run の設定に `serves` が無いと始まらない。`beat start`・digest が直近 24 時間の run 時間を線ごと・状態ごとに出す |
@@ -90,5 +91,5 @@ SessionStart が goal/beat の現行の版、最後の拍の判断、目標フ�
 戻らないのは会話の途中の推論なので、判断は state.md と `beat end` の 3 行に残す。
 
 ## 範囲を縮める判断
-目標の範囲を縮める・主線を変える判断は自分で行わない: 主線の項目は done（根拠つき）にするまで残る。範囲の変更案は `labkit queue ask` で知らせ、
+目標の範囲を縮める・主線を変える判断は自分で行わない: 主線の項目は done（根拠つき）にするまで残る。項目を足すのは範囲の変更ではない（目標の問いの中で、残っている穴を項目にする）。範囲の変更案は `labkit queue ask` で知らせ、
 その間も今の主線を進める。目標ファイルの版を替えても主線の台帳は変わらない（新しさのために主線を替えない）。

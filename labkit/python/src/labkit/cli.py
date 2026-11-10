@@ -373,6 +373,13 @@ def cmd_main(a) -> int:
     elif a.action == "done":
         it = focus.main_done(root, a.text or "", evidence=a.evidence or "")
         print(f"{it['id']} を done にしました（根拠 {it['evidence']}）")
+    elif a.action == "block":
+        it = focus.main_block(root, a.text or "", on=a.on or "", reason=a.reason or "")
+        print(
+            f"{it['id']} を blocked にしました（{it['evidence']}）。open に数えません。進められる項目を進めてください"
+        )
+    elif a.action == "unblock":
+        print(f"{focus.main_unblock(root, a.text or '')['id']} を open に戻しました")
     else:
         print("\n".join(focus.status_lines(root)) or f"{focus.MAIN_FILE} がありません（`labkit main set` で始める）")
     return 0
@@ -582,7 +589,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--runs", nargs="*", help="end: この拍の run ID")
     s.add_argument("--stall-reason", help="end: 同じ判断の拍が続くときに、それでも待つ理由（停滞として記録される）")
     s.add_argument(
-        "--line", help="end: この拍で進めた線 main / seed:Sxxx / other（docs/mainline.md に open の主線があるとき必須）"
+        "--line",
+        help="end: この拍で進めた線 main:Mxxx / seed:Sxxx / other（docs/mainline.md に open の主線があるとき必須）",
     )
     s.add_argument("--date", help="log: 日付（既定 今日）")
     s.set_defaults(func=cmd_beat)
@@ -614,9 +622,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--all", action="store_true", help="list: 完了済みも表示")
     s.set_defaults(func=cmd_queue)
 
-    s = sub.add_parser("main", help="主線（set / add / done / status）。docs/mainline.md")
-    s.add_argument("action", choices=["set", "add", "done", "status"])
-    s.add_argument("text", nargs="?", help="set: 主線の 1 文 / add: 成果物 / done: ID")
+    s = sub.add_parser("main", help="主線（set / add / done / block / unblock / status）。docs/mainline.md")
+    s.add_argument("action", choices=["set", "add", "done", "block", "unblock", "status"])
+    s.add_argument("text", nargs="?", help="set: 主線の 1 文 / add: 成果物 / done・block・unblock: ID")
+    s.add_argument("--on", help="block: 待っている人間への連絡の ID（labkit queue ask の Q 番号）")
+    s.add_argument("--reason", help="block: 何が無いと進められないか")
     s.add_argument("--done", help="add: 完了条件（機械か人が確かめられる形）")
     s.add_argument("--due", help="add: 期限 'YYYY-MM-DD HH:MM'（ローカル時刻）")
     s.add_argument("--evidence", help="done: 根拠（run ID・ファイル・commit）")

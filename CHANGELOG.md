@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.4.0 — 2026-11-11
+
+**空回りを原理的に作らない。** accelerated-diff-pat で、主線の 6 項目が 7 拍で done になり、残った 1 項目が「人間が保護を外すまで実行できない」ものだった。
+その後 9 拍、`--line main` の拍が「返事なし、実行しない」を記録し続けた（主線の割合は 10/10、停滞の検出は文面が毎回違うので働かなかった）。
+原因は 3 つ: (1) 項目がすべて done になると関門が全部外れる、(2) 人間待ちの項目が open として数えられる、(3) `main` の拍がどの項目を進めたかを言わなくてよい。
+
+### 追加
+- **進められる項目を切らさない**（`autonomy.keep_open`、既定 1。0 で無効）: 主線（1 文と項目）があるのに open の項目がこの数を下回ると、
+  `labkit beat end` はどの線の拍も記録しない。`labkit main done` は最後の open の項目を、次の項目を足すまで閉じない。
+  `labkit beat start`・`labkit main status`・L025（警告）が同じことを知らせ、次の項目の出し方（外れ・未確認・取り直す比較・芽・独立の点検）を示す。
+- **人間待ちの項目**: `labkit main block <ID> --on <Q番号> --reason "…"`（状態 blocked。open に数えず、期限の関門にも掛からない。`labkit main unblock <ID>` で戻す）。
+  待つ相手は `labkit queue ask` で知らせた連絡だけ。最後の open の項目は、次を足すまで blocked にできない。
+- **主線の拍は項目を名指しする**: `labkit beat end --line main:M012`。open でない項目（blocked・done）は名指しできない。
+
+### 変更
+- 雛形 `prompts/goal_v1.md` に「主線の項目と、尽きたときの出し方」、`beat_v1.md` に補充の手順と禁止（人間待ちだけの拍・進めていない項目の名指し）。
+- 主線の関門が働く条件: 「open の項目がある」から「主線の 1 文と項目がある」に（空になった主線で関門が外れない）。
+
+### 移行手順
+- `labkit standards unlink --to v2.4.0` → `/plugin marketplace update lab-standards`。`lab.toml`・台帳の書式は変わらない。
+- 指示書（`prompts/beat_v*.md`）の `--line main` を `--line main:Mxxx` に書き換える（古い書き方は、理由と書き方を示して拒否される）。
+- すでに項目がすべて done の主線は、次の拍の終わりで止まる。`labkit main add` で次の項目を足す（主線を使わないなら `[autonomy] keep_open = 0`）。
+
 ## v2.3.0 — 2026-11-10
 
 3 つのプロジェクトの実運用の監査（`docs/audit-2026-11-10.md`）から、**人間のレビューを速く正確にする**ことと**エージェントの文脈を軽くする**ことに絞って磨いた。

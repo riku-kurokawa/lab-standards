@@ -37,7 +37,8 @@ lab-standards/
 | 形式の統一 | 配列は HDF5、表は Parquet。pickle は禁止、`np.save` は警告 |
 | 報告は実データと照合 | 開発ログの数値（`12.3 dB [run:<id>:<key>]`）を `labkit check` が runs/ と突き合わせる。判断欄が空の開発ログは記録ではない |
 | 完全自律 | 承認・却下・回答・委任は無い（v2.0.0）。push・merge・tag・raw freeze も Claude が行う。守るのは成果物（data/raw の既存ファイル・runs/・lab.toml・台帳は hooks が止める）。人間への連絡は `labkit queue ask`（一方通行、返事は待たない） |
-| 主線から絶対にずれない | `docs/mainline.md`（1 文 + 成果物・完了条件・期限）。拍ごとに `--line main\|seed:Sxxx\|other` を宣言し、主線の割合（既定 70 %）を割る拍・期限が近いのに主線以外を進めた拍は `labkit beat end` が記録しない。完了は根拠つき（`main done --evidence`） |
+| 主線から絶対にずれない | `docs/mainline.md`（1 文 + 成果物・完了条件・期限）。拍ごとに `--line main:Mxxx\|seed:Sxxx\|other` を宣言し（主線の拍は進めた項目を名指し）、主線の割合（既定 70 %）を割る拍・期限が近いのに主線以外を進めた拍は `labkit beat end` が記録しない。完了は根拠つき（`main done --evidence`） |
+| 空回りしない（主線が尽きても回り続けない） | 進められる項目（open）が無い主線では `labkit beat end` がどの拍も記録しない。最後の項目は次を足すまで閉じられず、人間待ちの項目は `main block --on <Q番号>` で open から外す（名指しできない） |
 | ずれないだけでなく、芽を拾い続ける | `docs/seeds.md`（出どころ・最安の確かめ方・当たれば）。`seed_every` 拍（既定 8）芽が無いと拍を閉じられない。芽は主線以外の枠で確かめ、主線のどの項目に効くかを言えたときだけ `seed decide --to promote --serves Mxxx` |
 | 資源は必ずどれかの線に紐づく | 主線に open の項目があるあいだ、run の設定に `serves`（Mxxx / Sxxx / `other:<理由>`）が無いと始まらない。同じ run が `fail_repeat` 回（既定 3）続けて失敗し commit が進んでいなければ次を始めない。`beat start`・digest が直近 24 時間の run 時間を線ごと・状態ごとに示す |
 | レビューは独立 | `docs/reviews/` は lab-reviewer agent だけが書ける |
@@ -79,7 +80,7 @@ make check && make example                              # 動作確認（合成�
 | run の退避（削除しない） | `uv run labkit runs archive <id> \| --status failed,interrupted \| --uncited [--older-than N] [--dry-run] [--undo]`（一覧と DIGEST から隠す） |
 | 主張の台帳 | `uv run labkit claim add "<1 文>" --evidence <run>:<key>[:<unit>][:<digits>] [--note prereg:slug]` / `claim retract C003 --reason ...` / `claim list [--status open]` |
 | 人間の入口 | `docs/DIGEST.md` を開く（`labkit beat end` が古くなったら作り直す。今すぐ作るなら `uv run labkit digest [--since YYYY-MM-DD]`、既定は直近 `digest.days` 日） |
-| 主線 | `uv run labkit main set "<1 文>"` / `main add "<成果物>" --done "<完了条件>" --due "YYYY-MM-DD HH:MM"` / `main done M001 --evidence <run\|path\|commit>` / `main status` |
+| 主線 | `uv run labkit main set "<1 文>"` / `main add "<成果物>" --done "<完了条件>" --due "YYYY-MM-DD HH:MM"` / `main done M001 --evidence <run\|path\|commit>` / `main block M002 --on Q007 --reason "…"` / `main unblock M002` / `main status` |
 | 芽 | `uv run labkit seed add "<芽>" --from <run\|file> --test "<最安の確かめ方>" --value "<当たれば>"` / `seed decide S001 --to try\|park\|promote\|drop --reason ... [--serves M001]` / `seed list` |
 | 1 拍 | `uv run labkit beat start` → 指示書の手順 → `labkit beat end --line main\|seed:Sxxx\|other --predicted ... --observed ... --decided ... [--runs <id>]` / `beat log`（`/loop 20m /lab-rules:beat`） |
 | 正本の写し | `uv run labkit mirror push`（`configs/paths/*.toml` の `mirror_root`）/ `mirror pull` |
@@ -121,7 +122,7 @@ Claude: labkit main set "2 次元の 5 手法の比較表を完成させる"
 | L024 | 予想（`prediction`）のある run が finished なのに判定（`prediction_result`）が無い、または予想の key が metrics に無く判定できなかった（警告。`labkit runs verdict`） |
 | L030 | 開発ログの書式違反、目的・判断と理由・未解決 が空 |
 | L032 / L033 / L034 | 引用した run が無い（failed・link・退避済みの ID だけの言及は警告、退避済みの数値の引用は `check.archived_citation`（既定 error。履歴の文書 `check.history_docs`（devlog・prereg・decisions・reviews）では警告）、dirty は `check.dirty_citation`、既定 warn） / 数値が metrics.json と一致しない / 結果節の数値に引用が無い（警告。引用を含む行は対象外）。対象は `check.claim_docs`（既定 docs/**/*.md と surveys）。自動ブロックと DIGEST は見ない |
-| L025 / L026 | 主線の期限切れの open な項目（警告） / 主線・芽の台帳の書式（ID の重複・状態・期限・根拠の無い done・serves の無い promoted） |
+| L025 / L026 | 主線の期限切れの open な項目・進められる項目が無い主線（警告） / 主線・芽の台帳の書式（ID の重複・状態・期限・根拠の無い done・serves の無い promoted） |
 | L036 | 主張の台帳 `docs/claims.md` の書式、撤回の理由、open な主張の根拠が無い・failed・dirty・退避済みの run |
 | L027 | 比較は 1 軸だけ（`labkit.compare`）。凍結した config.json・metrics.json・comparisons.json（meta の outputs と `config_sha256` の hash を照合）から計算し直す: `[compare.<名>]` の run の比較がそろっていない・記録が無い・改変されている（対象外が著者の宣言だけなら警告）／台帳の open な主張（本文・根拠・備考）の指標が matched な比較の keys でも `[report] noncomparative` でもない（既定で拒否。腕の名前・軸の値・levels・比較の指標の語幹・比べる語を含む非比較も拒否。2 つ以上の値を引く主張は既定で比較）・複数 run の根拠に axis が無いか軸以外の設定（`[compare]` の common・arms を含む）・commit が違う／他の文書の数値の引用がそろわない比較の指標・未宣言の指標・同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引く文書（文書ごと。error。履歴の文書 `check.history_docs` では警告、`check.undeclared_citation`）／legacy run（labkit < 2.2.0、`meta.config_sha256` が無い）は比較の run とみなさず、その 1 つの値の引用は警告、2 つ以上の値を並べる主張は error |
 | L038 | 結果・主張の節が scratch/ のファイルを根拠にしている（警告） |

@@ -137,6 +137,7 @@ DEFAULTS: dict = {
     "autonomy": {
         "stall_beats": 3,
         # 主線と芽（docs/mainline.md に open の項目があるときだけ働く。focus.py）
+        "keep_open": 1,  # 進められる項目（open）の下限。下回る拍は記録せず、最後の項目は次を足すまで閉じられない（0 で無効）
         "main_share": 0.7,  # 直近 main_window 拍のうち主線の拍の下限
         "main_window": 10,
         "main_guard_hours": 12.0,  # 期限までこの時間を切った主線があると、主線以外の拍は記録しない

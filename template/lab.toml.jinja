@@ -96,7 +96,8 @@ overlap = "error"          # 図の体裁の検査（文字・凡例の重なり
 [autonomy]
 stall_beats = 3            # 判断と結果が（数字を除いて）同じで run の無い拍がこの回数続くと `labkit beat end` が記録を拒む。0 で無効
 # 主線と芽（docs/mainline.md・docs/seeds.md）。主線に open の項目があるあいだだけ働く
-main_share = 0.7           # 直近 main_window 拍のうち主線（--line main）の拍の下限。主線以外は floor((1-share)*window) 拍まで
+keep_open = 1              # 進められる主線の項目（open。blocked・done を除く）の下限。下回る拍は記録せず、最後の項目は次を足すまで閉じられない。0 で無効
+main_share = 0.7           # 直近 main_window 拍のうち主線（--line main:Mxxx）の拍の下限。主線以外は floor((1-share)*window) 拍まで
 main_window = 10
 main_guard_hours = 12      # 期限切れか、期限までこの時間以内の open の主線があると、主線以外の拍は記録しない
 seed_every = 8             # この拍数のあいだに芽（labkit seed add）が 1 つも無いと拍を閉じられない。0 で無効
