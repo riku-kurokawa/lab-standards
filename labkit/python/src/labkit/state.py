@@ -98,6 +98,21 @@ def mark_done(root: Path, qid: str) -> dict:
     return it
 
 
+def question_lines(root: Path, limit: int = 3) -> list[str]:
+    """文脈（SessionStart・beat start）に出す人間への連絡: 新しい limit 件と残りの件数だけ。
+    返事を待たない連絡を毎拍すべて読み直させない（nla-solver では open 31 件・約 6 KB が 15 分ごとに出ていた）."""
+    items = pending_summary(root)["open_questions"]
+    lines = [
+        f"- 人間への連絡 #{it['id']}: 「{it.get('question')}」仮の判断「{it.get('assumed')}」で進行中（返事は待たない）"
+        for it in items[-limit:]
+    ]
+    if len(items) > limit:
+        lines.append(
+            f"- 人間への連絡はほかに open {len(items) - limit} 件（`labkit queue list`。不要になったものは `labkit queue done <ID>`）"
+        )
+    return lines
+
+
 def pending_summary(root: Path) -> dict[str, list[dict]]:
     """開いている人間への連絡（v1.x の承認待ちは含めない）."""
     q = list_queue(root)

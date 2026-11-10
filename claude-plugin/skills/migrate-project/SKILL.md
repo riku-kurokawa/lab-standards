@@ -1,6 +1,7 @@
 ---
 name: migrate-project
 description: 既存の研究プロジェクトを lab-standards の構造に移行するときの手順。`labkit flow start migrate` でチェックリストを開始し、段階ごとに完了条件と独立レビューを経て進める（写し→凍結→棚卸し→雛形→生データ→コード→再現→レビュー→厳格化）。
+disable-model-invocation: true
 ---
 
 # 既存プロジェクトを lab-standards に移行する

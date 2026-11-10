@@ -99,14 +99,11 @@ def status_lines(root: Path) -> list[str]:
     by = {}
     for m in runs:
         by[m.get("status")] = by.get(m.get("status"), 0) + 1
-    s = state.pending_summary(root)
     lines = ["- 今日の run: " + (", ".join(f"{k} {v}" for k, v in sorted(by.items())) or "なし")]
     running = [m for m in list_runs(root) if m.get("status") == "running"]
     if running:
         lines.append("- 実行中: " + ", ".join(m["run_id"] for m in running[:5]))
-    lines += [
-        f"- 人間への連絡 #{it['id']}: {it.get('question')}（判断: {it.get('assumed')}）" for it in s["open_questions"]
-    ]
+    lines += state.question_lines(root)
     claims = list_claims(root, "open")
     lines.append(f"- open な主張: {len(claims)} 件（`labkit claim list`）")
     return lines

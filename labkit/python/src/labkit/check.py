@@ -234,7 +234,8 @@ class Checker:
             if not self._allowed(p, c["format_allowed"]):
                 for m in py_fmt.finditer(text):
                     self.add("L013", at(m), f"{m.group(1)} は禁止形式。HDF5/Parquet（labkit.save）を使う")
-                for m in py_save.finditer(text):
+                # tests/ は対象外: 試験が作る一時ファイルは成果物ではない（来歴は要らない）
+                for m in py_save.finditer(text) if p.relative_to(self.root).parts[0] != "tests" else ():
                     self.add(
                         "L016",
                         at(m),
@@ -421,6 +422,8 @@ class Checker:
                 import datetime as _dt
 
                 secs = (_dt.datetime.now() - _dt.datetime.fromtimestamp(hb.stat().st_mtime)).total_seconds()
+                if secs < 600:  # 記録が続いている run は実行中。異常終了の疑いがあるものだけ知らせる
+                    return
                 age = f"最後の記録から {secs / 3600:.1f} 時間"
             self.add(
                 "L021",

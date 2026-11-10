@@ -83,6 +83,9 @@ def test_ledgers_and_check(project):
 def test_gate_keeps_the_main_line(git_project):
     p = git_project
     setup_beats(p)
+    # 芽の頻度は別の試験で見る（分の粒度で比べるので、遅い機械ではこの試験の途中で芽の関門が先に働く）
+    with open(p / "lab.toml", "a", encoding="utf-8", newline="\n") as f:
+        f.write("[autonomy]\nseed_every = 0\n")
     # 主線が無いあいだは何も強制しない（既存プロジェクトの互換）
     assert one_beat(p, "")["beat"] == 1
     focus.main_set(p, "比較表")

@@ -1,6 +1,6 @@
 ---
 name: make-figure
-description: lab.toml のあるプロジェクトで図・グラフ・プロットを作るときの唯一の手順。figspecs/*.toml を書き labkit fig で出力する。描画ライブラリを直接使わない。
+description: lab.toml のあるプロジェクトで図・グラフ・プロットを作るときの手順。figspecs/*.toml を書いて labkit fig で出力する（図の元データと体裁が figmeta に残る）。合うテンプレートが無いときの追加の手順も含む。
 ---
 
 # 図を作る
@@ -60,4 +60,9 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
 
 ## 合うテンプレートが無いとき
 
-プロジェクト内で描画コードを書かない。skill: add-figure-template に従い、必要な図の仕様を人間に提案する。
+図のテンプレートは全プロジェクト共通の資産で、来歴（figmeta）もテンプレート経由でだけ付く。プロジェクト内に描画コードは書かず、本体に足す。
+
+1. まず既存で描けないか確かめる: `[options]` の組合せ、`panels`（複数パネル）、`band`（平均±帯）、`errorbar` の `xmode = "numeric"`、事前に集計したデータの保存。
+2. 足りない理由を 1 行で言えるなら、本体の `labkit/python/src/labkit/viz/templates.py` に追加する（skill: improve-standards）。
+   `@template(name, required_data, description, example)` で登録し、`(spec, ctx, ax) -> None` で渡された軸に描く。共通ヘルパ（`_labels`・`_options`・`_legend`・`_get`・`_col`）を使い、
+   スタイルは上書きしない。集計はプロジェクトの src で行い、テンプレートでは計算しない。`tests/test_io.py::test_figure_templates` に例を足す。

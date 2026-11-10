@@ -277,11 +277,7 @@ def session(data: dict, root: Path, kind: str) -> str:
                 lines.append(st)
         except Exception as e:
             lines.append(f"- 注意: {CURRENT} か .lab/beats を読めません（`labkit check`）: {type(e).__name__}: {e}")
-    s = state.pending_summary(root)
-    lines += [
-        f"- 人間への連絡 #{it['id']}: 「{it.get('question')}」仮の判断「{it.get('assumed')}」で進行中（返事は待たない）"
-        for it in s["open_questions"]
-    ]
+    lines += state.question_lines(root)
     for st in active_flows(root):
         lines.append("- " + describe(root, st).replace("\n", "\n  "))
     if data.get("source") == "compact":

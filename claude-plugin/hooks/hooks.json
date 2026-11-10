@@ -7,9 +7,6 @@
         "hooks": [{ "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hook.py", "session"], "timeout": 30 }]
       }
     ],
-    "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hook.py", "prompt"], "timeout": 15 }] }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit|CronDelete|ScheduleWakeup",

@@ -3,7 +3,7 @@
 各テンプレートは (spec: dict, ctx: Context, ax) -> None で、渡された軸に描く。figspec の共通キー:
     template, name, size, description, [data], [labels], [options]
 複数パネルは template = "panels" と [[panel]]（各パネルに template / data / labels / options）。
-新しい図種が必要なら lab-standards にテンプレートを追加する（skill: add-figure-template）。
+新しい図種が必要なら lab-standards にテンプレートを追加する（skill: make-figure の「合うテンプレートが無いとき」）。
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from labkit.viz.style import DIVERGING_CMAP, LINESTYLES, SEQUENTIAL_CMAP
+from labkit.viz.style import DIVERGING_CMAP, LINESTYLES, OKABE_ITO, SEQUENTIAL_CMAP
 
 
 @dataclass
@@ -371,22 +371,42 @@ def histogram(spec, ctx, ax):
 @template(
     "boxplot",
     ["file", "x", "y"],
-    "箱ひげ図（Parquet の長い形: x 列の群ごとの y の分布。hue で並べる。中央値を注記、options.logy）",
+    "箱ひげ図（Parquet の長い形: x 列の群ごとの y の分布。hue で色を分けて並べる。中央値を注記、options.points = true で各例の点を重ねる、options.logy）",
     'data = {file = "errors.parquet", x = "model", y = "e1", hue = "solver"}',
 )
 def boxplot(spec, ctx, ax):
+    from matplotlib.colors import to_rgb
+
     d = spec["data"]
     df = ctx.load(d["file"])
     cats = list(dict.fromkeys(df[d["x"]]))
     groups = _groups(df, d.get("hue"))
     width = 0.8 / max(len(groups), 1)
+    points = bool(spec.get("options", {}).get("points"))
     for i, (h, g) in enumerate(groups):
         vals = [np.asarray(g.loc[g[d["x"]] == c, d["y"]], dtype=float) for c in cats]
         vals = [v[np.isfinite(v)] for v in vals]
         pos = np.arange(len(cats)) + (i - (len(groups) - 1) / 2) * width
         keep = [k for k, v in enumerate(vals) if v.size]
-        bp = ax.boxplot([vals[k] for k in keep], positions=pos[keep], widths=width * 0.8, manage_ticks=False)
-        bp["boxes"][0].set_label(None if h is None else str(h))
+        color = OKABE_ITO[i % len(OKABE_ITO)]
+        bp = ax.boxplot(
+            [vals[k] for k in keep],
+            positions=pos[keep],
+            widths=width * 0.8,
+            manage_ticks=False,
+            patch_artist=True,
+            showfliers=not points,  # 点を重ねるときは外れ値の印を二重に描かない
+            boxprops={"facecolor": (*to_rgb(color), 0.25), "edgecolor": color},
+            medianprops={"color": color},
+            whiskerprops={"color": color},
+            capprops={"color": color},
+        )
+        if keep:
+            bp["boxes"][0].set_label(None if h is None else str(h))
+        if points:  # 各例の点（分布の形と n が見える）。横のずれは決定的（図を再生成しても同じ）
+            for k in keep:
+                jit = (np.linspace(-0.5, 0.5, vals[k].size) if vals[k].size > 1 else np.zeros(1)) * width * 0.5
+                ax.scatter(pos[k] + jit, vals[k], s=6, color=color, alpha=0.6, linewidths=0, zorder=3)
         for k in keep:
             ax.annotate(f"{np.median(vals[k]):.3g}", (pos[k], np.median(vals[k])), fontsize=6, ha="center", va="bottom")
     ax.set_xticks(np.arange(len(cats)), [str(c) for c in cats])

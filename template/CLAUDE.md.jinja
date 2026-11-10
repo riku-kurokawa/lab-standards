@@ -1,6 +1,7 @@
 # {{ project_name }}
 
-研究用計算プロジェクト。規約は lab-standards（`lab.toml`）に従う。手順は lab-rules plugin の skills にある。
+研究用計算プロジェクト。規約は lab-standards（設定は `lab.toml`）。ここには常に要ることだけを書く。手順の詳細は lab-rules plugin の skills、
+止められたときの直し方は labkit と hooks のメッセージにある。
 
 ## 研究契約
 
@@ -8,101 +9,49 @@
 - 問い: 何を明らかにするか。主張は実測だけに基づく
 - 不変条件: 変えてよいもの・変えてはいけないもの（問題定義、損失、反復数、乱数の扱い、物理定数…）
 - 公平性: 比較するものの条件（同じ seed・同じデータ分割・同じ計測法）
-- 検証ゲート: 主張の前に必ず通す小さく速い検査（例: `make smoke`）
+- 検証ゲート: 主張の前に通す小さく速い検査（例: `make smoke`）
 -->
 
 ## 完了条件
 
-- `make check`（= `labkit check` + テスト + lint）が通るまで作業は完了ではない。
-- コードを変えた日は `docs/devlog/YYYY-MM-DD.md` の 目的・判断と理由・未解決 を書く（`labkit devlog` が変更ファイルと run を自動で埋める）。
-  run の数値は `labkit cite <run_id> <key> --unit <単位>` の出力（`12.3 dB [run:<run_id>:snr_db]`）を貼る。
-- 正式な run は commit してから実行する（未コミットの変更があると run は始まらない: `runs.require_clean`。試行は scratch/ で）。
+- `make check`（`labkit check` + テスト + lint）が通る。
+- コードを変えた日は開発ログの 目的・判断と理由・未解決 を書く（`labkit devlog` が変更ファイルと run を埋める。skill: write-devlog）。
 
-## 人間のレビューを軽くする（人間が読むのはこれだけ。載らないものは人間に見えていない）
+## 検証できる記録にする（理由つき）
 
-- **実験の入口は共通**: `configs/experiments/*.toml` に `entry`・`[prediction]`・`[[pass]]` を書き `labkit run`。scripts/ は entry で書けないものだけ。
-- **引用できる run は clean で finished で退避されていないものだけ**。scratch/ のファイルは根拠にしない（L038）。failed/interrupted は `labkit runs archive --status failed,interrupted`（削除はしない）。
-- **主張は台帳**: 確定したら `labkit claim add "<1 文>" --evidence <run>:<key>`、崩れたら `labkit claim retract <ID> --reason`。`docs/state.md` は H1 1 つ・150 行以内で上書きする。
-- **予想は表で書き、外れは外れと残す**: `[prediction] basis` と `[[prediction.claims]]`（終了時に自動判定）。自由記述なら `labkit runs verdict <id> --say hit|miss|partial`。
-- **コードは読める大きさ**: ファイルは 300 行（空行を除く）以内（L018）。使っていないものは消す（L017）。
-- **人間の入口**: 1 日 1 回 `labkit digest`（docs/DIGEST.md）。`labkit claim list`・`labkit review list --open`・`labkit lit queue` が人間向けの一覧。
+人間は開発ログを読まず、台帳と run から機械が作る一覧（`labkit digest`・`claim list`・`runs list`）だけを読む。文章で伝えたことは人間に届かず、検証もできない。
 
-## 比較は 1 軸だけを変える（ceteris paribus）
+- **数値は run から引く**: 文書の数値は `labkit cite <run_id> <key>` の出力（`12.3 dB [run:<id>:<key>]`）を貼る。check が metrics と照合する。
+- **正式な run は commit してから**: `labkit run configs/experiments/<name>.toml`。未コミットの差分で走った run は再現できず、結果として引用できない。試行は `scratch/` で。
+- **予想を先に書く**: 設定の `[prediction]` に根拠と範囲を書いてから走らせる（終了時に hit / miss が残る）。外れは成果なので、外れたまま残す。
+- **比べるなら 1 軸だけ変える**: 手法・設計の比較は、run の前に設定の `[compare.<名>]` に軸と共通の条件を書く。条件のそろわない比較は主張の根拠にできない（skill: new-experiment）。
+- **主張は台帳に**: 確定したら `labkit claim add`、崩れたら `labkit claim retract`。撤回は成果で、旧値は消さない。
+- **失敗も消さない**: run は削除も上書きもしない。要らない run は `labkit runs archive`（視界から消えるだけ）。
 
-- 腕（手法・設計・設定）の比較が成り立つのは、**宣言した 1 軸（`vary`）以外の条件がすべての腕で同一**で、それを**機械が凍結した設定から確かめた**ときだけ。文章や手書きの dict で「同条件」と書いても根拠にならない。
-- 比較は run の前に設定へ書く: `[compare.<名>]` に `vary = "<軸 1 つ>"`・`keys = ["<この比較の指標>"]`、`[compare.<名>.common]` に全腕で同一の条件、
-  `[compare.<名>.arms.<腕>]` に軸の値だけ（1 語で、腕の名前か `levels = [...]` の値。`"ours+lr0.1"` のように束ねない）。腕の条件は common ∪ 腕の表から導出され
-  （entry は `labkit.compare.arm_conditions(cfg, "<名>")` で読む）、腕の表に軸以外の鍵があれば run は始まらない。`[compare]` の外（common の中も）に腕を名指す語（腕の名前・軸の値・levels）を含む鍵
-  （`[solver.ours]`・`flat_steps`）があっても始まらない。`lab.toml` の `[compare] required`（人間が分野の条件を列挙する）が common に無い・空・`n/a`・`未定` などでも始まらない。
-- 比較対象の自由パラメータ（平板の高さなど）は `[[compare.<名>.sweep]]`（arm・param・values・metric・direction）で掃引を宣言し、値ごとのスコアを `log_metric` する。
-  metric は比較の指標を含む名前（`"gain_db_flat_h{value}"`）、direction は比較の `better = "max" | "min"` と同じ。1 腕でも調整するなら、対象外でない全腕を同じ総試行数で調整する。
-  最良は run の記録から決まり（`labkit.compare.chosen(run, "<名>")`）、腕の値が最良でなければ run は failed。
-- 目的を受け取れない腕が「対象外」（負けではない）になるのは `objective` と capability の宣言だけ。人間が `lab.toml` の `[compare.capability]`（手法 = 受け取れる目的）に
-  登録したものが独立した宣言。設定の `[compare.<名>.capability]` は著者の宣言として comparisons.json と check（L027 の警告）に出て、`lab.toml` と食い違えば拒否する。
-- 設定は開始時に凍結される（`meta.config_sha256`）。entry が `run.config` や config.json を途中で書き換えると run は failed。比較の run は `labkit runs mark ... finished` にできない。
-- 比較の記録 `comparisons.json` は Run の終了時に 1 回だけ書かれ、meta の outputs に hash が載る。L027 は凍結した config.json・metrics.json から計算し直す（記録の matched は信用しない）。
-- **主張の根拠は既定で拒否**: 指標は matched な比較の `keys` か、設定の `[report] noncomparative`（比較ではない指標。ワイルドカードの前に 2 文字以上の固定の接頭辞。
-  腕の名前・軸の値・levels・比較の指標の語幹・vs/minus/over などの比べる語を含まない）に run の前に書いたものだけ。台帳の本文・備考の引用も同じ基準で照合する。
-  根拠が複数の run にまたがるなら `labkit claim add ... --axis <設定の鍵>`（`_git_commit` などの内部の鍵は不可）。軸以外の凍結した設定（`[compare.<名>]` の common・arms を含む）と
-  commit が同一でなければ拒否する。主張は既定で比較（2 つ以上の値を引くなら 1 つの run の値は 1 つの matched な比較の keys だけ。非比較は 1 つまで）。他の文書でも、同じ指標（腕を名指す語を除いて同じ指標も）を 2 つ以上の run から引くなら、段落・表を分けても文書のどこかに `axis=<鍵>`（値は 1 語）を書き、軸以外が同一でなければ L027（開発ログだけ警告、他は error）。
-- **比較は必ず主張の台帳を通す**（`claim add` が 1 軸だけの違いを確かめて拒否する）。state.md・論文・報告書の文章は意味を機械が読めないので、
-  1 行（表の行も）に別々の run の値や同じ run の比較でない 2 つの値を並べても L027 の**警告**しか出ない（残る危険）。比較を書く行には
-  台帳の主張の ID（`C001`。根拠がその行の引用を覆う open な主張）を書く。警告を無視して比較を文書に出さない。
-- 条件のそろっていなかった run は `labkit runs archive <id> ... --reason "条件不一致: ..."` で退避し（削除しない。取り消しも理由つきで履歴に残る）、その数値の引用は L032 の error。
-
-## 長い自律運用（/goal・/loop。skill: autonomous-run）
-
-- 現行の版は `prompts/current.toml`（goal / beat）。拍は `labkit beat start` → 指示書の手順 → `labkit beat end --predicted --observed --decided`（`/loop 20m /lab-rules:beat`）。
-  状態は `docs/state.md`、未着手は `docs/backlog.md`。要約の後は SessionStart が目標の冒頭を原文で戻す。
-- **考えてから計算する**: 専門家なら計算せずに分かる結果（`expert_predictable`）は回さず、導出で確定とする。計算するのは予想が割れるときだけ。
-- **待たない**: 計算を投入したら同じターンで次の作業に移る。独立な作業はサブエージェントに並行で投げる。
-- **資源で止まった計算は自分で再開する**: メモリ不足・OOM・時間切れでハーネスや OS が計算を止めたのは人間の停止ではない。原因を外し、空きが戻ったら自分で再開する。
-  重い計算は、メモリとスレッドの上限を決めてから起動する。同じ判断・結果の拍が続くと `labkit beat end` が記録を拒む（`autonomy.stall_beats`）。
-- **ぶっちゃけ点検**: 4 拍に 1 回、作業の記録を渡さずに candor-check agent を 3 回起動し、採点の中央値と答えを受け入れるか根拠つきで退ける。
-- **活動量で測らない**: 進捗は主張を支える結果・撤回した主張・捨てた線で測る。採点が 2 回続けて上がらなければ主線を替える。範囲を縮める判断は queue に積む。
-
-## 置き場所の判定
+## 置き場所
 
 | 作るもの | 置き場所 | 方法 |
 |---|---|---|
-| 再利用する関数（純粋関数） | `src/{{ package_name }}/` | テストを `tests/` に書く |
-| 実験の入口 | `src/{{ package_name }}/experiments/<name>.py` の `run(cfg) -> dict` | 設定の `entry` から `labkit run` が呼ぶ。小さく保つ（L018） |
-| パラメータ・予想・合否 | `configs/experiments/*.toml` | `extends = "../base.toml"`。seed・`[prediction]`・`[[pass]]` を持つ |
-| 実験結果 | `runs/<run_id>/` | `labkit.Run` 経由でのみ生成。異常終了は `labkit runs mark` |
-| 派生データ | `data/interim`, `data/processed` | `labkit.save` / `writer` 経由（サイドカー付き）。再生成できる中間物は `data/cache` |
-| 図 | `runs/<run_id>/figures/` | `figspecs/*.toml` + `labkit fig`。描画ライブラリを直接使わない |
-| 主張と撤回 | `docs/claims.md` | `labkit claim add / retract`（手で編集しない） |
-| 主線・芽 | `docs/mainline.md`, `docs/seeds.md` | `labkit main` / `labkit seed`（手で編集しない） |
-| 事前登録・草稿 | `docs/prereg/`, `docs/papers/` | 計算の前に commit。引用は `labkit cite` の書式 |
-| 文献・サーベイ | `literature/` | `labkit lit add --doi` / `lit read` / `lit survey`（読んだ主体と範囲を正直に） |
+| 計算（純粋関数） | `src/{{ package_name }}/` | テストを `tests/` に。I/O・描画を入れない |
+| 実験の入口 | `src/{{ package_name }}/experiments/<name>.py` の `run(cfg) -> dict` | 設定の `entry` から `labkit run` が呼ぶ（skill: new-experiment） |
+| パラメータ・予想・合否・比較 | `configs/experiments/*.toml` | `extends = "../base.toml"` |
+| 実験結果 | `runs/<run_id>/` | `labkit run` だけが作る |
+| 派生データ | `data/interim`, `data/processed` | `labkit.save`（来歴のサイドカーが付く）。再生成できる中間物は `data/cache` |
+| 図 | `runs/<run_id>/figures/` | `figspecs/*.toml` + `labkit fig`（skill: make-figure） |
+| 主張・主線・芽 | `docs/claims.md`, `docs/mainline.md`, `docs/seeds.md` | `labkit claim` / `main` / `seed` が書く台帳 |
+| 事前登録・草稿・報告 | `docs/prereg/`, `docs/papers/`, `docs/reports/` | 事前登録は計算の前に commit |
+| 文献 | `literature/` | skill: literature-survey |
 | 設計判断 | `docs/decisions/` | `labkit adr "タイトル"` |
-| レビュー記録 | `docs/reviews/` | lab-reviewer agent だけが書く（Agent ツールで起動） |
-| 試行錯誤 | `scratch/` | git 管理外。成果物にも根拠にもしない |
+| レビュー記録 | `docs/reviews/` | lab-reviewer agent が書く |
+| 試行錯誤 | `scratch/` | git 管理外。根拠にしない |
 
-## 完全自律（人間の承認を待つ操作は無い）
+## 自律運用
 
-- push・merge・tag・release・`labkit raw freeze` も自分で行う。取り返しのつかなさは成果物の保護（data/raw・runs/ は不変、lab.toml は変えない）と検証で守る。
-- **人間への連絡は一方通行**: 判断の分かれる問いは自分で決めて根拠を残し、`labkit queue ask "<質問>" --options A B --assumed "<決めたことと理由>"` で知らせて進む。返事は待たない。
-- **待って止まらない**: 人間の答え・実機の作業を待つことは止まる理由にならない。人間なしで同じ問いに答える方法（計算、公開データ、独立実装による検証）に
-  置き換えるか、依存しない仕事を進める。`/loop` を止めるのは人間だけ（`claude.allow_self_stop = false` の既定では hooks が止める）。
+- 承認を待つ操作は無い。push・merge・tag も自分で行う。判断の分かれる問いは自分で決め、`labkit queue ask "<問い>" --assumed "<決めたことと理由>"` で知らせて進む。
+- 何時間も自走するときは skill: autonomous-run。1 拍は `labkit beat start` → 作業 → `labkit beat end`（現行の目標と指示書は `prompts/current.toml` が指し、`beat start` が毎回出す）。
+- 期限のある約束は主線に入れる（`labkit main add`）。作業中に見た外れた予想・妙な数字は芽に残す（`labkit seed add`）。
 
-## 主線と芽（主線から絶対にずれず、面白い芽を拾い続ける）
+## 触らないもの（hooks が止める）
 
-- **主線**は 1 文と、成果物・完了条件・期限の項目（`labkit main set / add / done`、`docs/mainline.md`）。期限のある約束はすべてここに入れる。
-- **毎拍、どの線を進めたかを宣言する**: `labkit beat end ... --line main | seed:Sxxx | other`。主線の割合（`autonomy.main_share`）を割る拍、
-  期限が近い（`main_guard_hours`）のに主線以外を進めた拍は記録されない。
-- **芽を拾い続ける**: 主線の作業中に見た外れた予想・妙な数字・別の説明がつく現象は、その場で `labkit seed add "<芽>" --from <run|file> --test "<最安の確かめ方>" --value "<当たれば>"`。
-  `autonomy.seed_every` 拍のあいだに芽が 1 つも無いと拍を閉じられない。芽は芽の枠（主線以外の拍）で最安の方法で確かめ、
-  主線のどの項目に効くかを言えたときだけ `labkit seed decide S00N --to promote --serves M00N` で主線に入れる。言えない芽は park か drop。
-- **資源は必ずどれかの線に紐づく**: 主線に open の項目があるあいだ、run の設定に `serves = "M001" | "S003" | "other:<理由>"` が無いと始まらない。
-  同じ名前の run が `autonomy.fail_repeat` 回続けて失敗し commit が進んでいなければ、次は始まらない（壊れた計算を回し続けない）。
-  `labkit beat start` と digest が直近 24 時間の run 時間を線ごとに示す。主線に使えていなければ、その拍で正す。
-- **目標を書き換えて逃げない**: 主線を変えるのは、主線の項目を done（根拠つき）にするか、期限と理由を残して項目を替えるときだけ。
-
-## 禁止事項
-
-- `data/raw/` の既存ファイルと `runs/` の変更、`lab.toml` の編集、`.lab/` の直接編集（新しい生データの搬入は cp / mv で上書きせずに行い、`labkit raw freeze`）。
-- pickle など言語依存形式での保存、`np.save` での成果物保存（来歴が付かない）、コード中の絶対パス（`configs/paths/*.toml` を使う）。
-- 規約に合わない新しいトップレベルディレクトリの作成。
-
-雛形・labkit・hooks を直したくなったら、プロジェクト内のコピーは直さず lab-standards 本体（skill: improve-standards）。
+`data/raw/` の既存ファイル、`runs/`、`lab.toml`、`.lab/`、台帳。原本と記録と規約は、エージェントが書き換えられると検証の根拠にならなくなるため。
+雛形・labkit・hooks を直したいときは、プロジェクト内では直さず lab-standards 本体を直す（skill: improve-standards）。
