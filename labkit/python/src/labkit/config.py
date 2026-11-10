@@ -122,7 +122,14 @@ DEFAULTS: dict = {
     # note_body: L047（status が read/key なのに claims が空）、survey_verdict: L048（done なのに verdict/n_opened が無い）
     "literature": {"dir": "literature", "pdf_dir": "literature/pdfs", "note_body": "warn", "survey_verdict": "warn"},
     # 人間の入口（labkit digest）: 図は assets に写す（git で見える）。max_figures を超える分はリンクだけ
-    "digest": {"file": "docs/DIGEST.md", "assets": "docs/assets/digest", "max_figures": 12},
+    # days: 既定で載せる期間（日）。refresh_hours: `labkit beat end` がこの時間より古い DIGEST を作り直す（0 で無効）
+    "digest": {
+        "file": "docs/DIGEST.md",
+        "assets": "docs/assets/digest",
+        "max_figures": 12,
+        "days": 2,
+        "refresh_hours": 6,
+    },
     # allow_self_stop: /loop を Claude が自分で止めること（CronDelete・ScheduleWakeup の stop）を許すか。止めるのは人間
     "claude": {"require_devlog": True, "max_stop_blocks": 3, "allow_self_stop": False},
     "fig": {"overlap": "warn"},  # 図の体裁の検査（文字・凡例の重なり、小さい文字）。"error" で保存しない

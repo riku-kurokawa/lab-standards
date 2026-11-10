@@ -36,6 +36,14 @@ DELETING = r"^\s*(?:sudo\s+)?(?:rm|shred|unlink|truncate)\b|\bfind\b.*-(?:delete
 # 入力の無い `python -`（行頭か ; && || & の直後。パイプの後ろは入力があるので対象外）
 STDIN_PYTHON = r"(?:^|[;&\n]|\|\|)\s*(?:\S*/)?(?:python[0-9.]*|py)(?:\.exe)?\s+-(?=\s|$)"
 WRITE_OPS = r">{1,2}|\btee\b|\bsed\s+-i|\b(?:rm|mv|cp|touch|truncate|python[0-9.]*\s+-c|perl|node\s+-e)\b"
+# 出力を捨てる・つなぐだけのリダイレクト（`2>/dev/null`・`2>&1`）は書き込みではない。読み取りだけの `find .lab ... 2>/dev/null` を止めない
+HARMLESS_REDIRECT = re.compile(r"\d*>{1,2}\s*(?:/dev/null|&\d)")
+
+
+def _writes(seg: str) -> bool:
+    return bool(re.search(WRITE_OPS, HARMLESS_REDIRECT.sub(" ", seg)))
+
+
 GENERATED = {
     "docs/claims.md": "`labkit claim add / retract`",
     "docs/DIGEST.md": "`labkit digest`",
@@ -96,7 +104,7 @@ def pretool_bash(data: dict, root: Path, kind: str) -> dict | None:
     cmd = (data.get("tool_input") or {}).get("command", "")
     if not cmd:
         return None
-    segs = gate.segments(cmd)
+    segs = gate.segments(HARMLESS_REDIRECT.sub(" ", cmd))  # `2>&1` の & で分割される前に外す
     if re.search(STDIN_PYTHON, cmd) and "<<" not in cmd:
         raise Block(
             "`python -` は標準入力からスクリプトを読むので、入力が無いとその場で止まります（パイプも heredoc も無い）。"
@@ -107,13 +115,9 @@ def pretool_bash(data: dict, root: Path, kind: str) -> dict | None:
             if not gate.reviewer_allowed(seg):
                 raise Block(f"許可されていないコマンドです: `{seg[:80]}`。{gate.reviewer_allowed_summary()}")
     for seg in segs:
-        if re.search(r"\.lab/(?:queue|flows|delegations|beats)", seg) and re.search(WRITE_OPS, seg):
+        if re.search(r"\.lab/(?:queue|flows|delegations|beats)", seg) and _writes(seg):
             raise Block(".lab/ は直接書き換えません（labkit queue / flow / beat を使う）。")
-        if (
-            kind == "project"
-            and re.search(r"docs/(?:claims|DIGEST|mainline|seeds)\.md", seg)
-            and re.search(WRITE_OPS, seg)
-        ):
+        if kind == "project" and re.search(r"docs/(?:claims|DIGEST|mainline|seeds)\.md", seg) and _writes(seg):
             raise Block(
                 "docs/claims.md・DIGEST.md・mainline.md・seeds.md は手で書きません（`labkit claim` / `digest` / `main` / `seed`）。"
             )

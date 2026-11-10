@@ -115,14 +115,15 @@ def list_reviews(root: Path, flow: str | None = None, stage: str | None = None) 
 
 
 def open_reviews(root: Path) -> list[Review]:
-    """未解消の changes-requested: 後続の記録に resolves で指されておらず、同じ flow/stage の後続に pass も無いもの."""
+    """未解消の changes-requested: 後続の記録に resolves で指されておらず、同じ flow/stage の後続の記録も無いもの
+    （同じ対象を見直した新しい記録が、古い指摘の現在の状態。8 回のレビューの鎖を 8 行並べない）."""
     rs = list_reviews(root)
     resolved = {r.resolves for r in rs if r.resolves}
     out = []
     for i, r in enumerate(rs):
         if r.verdict != "changes-requested" or r.path.relative_to(root).as_posix() in resolved:
             continue
-        if any(s.verdict == "pass" and (s.flow, s.stage) == (r.flow, r.stage) for s in rs[i + 1 :]):
+        if any((s.flow, s.stage) == (r.flow, r.stage) for s in rs[i + 1 :]):
             continue
         out.append(r)
     return out

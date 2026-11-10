@@ -137,3 +137,13 @@ def test_run_meta_schema_accepts_new_fields(project):
     meta = json.loads((run.dir / "meta.json").read_text(encoding="utf-8"))
     assert {"env", "pid", "paths", "seed"} <= set(meta)
     assert not [i for i in run_check(root=project)[0] if i.code == "L020"]
+
+
+def test_context_shows_only_recent_questions(project):
+    """返事を待たない連絡を毎拍すべて読み直させない: 文脈に出すのは新しい 3 件と残りの件数."""
+    for k in range(5):
+        state.ask_question(project, f"問い {k}", options=[], assumed="A")
+    lines = state.question_lines(project)
+    assert len(lines) == 4 and "問い 4" in lines[2] and "問い 1" not in "\n".join(lines) and "open 2 件" in lines[3]
+    state.mark_done(project, "Q005")
+    assert "問い 3" in state.question_lines(project)[2]

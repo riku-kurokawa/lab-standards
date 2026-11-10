@@ -145,7 +145,9 @@ def _tokens(s: Any) -> list[str]:
 def _has(hay: list[str], needle: list[str]) -> bool:
     """needle の語の並びが hay に連続して現れる."""
     n = len(needle)
-    return bool(n) and any(hay[i : i + n] == needle for i in range(len(hay) - n + 1))
+    if not n or needle[0] not in hay:  # ほとんどの鍵は腕の語を含まない（大きな設定で check が分単位になるのを防ぐ）
+        return False
+    return any(hay[i : i + n] == needle for i in range(len(hay) - n + 1))
 
 
 def noncomparative(cfg: dict) -> list[str] | None:
@@ -233,7 +235,8 @@ def _arm_named_keys(cfg: dict) -> list[str]:
         if isinstance(x, dict):
             for k, v in x.items():
                 p = f"{path}.{k}" if path else str(k)
-                if not skip and (hit := next((lb for lb, t in arms.items() if _has(_tokens(k), t)), "")):
+                tk = _tokens(k) if not skip else []
+                if not skip and (hit := next((lb for lb, t in arms.items() if _has(tk, t)), "")):
                     out.append(
                         f"設定の鍵 {p!r} が {hit} を含む（腕ごとの条件は [compare.<名>.sweep] で掃引するか、置かない）"
                     )
@@ -548,7 +551,20 @@ def nc_key_problem(cfg: dict, key: str) -> str:
     return ""
 
 
+_STATUS_MEMO: dict[tuple, dict] = {}
+_STATUS_FILES = ("meta.json", "config.json", "metrics.json", COMPARISON_FILE)
+
+
 def run_status(d: Path, meta: dict, lab: dict) -> dict:
+    """`_run_status` を、run の成果物が変わらないあいだ使い回す（check は同じ run を引用の数だけ問い合わせる）."""
+    stamp = tuple(f.stat().st_mtime_ns if (f := Path(d) / n).is_file() else 0 for n in _STATUS_FILES)
+    key = (str(d), stamp, repr(lab.get("compare")), repr(meta.get("archived")), meta.get("status"))
+    if key not in _STATUS_MEMO:
+        _STATUS_MEMO[key] = _run_status(d, meta, lab)
+    return _STATUS_MEMO[key]
+
+
+def _run_status(d: Path, meta: dict, lab: dict) -> dict:
     """run の比較を凍結した設定から計算し直す: {problems, matched_keys, unmatched_keys, noncomparative, author_excluded, legacy}.
 
     legacy の run は比較の宣言を持たない（設定の `compare` という表は別の意味として読まない）."""

@@ -208,6 +208,12 @@ def end(
     from labkit.devlog import update
 
     update(root)
+    try:  # 人間の入口を古くしない。作り直しの失敗で拍の記録は落とさない
+        from labkit.digest import refresh_if_stale
+
+        refresh_if_stale(root)
+    except Exception:  # noqa: BLE001
+        pass
     return rec
 
 

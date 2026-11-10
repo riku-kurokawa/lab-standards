@@ -140,11 +140,15 @@ def test_digest_builds_one_page(git_project):
         "## run の収支",
         "## 新しい図",
         "## 未解消のレビュー",
-        "## 人間への連絡（返事は待たずに進めている）",
+        "## 人間への連絡（返事は待たずに進めている。新しい順）",
         "## labkit check",
-        "## 変更された文書とコード量",
+        "コード量:",
     ):
         assert head in text, head
+    # 人間の判断が要るものが先頭に来る: 外れた予想・新しい連絡。主張には根拠の run を生んだコード（entry か run 名）と commit
+    top = text.split("## 先に見るもの")[1].split("## ")[0]
+    assert "外れた予想 1 件" in top and "新しい連絡 1 件" in top
+    assert "  - コード: `good` @ " in text
     assert (
         "C001" in text
         and "miss" in text
@@ -173,3 +177,44 @@ def test_empty_project_digest_does_not_fail(project):
     out = build(project, since="2000-01-01")
     assert out.is_file() and "# DIGEST" in out.read_text(encoding="utf-8")
     assert json.loads(json.dumps({"ok": True}))
+
+
+def test_digest_groups_misses_and_lists_code_to_review(git_project):
+    """同じ根拠の外れは 1 行。src の変更は試験の有無つきで載る。撤回は理由つきで先頭に."""
+    p = git_project
+    base = git(p, "rev-parse", "HEAD")
+    pred = {"basis": "同じ根拠", "claims": [{"key": "e", "range": [0, 1]}]}
+    for k in range(3):
+        with Run(f"arr-{k}", {"seed": k, "prediction": pred, "report": {"noncomparative": ["e"]}}) as run:
+            run.log_metric("e", 5.0)
+    write(p / "src" / "solver.py", "def f():\n    return 1\n")
+    write(p / "src" / "plain.py", "def g():\n    return 2\n")
+    write(p / "tests" / "test_solver.py", "def test_f():\n    assert True\n")
+    git(p, "add", "-A")
+    git(p, "commit", "-q", "-m", "code")
+    c = claims.add_claim(p, "e は 5", [f"{run.run_id}:e"])
+    claims.retract_claim(p, c["id"], "条件が違っていた")
+    text = build(p, since=base).read_text(encoding="utf-8")
+    assert "ほか 2 本" in text and text.count("✗ arr-") == 1
+    assert "- `src/solver.py` +2 −0\n" in text and "- `src/plain.py` +2 −0 — **試験の変更なし**" in text
+    assert "**撤回** C001" in text.split("## 主張")[0] and "理由: 条件が違っていた" in text
+
+
+def test_beat_end_refreshes_stale_digest(git_project):
+    """人間の入口は `beat end` が作り直す（「1 日 1 回作る」という規則に頼らない）."""
+    p = git_project
+    write(p / "prompts" / "goal_v1.md", "# 目標\n")
+    write(p / "prompts" / "beat_v1.md", "# 1 拍\n")
+    beat.ensure_current(p, "goal_v1.md", "beat_v1.md")
+    beat.start(p)
+    beat.end(p, decided="始めた")
+    d = p / "docs" / "DIGEST.md"
+    assert d.is_file()
+    d.write_text("# DIGEST（2026-01-01 00:00、古い）\n", encoding="utf-8")
+    beat.start(p)
+    beat.end(p, decided="次に進めた", observed="x")
+    assert "古い" not in d.read_text(encoding="utf-8")
+    stamp = d.read_text(encoding="utf-8")
+    beat.start(p)
+    beat.end(p, decided="さらに進めた", observed="y")
+    assert d.read_text(encoding="utf-8") == stamp  # refresh_hours 以内は作り直さない

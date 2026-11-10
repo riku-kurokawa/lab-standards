@@ -301,7 +301,17 @@ class Run:
                         "total": 0,
                         "error": str(e),
                     }
-                self.log(f"予想の判定: {self.meta['prediction_result']['verdict']}")
+                res = self.meta["prediction_result"]
+                claims = self.meta["prediction"].get("claims") or []
+                missing = [str(c.get("key")) for c in claims if self._last.get(c.get("key")) is None]
+                self.log(
+                    f"予想の判定: {res['verdict']}"
+                    + (
+                        f"（metrics に無い key: {', '.join(missing)}。指標名を合わせないと判定できない）"
+                        if missing
+                        else ""
+                    )
+                )
         elif exc_type is KeyboardInterrupt:
             self.meta["status"] = "interrupted"
         else:
@@ -615,6 +625,9 @@ def verdict_run(run_id: str, *, say: str | None = None, note: str = "", root: Pa
     metrics = read_json(mf) if mf.is_file() else {}
     if isinstance(pred, dict):
         result = judge_prediction(pred, metrics)
+        if result["verdict"] == "undeterminable" and say in ("hit", "miss", "partial"):
+            # 予想の key が metrics に無く機械で判定できない run は、理由つきの自己申告で閉じられる（判定不能のまま残さない）
+            result = {**result, "verdict": say, "self_reported": True, "note": note}
     elif say in ("hit", "miss", "partial"):
         result = {"verdict": say, "self_reported": True, "note": note}
     else:

@@ -268,3 +268,17 @@ def test_state_file_structure_and_scratch_evidence(project):
     )
     got = issues(project, "L038")
     assert [i.where for i in got] == ["docs/devlog/2026-11-05.md:5"] and got[0].severity == "warn"
+
+
+def test_undeterminable_prediction_is_reported_and_can_be_closed(project):
+    """予想の key が metrics に 1 つも無い run は判定不能。黙って残さず L024 で知らせ、理由つきの自己申告で閉じられる."""
+    pred = {"basis": "桁の見積もり", "claims": [{"key": "rmse_typo", "range": [0, 1]}]}
+    with Run("u", {"seed": 0, "prediction": pred}) as run:
+        run.log_metric("rmse", 0.5)
+    meta = json.loads((run.dir / "meta.json").read_text(encoding="utf-8"))
+    assert meta["prediction_result"]["verdict"] == "undeterminable"
+    assert "rmse_typo" in (run.dir / "log.txt").read_text(encoding="utf-8")
+    got = issues(project, "L024")
+    assert [i.where for i in got] == [f"runs/{run.run_id}"] and "rmse_typo" in got[0].message
+    r = verdict_run(run.run_id, say="hit", note="rmse = 0.5 で範囲内（key の綴りの誤り）", root=project)
+    assert r["verdict"] == "hit" and r["self_reported"] and not issues(project, "L024")

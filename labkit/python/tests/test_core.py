@@ -88,6 +88,9 @@ def test_run_failure_and_mark(project):
     from labkit.runs import _current
 
     _current.reset(r._token)
+    assert "L021" not in codes(project)  # 直近に記録のある run は実行中（警告しない）
+    old = (r.dir / "heartbeat").stat().st_mtime - 3600
+    os.utime(r.dir / "heartbeat", (old, old))
     assert "L021" in {i.code for i in run_check(root=project)[0]}
     m = mark_run(r.run_id, "failed", "OOM")
     assert m["status"] == "failed" and json.loads((r.dir / "metrics.json").read_text(encoding="utf-8")) == {"acc": 0.9}
@@ -110,6 +113,8 @@ def test_run_killed_during_start_leaves_meta_not_shell(project, monkeypatch):
         r.__enter__()
     meta = json.loads((r.dir / "meta.json").read_text(encoding="utf-8"))
     assert meta["status"] == "running" and meta["run_id"] == r.run_id
+    old = (r.dir / "heartbeat").stat().st_mtime - 3600  # 記録が 10 分以上止まると L021
+    os.utime(r.dir / "heartbeat", (old, old))
     assert "L020" not in codes(project) and "L021" in codes(project)
     assert mark_run(r.run_id, "interrupted", "killed")["status"] == "interrupted"
     assert not {"L020", "L021"} & codes(project)

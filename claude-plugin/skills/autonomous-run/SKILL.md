@@ -35,13 +35,14 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 - 間隔は、1 拍に新しい結果が 1 つ以上届く長さ（計算 1 本の所要時間の 1.5 倍程度）。短すぎると状態を取るだけで拍が終わる。
 - 規則（予想の関門など）は CLAUDE.md に置く。ループを止めるのは人間だけ（`claude.allow_self_stop = false` の既定では hooks が CronDelete・ScheduleWakeup の stop を拒否する）。CLAUDE.md は要約の後も読まれる。
 
-## 主線と芽（主線から絶対にずれず、しかし芽を拾い続ける）
-研究者が普段やっているマルチタスク（主線を追いながら、面白い創発の芽を常に考える）を台帳と関門で強制する。
+## 主線と芽
+研究者が普段やっているマルチタスク（期限のある主線を追いながら、面白い芽を拾う）を台帳に残し、`labkit beat end` と `labkit run` が照合する。
+止められたら、メッセージに理由と次にやることが出る。
 
 | 何 | 仕組み（機械が止める） |
 |---|---|
 | 主線 | `docs/mainline.md`: 1 文（`labkit main set`）と項目（成果物・完了条件・期限。`main add`）。完了は根拠つき（`main done --evidence`） |
-| 主線から絶対にずれない | 拍ごとに `beat end --line main\|seed:Sxxx\|other`。直近 `main_window` 拍で主線以外が `(1-main_share)` を超える拍、期限まで `main_guard_hours` 以内（または期限切れ）の項目があるのに主線以外を進めた拍は記録されない |
+| 主線からずれない | 拍ごとに `beat end --line main\|seed:Sxxx\|other`。直近 `main_window` 拍で主線以外が `(1-main_share)` を超える拍、期限まで `main_guard_hours` 以内（または期限切れ）の項目があるのに主線以外を進めた拍は記録されない |
 | 芽を拾い続ける | `docs/seeds.md`: `labkit seed add "<芽>" --from --test --value`。`seed_every` 拍のあいだ芽が 1 つも無いと拍を閉じられない |
 | 芽を育てる | 芽は主線以外の枠で、最安の方法で確かめる（`--line seed:S00N`、run は `serves = "S00N"`）。主線のどの項目に効くかを言えたら `seed decide --to promote --serves M00N`。言えなければ park か drop（理由つき） |
 | 資源の紐付け | 主線に open の項目があるあいだ、run の設定に `serves` が無いと始まらない。`beat start`・digest が直近 24 時間の run 時間を線ごと・状態ごとに出す |
@@ -52,7 +53,11 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 
 ## 1 拍の回し方（skill: beat）
 `labkit beat start`（現行の goal・beat の本文と状態が出る）→ beat ファイルの手順 → `labkit beat end --line --predicted --observed --decided [--runs]`。
-手順の正本は beat ファイルで、ここには書かない。拍の 3 行は `beat end` が `.lab/beats/` と開発ログの自動ブロックに写す（手で devlog に書き直さない）。
+手順の正本は beat ファイルで、ここには書かない。
+- 計算を投入したら同じターンで次の作業に移る。独立な作業（一次文献・導出・執筆）はサブエージェントに並行で投げる。
+- メモリ不足・時間切れで止まった計算は人間の停止ではない。原因を外し（メモリとスレッドの上限を決め）、自分で再開する。
+- 専門家なら計算せずに分かる結果は回さず、導出で確定として開発ログに書く。計算するのは予想が割れるときだけ。
+拍の 3 行は `beat end` が `.lab/beats/` と開発ログの自動ブロックに写す（手で devlog に書き直さない）。
 
 ## 予想の関門
 - run の前に、桁の見積もり・既知の理論・既存の結果から結果を数値で予想し、設定の `[prediction]`（`basis`、`confidence`、`expert_predictable`、`[[prediction.claims]]` の key と range か point+tol）に書く。

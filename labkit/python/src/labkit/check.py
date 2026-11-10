@@ -45,6 +45,7 @@
 from __future__ import annotations
 
 import fnmatch
+import functools
 import json
 import re
 from dataclasses import dataclass
@@ -85,6 +86,39 @@ CITE_RE = re.compile(
 # 測定値らしい数値: 小数または指数表記（整数の個数・番号は対象にしない）
 MEASURE_RE = re.compile(r"(?<![\w./:−-])[-+−]?\d+(?:\.\d+(?:[eE][-+−]?\d+)?|[eE][-+−]?\d+)(?![\w./:-])")
 RESULTS_HEADING = "結果・観察"
+
+
+def walk_files(base: Path, skip: set[str] | frozenset[str] = frozenset()):
+    """base 以下のファイル。SKIP_DIRS と skip の名前のディレクトリには降りない
+    （rglob は .venv や .claude/worktrees の中まで歩いてから捨てるので、worktree が 100 個あると check が終わらない）."""
+    import os
+
+    for dirpath, dirnames, filenames in os.walk(base):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and d not in skip)
+        for f in sorted(filenames):
+            yield Path(dirpath) / f
+
+
+_VALIDATORS: dict[int, object] = {}
+
+
+@functools.cache
+def _load_schema(name: str) -> dict:
+    """同じ dict を返し続ける（_validate が id で検証器を使い回す）."""
+    return json.loads(resources.files("labkit.schemas").joinpath(name).read_text(encoding="utf-8"))
+
+
+def _validate(instance: dict, schema: dict) -> None:
+    """jsonschema.validate と同じ判定。schema の検査と解決を run ごとにやり直さない（550 run で 40 秒かかっていた）."""
+    import jsonschema
+
+    v = _VALIDATORS.get(id(schema))
+    if v is None:
+        cls = jsonschema.validators.validator_for(schema)
+        cls.check_schema(schema)
+        v = _VALIDATORS[id(schema)] = cls(schema)
+    if (err := jsonschema.exceptions.best_match(v.iter_errors(instance))) is not None:
+        raise err
 
 
 @dataclass
@@ -149,10 +183,12 @@ class Checker:
                 )
 
     def conflict_markers(self) -> None:
-        big = {"data", "runs", ".lab"} | SKIP_DIRS
+        # 衝突マーカーは git が管理する文書とコードに残る。成果物（data・runs）、管理外（scratch）、読み取り専用（legacy）、
+        # Claude Code の作業領域（.claude: worktree の写し）は見ない
+        big = {"data", "runs", ".lab", ".claude", "scratch", *self.lab["layout"]["readonly"]} | SKIP_DIRS
         for t in (p for p in self.root.iterdir() if p.name not in big):
-            for p in [t] if t.is_file() else t.rglob("*"):
-                if set(p.parts) & SKIP_DIRS or not p.is_file() or p.suffix.lower() in FIG_EXT | DATA_EXT:
+            for p in [t] if t.is_file() else walk_files(t):
+                if p.suffix.lower() in FIG_EXT | DATA_EXT:
                     continue
                 try:
                     with open(p, "rb") as f:
@@ -195,9 +231,7 @@ class Checker:
         for d in self.lab["check"]["code_dirs"]:
             base = self.root / d
             if base.is_dir():
-                yield from (
-                    p for p in base.rglob("*") if p.suffix in {".py", ".ipynb", ".sh"} and not set(p.parts) & SKIP_DIRS
-                )
+                yield from (p for p in walk_files(base) if p.suffix in {".py", ".ipynb", ".sh"})
 
     def _allowed(self, p: Path, patterns: list[str]) -> bool:
         rel = p.relative_to(self.root).as_posix()
@@ -314,9 +348,7 @@ class Checker:
         c = self.lab["check"]
         for d in [*c["code_dirs"], "configs", "docs", "figspecs", "prompts", "literature"]:
             base = self.root / d
-            for p in base.rglob("*") if base.is_dir() else []:
-                if set(p.parts) & SKIP_DIRS or not p.is_file():
-                    continue
+            for p in walk_files(base) if base.is_dir() else []:
                 rel = p.relative_to(self.root).as_posix()
                 if p.suffix.lower() in FIG_EXT and not any(rel.startswith(x + "/") for x in c["figure_ok_dirs"]):
                     self.add("L014", p, "図は runs/<id>/figures に `labkit fig` で出力する（手作り図の混入）")
@@ -328,7 +360,7 @@ class Checker:
 
     # ---- run とデータ ----
     def _schema(self, name: str) -> dict:
-        return json.loads(resources.files("labkit.schemas").joinpath(name).read_text(encoding="utf-8"))
+        return _load_schema(name)
 
     def runs_meta(self) -> None:
         import jsonschema
@@ -357,7 +389,7 @@ class Checker:
                 continue
             try:
                 meta = read_json(mf)
-                jsonschema.validate(meta, schema)
+                _validate(meta, schema)
             except (json.JSONDecodeError, jsonschema.ValidationError) as e:
                 self.add("L020", mf, f"スキーマ違反: {getattr(e, 'message', e)}")
                 continue
@@ -383,6 +415,17 @@ class Checker:
                 d,
                 f"予想を書いた run の判定がありません。`labkit runs verdict {d.name} --say hit|miss|partial --note ...`"
                 "（表形式の予想は run の終了時に自動で判定される）",
+                "warn",
+            )
+        res = meta.get("prediction_result") or {}
+        if meta["status"] == "finished" and res.get("verdict") == "undeterminable" and not meta.get("archived"):
+            pred = meta.get("prediction") if isinstance(meta.get("prediction"), dict) else {}
+            keys = ", ".join(str(c.get("key")) for c in (pred.get("claims") or [])[:5])
+            self.add(
+                "L024",
+                d,
+                f"予想を判定できなかった（予想の key が metrics に無い: {keys or res.get('error', '?')}）。当たりも外れも残らない予想は予想にならない。"
+                f"次からは entry が返す指標名と `[[prediction.claims]]` の key を合わせる。この run は `labkit runs verdict {d.name} --say hit|miss|partial --note ...`",
                 "warn",
             )
 
@@ -459,7 +502,7 @@ class Checker:
                     )
                     continue
                 try:
-                    jsonschema.validate(read_json(sc), schema)
+                    _validate(read_json(sc), schema)
                 except (json.JSONDecodeError, jsonschema.ValidationError) as e:
                     self.add("L022", sc, f"スキーマ違反: {getattr(e, 'message', e)}")
 

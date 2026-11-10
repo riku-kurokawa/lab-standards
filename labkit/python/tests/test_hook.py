@@ -60,6 +60,10 @@ def test_no_approval_gate(git_project):
 def test_state_protection(git_project):
     p = git_project
     assert handle("pretool", bash("echo x > .lab/queue/Q009.json", p))[0] == 2
+    # 読み取りだけ（出力を捨てるリダイレクト）は止めない。捨てる先以外への書き込みは止める
+    assert handle("pretool", bash("find .lab/queue -name 'Q*.json' 2>/dev/null", p))[0] == 0
+    assert handle("pretool", bash("ls .lab/beats 2>&1", p))[0] == 0
+    assert handle("pretool", bash("cat x 2>/dev/null > .lab/queue/Q009.json", p))[0] == 2
     assert handle("pretool", write(".lab/flows/x.json", p))[0] == 2
     assert handle("pretool", bash("uv run labkit queue list", p)) == (0, "", "")
 

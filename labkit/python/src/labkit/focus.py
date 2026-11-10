@@ -443,14 +443,14 @@ def digest_lines(root: Path, day: str) -> list[str]:
         mark = "済" if i["status"] == "done" else "未"
         L.append(
             f"- [{mark}] {i['id']} {i['what']}（期限 {i['due']}）"
-            + (f" 根拠: {i['evidence']}" if i["evidence"] else "")
+            + (f" 根拠: {i['evidence'][:80]}" if i["evidence"] else "")
         )
     new = [s for s in seeds if s["time"][:10] >= day]
     if new:
         L.append(f"- 新しい芽 {len(new)} 件:")
-        L += [f"  - {s['id']} {s['what']}（{s['status']}）" for s in new[:10]]
+        L += [f"  - {s['id']} {s['what'][:90]}（{s['status']}）" for s in new[-5:]]
     moved = [s for s in seeds if s["status"] in ("promoted", "drop") and s["time"][:10] >= day]
-    L += [f"- {s['id']} → {s['status']}: {s['why']}" for s in moved[:10]]
+    L += [f"- {s['id']} → {s['status']}: {s['why'][:120]}" for s in moved[-5:]]
     L += spend_lines(root)
     return [*L, ""]
 
