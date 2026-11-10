@@ -77,9 +77,13 @@ nla-solver・accelerated-diff-pat での数日間の運用で、効いたもの�
 - 根拠の run が dirty・failed・退避済みになると L036 が知らせる。clean に再実行して根拠を差し替えるか、撤回する。
 - 価値は「主張を支える結果」「撤回した主張」「捨てた線」で測る。commit 数・行数・本数のノルマは置かない。
 
-## 人間の入口（1 日 1 回）
-人間が読むのは devlog ではなく `docs/DIGEST.md`。人間が読む前に 1 日 1 回 `labkit digest` で作り直す（SessionStart が古さを知らせる）。
-failed/interrupted の run は `labkit runs archive --status failed,interrupted` で視界から消す。DIGEST に載る図には figspec の `labels.title` と `description` を書く。
+## 人間の入口
+自律開発のボトルネックは人間のレビューなので、人間が読むものは短く、判断が要る順に、機械が作る。人間が読むのは devlog ではなく `docs/DIGEST.md` で、
+`labkit beat end` が `digest.refresh_hours`（既定 6 時間）より古ければ作り直す（手で回す必要は無い。今すぐ作るなら `labkit digest`）。
+DIGEST の先頭の「先に見るもの」に載るのは、違反・根拠の崩れた主張・撤回・期限切れ・外れた予想・新しい連絡・失敗した計算。人間に伝えたいことは、文章ではなくこれらの台帳と run に入れる。
+- 主張には根拠の run を生んだコード（entry と commit）が付き、「レビューするコード」に src の変更と試験の変更の有無が載る。試験なしで src を増やすと、人間のレビューが遅くなる。
+- failed/interrupted の run は `labkit runs archive --status failed,interrupted` で視界から消す。DIGEST に載る図には figspec の `labels.title` と `description` を書く。
+- 警告は、主線で触るファイルから 0 に近づける。放置した警告が 100 件あると、人間は新しい 1 件に気づけない。
 
 ## compact の後に戻るもの
 SessionStart が goal/beat の現行の版、最後の拍の判断、目標ファイルの最初の節（原文）、主線と芽・資源の使い道・人間への連絡・flow を再注入する。CLAUDE.md と skill は読み直される。

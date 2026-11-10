@@ -2,9 +2,11 @@
 
 成果物の検証（--claims。Stop hook が見る）:
     L002 data/raw が MANIFEST と一致しない      L003 data/raw が書き込み可能
-    L020 run の meta.json が無い（殻は `labkit runs mark`）/スキーマ違反 L021 run が running のまま（警告。`labkit runs mark`）
+    L020 run の meta.json が無い（殻は `labkit runs mark`）/スキーマ違反
+    L021 run が running のまま 10 分以上記録が無い（警告。`labkit runs mark`）
     L022 data/interim・processed の派生ファイルにサイドカーが無い/スキーマ違反（data/cache は対象外）
-    L024 予想（prediction）のある run が finished なのに判定（prediction_result）が無い（警告。`labkit runs verdict`）
+    L024 予想（prediction）のある run が finished なのに判定（prediction_result）が無い、または予想の key が metrics に無く
+         判定できなかった（警告。`labkit runs verdict`）
     L023 run を実行した labkit の版がプロジェクトの固定版と違う（警告。(版, 実行環境) ごとに 1 件。環境の同期漏れ）
     L030 開発ログの書式違反・必須欄（目的 / 判断と理由 / 未解決）が空
     L032 文書（check.claim_docs）が引用する run ID が runs/ に無い。failed/link の run と、退避済みの run の ID だけの言及は警告、
@@ -34,7 +36,7 @@
     L005 prompts/current.toml が指す goal/beat が無い、またはより新しい版がある（警告。beat.py）
     L025 主線（docs/mainline.md）の open な項目が期限切れ（警告）  L026 主線・芽の台帳の書式（ID の重複・状態・期限・根拠。focus.py）
     L010 描画ライブラリの直接 import    L011 src → scripts の依存（scripts → scripts は警告）   L012 絶対パスの直書き
-    L013 禁止形式（pickle など）        L016 np.save / np.savez / torch.save（labkit.save を使う。警告）
+    L013 禁止形式（pickle など）        L016 np.save / np.savez / torch.save（labkit.save を使う。警告。tests/ は対象外）
     L017 src のモジュールがどこからも import されていない（警告。configs の entry も使用に数える）
     L018 src・scripts のファイルが check.max_file_lines 行（空行を除く）を超える（警告。人間が読める大きさに保つ）
     L014 図が runs/*/figures 以外にある  L015 データが data/・runs/ 以外にある

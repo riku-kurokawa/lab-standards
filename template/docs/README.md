@@ -2,7 +2,7 @@
 
 | パス | 中身 | 作り方 |
 |---|---|---|
-| `DIGEST.md` | 人間の入口 1 枚（主張の変化・予想と結果・run の収支・新しい図・未解消のレビュー・主線と芽・資源の使い道・人間への連絡） | `labkit digest`（1 日 1 回。手で編集しない） |
+| `DIGEST.md` | 人間の入口 1 枚。判断が要る順（先に見るもの・主張と生んだコード・予想と結果・図・レビューするコード・主線と芽・連絡 …） | `labkit beat end` が古くなったら作り直す（今すぐなら `labkit digest`）。手で編集しない |
 | `mainline.md` | 主線（1 文）と項目（成果物・完了条件・期限・状態・根拠） | `labkit main set / add / done` |
 | `seeds.md` | 芽の台帳（出どころ・最安の確かめ方・当たれば・状態） | `labkit seed add / decide` |
 | `claims.md` | 主張の台帳（根拠の run・状態 open/retracted。根拠が崩れると L036） | `labkit claim add / retract` |

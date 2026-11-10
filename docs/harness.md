@@ -1,4 +1,4 @@
-# ハーネス: 成果物を検証し、主線から外れず、芽を拾い続ける（v2.0.0）
+# ハーネス: 成果物を検証し、主線から外れず、芽を拾い続ける
 
 目的は「人間の承認なしに Claude が完全自律で動き、研究記録が検証可能で、主線から絶対にずれず、しかし面白い芽を拾い続ける」こと。
 v0.3/v0.4 は入力側（Claude が打つコマンド）の統制に投資し、実運用で迂回され、迂回のたびに記録が歪んだ（`docs/audit-2026-11-02.md`）。
@@ -6,6 +6,8 @@ v1.0.0 は成果物側（run・データ・文書が検証できるか）に軸�
 v1.6.0 はボトルネックが人間のレビュー時間だと分かって、人間が読むものを機械が同じコードで作る短い生成物（DIGEST・台帳・一覧）に変え、
 不要な run・コードを視界から消し、1 拍の入口を機械が持つようにした（8・9 節）。
 v2.0.0 は承認ゲートと承認・却下・回答・委任を廃止して完全自律にし、主線と芽の台帳・拍の関門・資源の紐付けを足した（2 節、ADR 0002）。
+v2.3.0 は 3 つのプロジェクトの実運用の監査（`docs/audit-2026-11-10.md`）から、人間のレビューを速く正確にすることに絞って磨いた:
+常に文脈に載る文を半分にし、検証を速くし、DIGEST を判断が要る順に並べて自動で作り直し、使われていない部品を削った（10 節）。
 
 ```
 人間                          Claude Code                       .lab/（プロジェクト直下）
@@ -127,7 +129,8 @@ freeze 段階は `labkit mirror push` 済みであることを要求する（配
 SessionStart（compact 含む）: 今日の開発ログの有無、完全自律の 1 行、無効のままの関門（`require_prediction` / `require_clean`）、
 goal/beat の現行の版と最後の拍の判断（`prompts/current.toml`）、主線と芽・資源の使い道、DIGEST の古さ、人間への連絡、進行中の flow、plugin と labkit の版の不一致。
 compact 後はさらに、目標ファイルの最初の節を原文で再注入する（要約で薄れた指示を戻す）。
-UserPromptSubmit: 何も注入しない（v2.0.0。人間の操作で生じる差分が無くなった）。
+UserPromptSubmit: hook を登録しない（v2.3.0。v2.0.0 から何も注入していなかった）。
+人間への連絡は新しい 3 件と残りの件数だけを出す（返事を待たない連絡を毎拍すべて読み直させない）。
 
 ## 8. 人間の入口（DIGEST・台帳・一覧）
 
@@ -135,7 +138,7 @@ UserPromptSubmit: 何も注入しない（v2.0.0。人間の操作で生じる�
 
 | 入口 | 作るもの | 中身 |
 |---|---|---|
-| `labkit digest [--since]` | `docs/DIGEST.md` 1 枚（1 日 1 回、人間が読む前に。SessionStart が古さを知らせる） | 主張の変化、予想と結果、run の収支、新しい図（`docs/assets/digest/` に写してリンク）、未解消のレビュー、主線と芽・資源の使い道、人間への連絡、check の集計、文献の追加と読書キュー、変更された文書とコード量。材料がある節だけ出す |
+| `labkit digest [--since]` | `docs/DIGEST.md` 1 枚（既定は直近 `digest.days` 日。`labkit beat end` が `digest.refresh_hours` より古ければ作り直す） | 先頭に「先に見るもの」（違反・根拠の崩れた主張・撤回と理由・期限切れ・外れた予想・新しい連絡・失敗した計算）、主張と根拠の run を生んだコード（entry @ commit）、予想と結果（同じ根拠の外れは 1 行）、新しい図、レビューするコード（src の変更と試験の変更の有無）、主線と芽・資源、人間への連絡、run の収支、未解消のレビュー、check の集計、文献、文書。材料がある節だけ出す |
 | `labkit claim list` | 主張の台帳 `docs/claims.md` | 何を主張し（根拠は `labkit cite` の書式）、何を撤回したか（理由つき）。根拠が崩れると L036 |
 | `labkit runs list` / `runs table <name>` | run の一覧・同名の表の連結 | 退避済みは既定で隠す（`--all`）。table は clean な finished だけを連結し、除外した run と理由を出す |
 | `labkit review list [--open]` | レビュー記録 1 件 1 行 | `summary`（120 字以内）、must/should の件数、`resolves` の鎖。`--open` は後続の pass が無い changes-requested |
@@ -150,10 +153,25 @@ UserPromptSubmit: 何も注入しない（v2.0.0。人間の操作で生じる�
 拍の 3 行を `.lab/beats/日付.jsonl` に記録して開発ログの自動ブロック「拍（自動）」に写す（時刻は機械が入れる）。`/loop 20m /lab-rules:beat`（skill `beat`）で回す。
 L005 は current が指す版が無い・より新しい版があるときに知らせる。目標の改訂は版を上げて current を更新する（過去の拍が使った版を残す）。
 
+## 10. 文脈と検証の軽さ（v2.3.0）
+
+エージェントの性能は、常に載っている文の量で下がる（Claude Code の公式の目安は CLAUDE.md 200 行以内、skill は一覧に載るだけで毎ターンの文脈になる）。
+人間のレビューは、読むものの量と、検証を待つ時間で遅くなる。どちらも「足さない」ことで守る。
+
+| 何を | どう |
+|---|---|
+| 規則は 1 か所 | 雛形 CLAUDE.md は常に要ること（研究契約・完了条件・検証できる記録にする理由・置き場所）だけ。手順は skill、止められたときの直し方は labkit と hooks のメッセージ。同じ規則を CLAUDE.md・skill・指示書に重ねて書かない（比較の規則は `skills/new-experiment/compare.md` だけ） |
+| 強調より理由 | 「必ず」「絶対」ではなく、なぜそうするかを 1 行添える。例外の無い規則だけを hooks と check にする |
+| 規則より仕組み | 「1 日 1 回 `labkit digest`」のように守られなかった規則は、機械がやる（`labkit beat end` が作り直す） |
+| 検証は速く | Stop hook の `labkit check --claims` は run 550 本・引用 1400 件で十数秒（run の比較の状態を使い回す）。check は `.claude/worktrees`・scratch・読み取り専用領域に降りない |
+| 警告は少なく | 実行中の run（直近 10 分に記録がある）に L021 を出さない。tests/ の `np.save` に L016 を出さない。同じ対象の新しいレビューがあれば古い changes-requested は open に数えない |
+| 使われないものは削る | 3 プロジェクトで使用 0 だった backlog の件数の関門、何も注入しない UserPromptSubmit hook、雛形の notebooks/、skill 2 つ（統合）を削った |
+
 ## 後方互換
 
 - v0.x のプロジェクトの `lab.toml` はそのまま読める（無くなったキー `cite_bare_numbers`・`presence`・`[runs] hash_inputs_max_gb` は無視）。
 - `.lab/approvals/`・`.lab/presence`・`.lab/delegations.json` は使わない（残っていても害は無い）。v1.x の承認待ち（kind=approval）は無視され、`labkit queue done <ID>` で閉じられる。
+- v2.3.0: `lab.toml` の `[autonomy] backlog`・`min_open` は無視される。`notebooks/` は `layout.allowed` に残るので、既にあるプロジェクトはそのまま。
 - v2.0.0: `lab.toml` の `[gate]` は無視される。`docs/mainline.md` が無いか open の項目が無ければ、主線と芽の関門は何も強制しない（既存プロジェクトはそのまま動く）。
 - v0.x の run の meta.json は新しい schema でも通る（追加フィールドはすべて任意）。
 - v1.6.0 で足した検査はすべて警告か opt-in: L005・L018・L023・L024・L038・L047・L048 と dirty の引用は warn、`require_clean` は既定 false（雛形だけ true）。

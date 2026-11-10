@@ -1,5 +1,47 @@
 # Changelog
 
+## v2.3.0 — 2026-11-10
+
+3 つのプロジェクトの実運用の監査（`docs/audit-2026-11-10.md`）から、**人間のレビューを速く正確にする**ことと**エージェントの文脈を軽くする**ことに絞って磨いた。
+足した概念は無い。規則を減らし、守られなかった規則は仕組みに替えた。
+
+### 人間のレビュー
+- **DIGEST を判断が要る順に**: 先頭に「先に見るもの」（違反・根拠の崩れた主張・撤回と理由・期限切れ・外れた予想・新しい連絡・失敗した計算）。
+  主張には根拠の run を生んだコード（`entry @ commit`）。「レビューするコード」に src の変更（増減の大きい順）と、対応する試験が変わっていない印。
+  同じ根拠の外れた予想は 1 行にまとめ、人間への連絡は新しい順。
+- **DIGEST は自動で作り直す**: `labkit beat end` が `digest.refresh_hours`（既定 6、0 で無効）より古ければ作る。「1 日 1 回 `labkit digest`」の規則は廃止。
+  既定の期間は「前回の DIGEST 以降」から直近 `digest.days` 日（既定 2）に（`--since` はそのまま）。
+- **検証を速く**: `labkit check --claims`（Stop hook が毎回走らせる）は run 550 本・引用 1,400 件のプロジェクトで 226 秒 → 13.5 秒、
+  `labkit check` は 23 分超 → 19 秒（`.claude/worktrees`・scratch・読み取り専用領域に降りない）。指摘の内容は変わらない。
+- **警告の雑音を減らす**: L021 は直近 10 分に記録のある run（実行中）に出さない。L016 は tests/ を対象外に。
+  `labkit review list --open`・DIGEST は、同じ flow/stage の新しい記録があれば古い changes-requested を数えない。
+- **判定できない予想を黙って残さない**: 予想の key が metrics に無く `undeterminable` になった run を L024（警告）と run のログで知らせる。
+  `labkit runs verdict <id> --say hit|miss|partial --note ...` で理由つきの自己申告として閉じられる。
+
+### エージェントの文脈
+- **雛形 CLAUDE.md を 108 → 60 行**: 常に要ること（研究契約・完了条件・検証できる記録にする理由・置き場所・触らないもの）だけ。
+  詳細は skill、止められたときの直し方は labkit と hooks のメッセージ。強調語をやめ、理由を添えた。
+- **研究契約の骨組み**: 問い・不変条件・公平性・検証ゲート・正式でない run（accelerated-diff-pat で実際に研究を律していた構成）。
+- **規則は 1 か所**: 比較（ceteris paribus）の規則は `skills/new-experiment/compare.md` だけに置く（CLAUDE.md・lab-conventions・new-experiment の同文の重複を解消）。
+- **skill 13 → 11**: `add-figure-template` を `make-figure` に、`write-adr` を `lab-conventions` に統合。`migrate-project` は人間が呼ぶ（`disable-model-invocation`）。
+- **注入を減らす**: `labkit beat start`・SessionStart の人間への連絡は新しい 3 件と残りの件数だけ。UserPromptSubmit hook を外した（v2.0.0 から何もしていなかった）。
+
+### 削除
+- `[autonomy] backlog`・`min_open`（backlog の未着手の件数で終了を止める関門）。3 プロジェクトで一度も有効にされなかった。`lab.toml` に残っていても無視する。
+- 雛形の `notebooks/`（3 プロジェクトで未使用。`layout.allowed` には残るので、既にあるプロジェクトはそのまま）。
+
+### 修正
+- hooks: `2>/dev/null`・`2>&1` を書き込みとみなさない（読み取りだけの `find .lab ... 2>/dev/null` が拒否されていた）。lab-reviewer もこの形を使える。
+- boxplot: hue ごとに色を分ける。`options.points = true` で各例の点を重ねる。
+- `test_gate_keeps_the_main_line` が遅い機械で落ちる（芽の関門が分の粒度で先に働く）のを直した。
+
+### 移行手順
+- `labkit standards unlink --to v2.3.0` → `labkit standards template --ref v2.3.0` → `/plugin marketplace update lab-standards`。
+- 雛形の CLAUDE.md は大きく変わったので、`copier update` で衝突する。プロジェクトの研究契約と独自の節を残し、雛形由来の節は新しい版に置き換える
+  （削った規則は skill と labkit のメッセージにあるので、CLAUDE.md に戻さない）。
+- skill `write-adr`・`add-figure-template` を名前で呼んでいる指示書（`prompts/beat_v*.md` など）は、`lab-conventions`・`make-figure` に書き換える。
+- DIGEST を「前回以降」で作っていた運用は `labkit digest --since <日付か commit>` を使う。
+
 ## v2.2.1 — 2026-11-10
 
 v2.2.0 の比較の関門は既定で拒否なので、v2.2.0 より前に作った run（`meta.config_sha256` も `[compare]`・`[report]` の宣言も無い）を

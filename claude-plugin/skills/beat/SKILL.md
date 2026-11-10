@@ -14,4 +14,4 @@ description: lab.toml のあるプロジェクトで長い自律運用の 1 拍�
 
 - current が古い（L005: 指す版が無い・より新しい版がある）ときは、新しい版のファイルを作ったうえで `prompts/current.toml` の `goal` / `beat` をその版に書き換える（古い版は消さない）。
 - 同じ判断・結果（数字の揺れを除く）で run の無い拍が `autonomy.stall_beats` 回（既定 3）続くと、`labkit beat end` は記録を拒む。資源の停止は人間の停止ではない: 原因を外して止まった計算を再開するか、台帳の統合など人間を要しない仕事を始める。本当に待つしかないときだけ `--stall-reason` に理由を書く（停滞として開発ログと digest に残る）。
-- 4 拍に 1 回の candor-check、1 日 1 回の `labkit digest`、予想の関門と撤回の扱いは skill: autonomous-run。
+- 4 拍に 1 回の candor-check、予想の関門と撤回の扱いは skill: autonomous-run。人間の入口 `docs/DIGEST.md` は `beat end` が古くなったら作り直す。

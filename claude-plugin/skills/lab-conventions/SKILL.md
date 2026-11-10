@@ -20,7 +20,7 @@ description: lab.toml があるプロジェクトで、どこに何を置き、�
 | 図 | `runs/<run_id>/figures/` | `figspecs/<name>.toml` + `labkit fig`（skill: make-figure） |
 | 開発ログ | `docs/devlog/YYYY-MM-DD.md` | skill: write-devlog |
 | 主張の台帳 | `docs/claims.md` | `labkit claim add / retract / list`。手で編集しない |
-| 人間の入口 | `docs/DIGEST.md`、`docs/assets/digest/` | `labkit digest` が生成（1 日 1 回）。手で編集しない |
+| 人間の入口 | `docs/DIGEST.md`、`docs/assets/digest/` | `labkit digest` が生成（`labkit beat end` が古くなったら作り直す）。手で編集しない |
 | 設計判断 | `docs/decisions/NNNN-slug.md` | `labkit adr`（下の ADR） |
 | 文献・サーベイ | `literature/` | skill: literature-survey |
 | HPC ジョブ | `jobs/` | skill: hpc-job |

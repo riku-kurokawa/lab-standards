@@ -66,6 +66,8 @@ max_lines = 150
 file = "docs/DIGEST.md"    # 人間の入口 1 枚（`labkit digest`）。図は assets に写す
 assets = "docs/assets/digest"
 max_figures = 12
+days = 2                   # 既定で載せる期間（日）。人間が読む間隔に合わせる
+refresh_hours = 6          # `labkit beat end` がこの時間より古い DIGEST を作り直す（人間が開いたときに古くない）。0 で無効
 
 [devlog]
 dir = "docs/devlog"
@@ -92,9 +94,6 @@ allow_self_stop = false    # /loop を Claude が自分で止めること（Cron
 overlap = "error"          # 図の体裁の検査（文字・凡例の重なり、小さい文字）。"error" で保存しない、"warn" で警告だけ
 
 [autonomy]
-# 長い自律運用: backlog の未着手の項目（`- [ ] ...`）が min_open 件未満なら終了時チェックが止める（計算待ちで止まらない）
-backlog = ""               # 例: "docs/backlog.md"。空で無効
-min_open = 0
 stall_beats = 3            # 判断と結果が（数字を除いて）同じで run の無い拍がこの回数続くと `labkit beat end` が記録を拒む。0 で無効
 # 主線と芽（docs/mainline.md・docs/seeds.md）。主線に open の項目があるあいだだけ働く
 main_share = 0.7           # 直近 main_window 拍のうち主線（--line main）の拍の下限。主線以外は floor((1-share)*window) 拍まで

@@ -9,8 +9,7 @@ PreToolUse(Bash):
   （v2.0.0 で承認ゲートと承認・却下・回答・委任を廃止。push・merge・tag・release・raw freeze も止めない。完全自律）
 PreToolUse(Write/Edit): .lab/ と規約ファイルの保護、docs/reviews/ は lab-reviewer だけ、docs/claims.md と DIGEST.md は labkit だけ、置き場所、禁止 import
 SessionStart: 状態（主線と芽・拍・人間への連絡・flow・今日の開発ログ）を文脈に入れる。UserPromptSubmit は何もしない
-Stop: 主張の検証（labkit check --claims）、コードを変えた日の開発ログの判断欄が空でないこと、
-      [autonomy] を設定したら backlog の未着手が min_open 件以上あること
+Stop: 主張の検証（labkit check --claims）、コードを変えた日の開発ログの判断欄が空でないこと
 lab-standards 本体では 0〜1 と .lab/ の保護だけ。
 """
 
@@ -338,16 +337,6 @@ def stop(data: dict, root: Path, kind: str) -> dict | None:
                     + "。目的・判断と理由・未解決を書いてください。数値は `labkit cite` の書式で。"
                 )
                 keys.append(f"devlog {p.name} {empty}")
-    au = lab["autonomy"]
-    if au["backlog"] and int(au["min_open"]) > 0:
-        bp = root / au["backlog"]
-        n = len(re.findall(r"^\s*[-*] \[ \]", bp.read_text(encoding="utf-8"), re.M)) if bp.is_file() else 0
-        if n < int(au["min_open"]):
-            problems.append(
-                f"{au['backlog']} の未着手の項目（`- [ ] ...`）が {n} 件で、{au['min_open']} 件未満です。"
-                "目標に最も効く順に項目を補充し、先頭の項目に着手してから終了してください（計算の完了を待つだけの終了はしない）。"
-            )
-            keys.append(f"backlog {n}")
     cf = _counter(sid)
     st = read_json(cf) if cf.exists() else {"blocks": 0}
     if not problems:

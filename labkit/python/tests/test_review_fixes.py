@@ -186,7 +186,8 @@ def test_open_reviews_closed_by_later_pass(project):
 
     rv("2026-11-01_adhoc_review.md", "changes-requested")
     rv("2026-11-02_adhoc_review.md", "changes-requested")
-    assert len(open_reviews(project)) == 2
+    # 同じ対象（flow/stage）を見直した新しい記録が現在の状態。古い changes-requested は並べない
+    assert [r.path.name for r in open_reviews(project)] == ["2026-11-02_adhoc_review.md"]
     rv("2026-11-03_adhoc_review.md", "pass")
     assert open_reviews(project) == []
 

@@ -232,15 +232,11 @@ def test_python_stdin_without_input_is_blocked(git_project):
         assert handle("pretool", bash(cmd, p))[0] == 0, cmd
 
 
-def test_stop_requires_backlog_when_autonomy_is_set(git_project):
+def test_removed_backlog_gate_is_ignored(git_project):
+    """v2.3.0 で廃止した [autonomy] backlog / min_open が lab.toml に残っていても、終了を止めない."""
     p = git_project
     with open(p / "lab.toml", "a", encoding="utf-8", newline="\n") as f:
         f.write('[autonomy]\nbacklog = "docs/backlog.md"\nmin_open = 2\n')
-    code, _, err = handle("stop", {"cwd": str(p), "session_id": "s7"})
-    assert code == 2 and "0 件" in err
-    (p / "docs" / "backlog.md").write_text("- [x] done\n- [ ] a\n", encoding="utf-8", newline="\n")
-    assert handle("stop", {"cwd": str(p), "session_id": "s7"})[0] == 2
-    (p / "docs" / "backlog.md").write_text("- [ ] a\n- [ ] b\n", encoding="utf-8", newline="\n")
     assert handle("stop", {"cwd": str(p), "session_id": "s7"}) == (0, "", "")
 
 
