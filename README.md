@@ -73,7 +73,7 @@ make check && make example                              # 動作確認（合成�
 | やること | コマンド |
 |---|---|
 | 規約チェック＋テスト | `make check`（成果物の検証だけなら `uv run labkit check --claims`、生データの sha256 まで `--full`） |
-| 実験の実行 | `uv run labkit run configs/experiments/<name>.toml [key=value ...]`（設定の `entry` を実行。`[sweep]` は 1 条件 1 行の results.parquet） |
+| 実験の実行 | `uv run labkit run [--head] configs/experiments/<name>.toml [key=value ...]`（設定の `entry` を実行。`--head` は未コミットの変更があっても HEAD の写しのコードと設定で実行。`[sweep]` は 1 条件 1 行の results.parquet） |
 | 予想の判定 / 表の連結 | `uv run labkit runs verdict <id> --say hit\|miss\|partial --note ...`（自由記述の予想。表形式は自動）/ `runs table <name> [--md]`（clean な finished の同名 parquet を連結） |
 | 図 | `uv run labkit fig figspecs/<name>.toml --run <run_id>`（`labkit fig list` で一覧） |
 | run 一覧 / 詳細 / 異常終了の記録 | `uv run labkit runs list [--all]` / `runs show <id>` / `runs mark <id> --to failed --reason ...` |

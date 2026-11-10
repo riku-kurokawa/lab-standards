@@ -85,3 +85,48 @@ def test_run_entry_with_run_argument_and_errors(pkg):
     write(pkg / "configs" / "experiments" / "bad3.toml", 'entry = "mypkg.exp"\nseed = 0\n')
     with pytest.raises(ValueError, match="pkg.module:func"):
         run_config(str(pkg / "configs" / "experiments" / "bad3.toml"), root=pkg)
+
+
+def test_run_head_uses_committed_code_while_worktree_is_dirty(git_project, monkeypatch):
+    """require_clean のもとで、別の作業の途中でも HEAD の写しのコードと設定で clean な run を回せる（プロジェクトの外に何も作らない）."""
+    import sys
+
+    from .conftest import git
+
+    p = git_project
+    with open(p / "lab.toml", "a", encoding="utf-8", newline="\n") as f:
+        f.write("[runs]\nrequire_clean = true\n")
+    write(p / "src" / "snappkg" / "__init__.py", "")
+    write(p / "src" / "snappkg" / "exp.py", "def run(cfg):\n    return {'v': 1.0 * cfg['k']}\n")
+    write(p / "configs" / "experiments" / "s.toml", 'name = "s"\nentry = "snappkg.exp:run"\nk = 1\n')
+    git(p, "add", "-A")
+    git(p, "commit", "-q", "-m", "exp")
+    head = git(p, "rev-parse", "HEAD")
+    # 作業中の変更: コードも設定も commit と違う
+    write(p / "src" / "snappkg" / "exp.py", "def run(cfg):\n    return {'v': 99.0}\n")
+    write(p / "configs" / "experiments" / "s.toml", 'name = "s"\nentry = "snappkg.exp:run"\nk = 7\n')
+    write(p / "configs" / "experiments" / "new.toml", 'name = "n"\nentry = "snappkg.exp:run"\nk = 1\n')
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    with pytest.raises(ValueError, match="--head"):
+        run_config(str(p / "configs" / "experiments" / "s.toml"), root=p)
+    # 同じプロセスで作業ツリーのコードを import 済みだと、写しではなくそれを拾う。黙って clean と記録せず止める
+    with pytest.raises(ValueError, match="写し"):
+        run_config(str(p / "configs" / "experiments" / "s.toml"), root=p, head=True)
+    for m in [m for m in sys.modules if m.startswith("snappkg")]:  # CLI は毎回新しいプロセス
+        monkeypatch.delitem(sys.modules, m)
+    with pytest.raises(ValueError, match="HEAD"):  # commit していない設定は写しに無い
+        run_config(str(p / "configs" / "experiments" / "new.toml"), root=p, head=True)
+    rid = run_config(str(p / "configs" / "experiments" / "s.toml"), root=p, head=True)
+    d = find_run(rid, p)
+    meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+    assert json.loads((d / "metrics.json").read_text(encoding="utf-8")) == {"v": 1.0}  # commit のコードと設定
+    assert meta["git"]["commit"] == head and meta["git"]["dirty"] is False and meta["git"]["snapshot"] is True
+    assert "src/snappkg/exp.py" in meta["git"]["worktree_dirty_paths"]
+    assert "写しから実行" in (d / "log.txt").read_text(encoding="utf-8")
+    assert (p / ".lab" / "snapshots" / head[:12] / ".complete").is_file()
+    assert ".lab/snapshots" not in git(p, "status", "--porcelain", "--untracked-files=all")  # git には見えない
+    from labkit.check import run_check
+
+    assert not [i for i in run_check(root=p)[0] if "snapshots" in i.where or i.code in ("L020", "L017")]
+    for m in [m for m in sys.modules if m.startswith("snappkg")]:
+        monkeypatch.delitem(sys.modules, m)

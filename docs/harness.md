@@ -167,6 +167,18 @@ L005 は current が指す版が無い・より新しい版があるときに知
 | 警告は少なく | 実行中の run（直近 10 分に記録がある）に L021 を出さない。tests/ の `np.save` に L016 を出さない。同じ対象の新しいレビューがあれば古い changes-requested は open に数えない |
 | 使われないものは削る | 3 プロジェクトで使用 0 だった backlog の件数の関門、何も注入しない UserPromptSubmit hook、雛形の notebooks/、skill 2 つ（統合）を削った |
 
+## 11. HEAD の写しから run を始める（labkit run --head、v2.5.0）
+
+`runs.require_clean` は「実行したコードが commit と一致する」ことを守るが、別の作業の途中では run が始まらない。nla-solver はこのために
+プロジェクトの外に worktree 4 本と clone 1 本を作り、clean になるのを待つスクリプトを自作して最長 4.5 時間待った。
+`labkit run --head <config>` は HEAD の `src/`・`configs/` を `git archive` で `.lab/snapshots/<commit 12 桁>/`（git 管理外、7 日で消す）に展開し、
+設定と entry のコードをそこから読む。run の `meta.json` は `git.commit` = HEAD、`git.dirty` = false、`git.snapshot` = true、
+`git.worktree_dirty_paths`（写しに入っていない作業中の変更）を持つ。data/・runs/・台帳・`lab.toml` は作業ツリーのものを使う。
+
+- 設定が HEAD に無ければ始めない。entry の関数が写し以外から import されたら始めない（commit と違うコードを clean と記録しない）。
+- 作業ツリーが clean なら写しは作らず、通常どおり実行する（`--head` を常に付けても害は無い）。
+- 限界: entry が起動する別プロセスは作業ツリーのコードを使う。`labkit.Run` を直接組む scripts/ には効かない（entry に移す）。
+
 ## 後方互換
 
 - v0.x のプロジェクトの `lab.toml` はそのまま読める（無くなったキー `cite_bare_numbers`・`presence`・`[runs] hash_inputs_max_gb` は無視）。

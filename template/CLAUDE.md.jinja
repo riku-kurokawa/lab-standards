@@ -25,7 +25,8 @@
 人間は開発ログを読まず、台帳と run から機械が作る一覧（`labkit digest`・`claim list`・`runs list`）だけを読む。文章で伝えたことは人間に届かず、検証もできない。
 
 - **数値は run から引く**: 文書の数値は `labkit cite <run_id> <key>` の出力（`12.3 dB [run:<id>:<key>]`）を貼る。check が metrics と照合する。
-- **正式な run は commit してから**: `labkit run configs/experiments/<name>.toml`。未コミットの差分で走った run は再現できず、結果として引用できない。試行は `scratch/` で。
+- **正式な run は commit してから**: `labkit run configs/experiments/<name>.toml`。未コミットの差分で走った run は再現できず、結果として引用できない。
+  別の作業の途中なら `labkit run --head <config>`（HEAD の写しのコードと設定で走る。worktree や clone を作って待たない）。試行は `scratch/` で。
 - **予想を先に書く**: 設定の `[prediction]` に根拠と範囲を書いてから走らせる（終了時に hit / miss が残る）。外れは成果なので、外れたまま残す。
 - **比べるなら 1 軸だけ変える**: 手法・設計の比較は、run の前に設定の `[compare.<名>]` に軸と共通の条件を書く。条件のそろわない比較は主張の根拠にできない（skill: new-experiment）。
 - **主張は台帳に**: 確定したら `labkit claim add`、崩れたら `labkit claim retract`。撤回は成果で、旧値は消さない。

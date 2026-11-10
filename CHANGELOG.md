@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.5.0 — 2026-11-11
+
+`runs.require_clean` のもとで、別の作業の途中でも正式な run を始められるようにする。nla-solver はこのためにプロジェクトの外に worktree 4 本と clone 1 本を作り、
+clean になるのを待つスクリプトを自作して最長 4.5 時間待っていた（`docs/audit-2026-11-10.md` の「直していないこと」の 1）。
+
+### 追加
+- `labkit run --head <config> [key=value ...]`: 未コミットの変更があっても、HEAD の `src/`・`configs/` の写し（`.lab/snapshots/<commit 12 桁>/`。
+  `git archive` の展開、git 管理外、7 日で消す）から設定と entry のコードを読んで実行する。実行されるコードは commit そのものなので run は clean
+  （`meta.json` の `git.snapshot = true`、`git.worktree_dirty_paths` に写しに入っていない作業中の変更）。プロジェクトの外には何も作らない。
+  設定が HEAD に無い・entry が写し以外から import された、のどちらでも run を始めない。作業ツリーが clean なら写しは作らない。
+- `require_clean` で止まったときのメッセージが `--head` を示す。
+
+### 移行手順
+- `labkit standards unlink --to v2.5.0` → `/plugin marketplace update lab-standards`。`lab.toml`・台帳・meta.json の書式は変わらない（`git` の欄に任意の鍵が増えるだけ）。
+- clean を待つ自作のスクリプトやプロジェクト外の worktree は、`labkit run --head` に置き換えて消してよい。
+- `labkit.Run` を直接組む scripts/ には効かない。設定の `entry` に移すと使える。
+
 ## v2.4.0 — 2026-11-11
 
 **空回りを機械で止める。** accelerated-diff-pat で、主線の 6 項目が 7 拍で done になり、残った 1 項目が「人間が保護を外すまで実行できない」ものだった。

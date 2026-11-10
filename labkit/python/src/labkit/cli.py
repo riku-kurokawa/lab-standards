@@ -229,7 +229,7 @@ def _markdown(df) -> str:
 def cmd_run(a) -> int:
     from labkit.runner import run_config
 
-    run_config(a.config, a.overrides)
+    run_config(a.config, a.overrides, head=a.head)
     return 0
 
 
@@ -540,6 +540,11 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("run", help="設定の entry を実行して run を作る（scripts/run_*.py を書かない共通の入口）")
     s.add_argument("config", help='configs/experiments/<name>.toml（entry = "pkg.module:func" を持つ）')
     s.add_argument("overrides", nargs="*", help="key=value の上書き")
+    s.add_argument(
+        "--head",
+        action="store_true",
+        help="未コミットの変更があっても、HEAD の src/・configs/ の写しから実行する（run は clean。作業中の変更は使われない）",
+    )
     s.set_defaults(func=cmd_run)
 
     s = sub.add_parser(

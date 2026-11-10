@@ -1,6 +1,7 @@
 """実験の共通の入口（labkit run）。実験ごとの scripts/run_*.py を書かずに済ませる.
 
     labkit run configs/experiments/<name>.toml [key=value ...]
+    labkit run --head configs/experiments/<name>.toml    # 未コミットの変更があっても、HEAD の写しのコードと設定で実行する（snapshot.py）
 
 設定に書くもの:
     entry = "mypkg.experiments.lowpass:run"   # src の関数。fn(cfg) -> dict（2 引数なら fn(cfg, run)）
@@ -94,8 +95,28 @@ def save_result(run: Run, result: Any, suffix: str = "") -> dict[str, float]:
     return scalars
 
 
-def run_config(config_path: str, overrides: list[str] | None = None, root: Path | None = None) -> str:
+def run_config(
+    config_path: str, overrides: list[str] | None = None, root: Path | None = None, *, head: bool = False
+) -> str:
     root = root or find_root()
+    code_root, git_override = root, None
+    if head:
+        from labkit._util import git_info
+
+        info = git_info(root)
+        if info is None or info["dirty"]:  # clean なら作業ツリーが HEAD そのもの（写しは要らない）
+            from labkit.snapshot import head_snapshot
+
+            code_root, git_override = head_snapshot(root)
+            try:
+                rel = Path(config_path).resolve().relative_to(root.resolve())
+            except ValueError:
+                raise ValueError(f"--head の設定はプロジェクト内のパスで指定する: {config_path}") from None
+            if not (code_root / rel).is_file():
+                raise ValueError(
+                    f"{rel.as_posix()} が HEAD（{git_override['commit'][:7]}）にありません。設定を commit してから実行する"
+                )
+            config_path = str(code_root / rel)
     cfg = load_config(config_path, overrides)
     entry = cfg.get("entry")
     if not entry:
@@ -103,7 +124,11 @@ def run_config(config_path: str, overrides: list[str] | None = None, root: Path 
             f'{config_path}: entry（例: entry = "pkg.experiments.x:run"）がありません'
             '（旧雛形の scripts/run_example.py から移るなら entry = "<pkg>.experiments.example:run" を設定に足す）'
         )
-    fn = resolve_entry(entry, root)
+    fn = resolve_entry(entry, code_root)
+    if git_override:
+        from labkit.snapshot import assert_from
+
+        assert_from(fn, code_root, entry)
     takes_run = len(inspect.signature(fn).parameters) >= 2
     inputs = [_resolve_input(r, root) for r in cfg.get("inputs") or []]
     sweep = dict(cfg.get("sweep") or {})
@@ -111,9 +136,13 @@ def run_config(config_path: str, overrides: list[str] | None = None, root: Path 
         if not isinstance(v, list | tuple) or isinstance(v, str):
             raise ValueError(f'[sweep] の値はリスト: {k} = [...]（入れ子の表は "a.b" = [...] と書く）')
     name = cfg.get("name") or Path(config_path).stem
-    with Run(
-        name, cfg, inputs=inputs, tags={"entry": entry, **({"sweep": sorted(sweep)} if sweep else {})}, root=root
-    ) as run:
+    tags = {"entry": entry, **({"sweep": sorted(sweep)} if sweep else {})}
+    with Run(name, cfg, inputs=inputs, tags=tags, root=root, git=git_override) as run:
+        if git_override:
+            skipped = ", ".join(git_override["worktree_dirty_paths"][:5])
+            run.log(
+                f"HEAD {git_override['commit'][:7]} の写しから実行（作業ツリーの未コミットの変更は使っていない: {skipped}）"
+            )
         if not sweep:
             save_result(run, fn(run.config, run) if takes_run else fn(run.config))
         else:

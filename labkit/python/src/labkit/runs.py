@@ -109,14 +109,16 @@ class Run:
         inputs: list[str | os.PathLike] = (),
         tags: dict[str, Any] | None = None,
         root: str | os.PathLike | None = None,
+        git: dict | None = None,
     ):
+        """git: 実行するコードの来歴を呼び出し側が与える（`labkit run --head` が HEAD の写しの commit を渡す）."""
         self.root = Path(root) if root else find_root()
         self.lab = load_lab(self.root)
         self.name = name
         self.config = dict(config or {})
         self.tags = dict(tags or {})
         self._input_paths = [Path(p) for p in inputs]
-        self.git = git_info(self.root)
+        self.git = git or git_info(self.root)
         self.run_id = make_run_id(name, self.git["commit"] if self.git else None)
         self.dir = runs_root(self.root) / self.run_id
         self._t0 = 0.0
@@ -175,7 +177,8 @@ class Run:
             paths = ", ".join(self.git.get("dirty_paths", [])[:5])
             raise ValueError(
                 f"lab.toml の runs.require_clean が有効です。未コミットの変更があります: {paths}"
-                "（dirty な run は結果として引用できない）。commit してから実行するか、試行なら scratch/ で行ってください"
+                "（dirty な run は結果として引用できない）。commit してから実行するか、別の作業の途中なら "
+                "`labkit run --head <config>`（HEAD の写しのコードと設定で実行する。未コミットの変更は使われない）。試行なら scratch/ で"
             )
         check_prediction(self.config.get("prediction"))
         check_pass(self.config.get("pass"))
@@ -199,7 +202,9 @@ class Run:
             cdir = self.dir / "config"
             cdir.mkdir()
             for f in files:
-                shutil.copy2(f, cdir / rel_or_abs(Path(f), self.root / "configs").replace("/", "__"))
+                # HEAD の写し（.lab/snapshots/<commit>/configs/...）の設定も、configs/ からの相対名で残す
+                base = next((q for q in Path(f).parents if q.name == "configs"), self.root / "configs")
+                shutil.copy2(f, cdir / rel_or_abs(Path(f), base).replace("/", "__"))
         write_json_atomic(self.dir / "config.json", self.config)
         from labkit.compare import canonical
 

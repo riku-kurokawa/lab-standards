@@ -34,8 +34,12 @@ description: lab.toml のあるプロジェクトで新しい実験・解析・�
    ```
    戻り値の dict は種類で保存先が決まる: 数値 → metrics、DataFrame → `<key>.parquet`、ndarray・配列の dict → `.h5`、str → ログ。文書で引用したい量（誤差・率・時間）はすべて数値で返す。
    `scripts/run_*.py` を書くのは entry で書けないもの（外部プロセスの起動など）だけで、冒頭の docstring に「entry で書けない理由」を 1 行書いてから。
-4. **commit してから実行する**: `uv run labkit run configs/experiments/<name>.toml [key=value ...]`。未コミットの変更があると `git.dirty=true` になり結果として引用できない
-   （`runs.require_clean = true` なら run が始まらない。雛形は true）。小さな試行は scratch で行い、正式な run は commit 後に行う。
+4. **commit してから実行する**: `uv run labkit run configs/experiments/<name>.toml [key=value ...]`。未コミットの変更があると結果として引用できないので、
+   `runs.require_clean = true`（雛形の既定）では run が始まらない。
+   - 別の作業の途中（未コミットの変更がある）で commit 済みの実験を回すときは `uv run labkit run --head <config>`。HEAD の `src/`・`configs/` の写し
+     （`.lab/snapshots/<commit>/`）からコードと設定を読むので、run は clean で、作業中の変更は使われない。設定とコードは先に commit しておく。
+     プロジェクトの外に worktree や clone を作らない。clean になるのを待つスクリプトも書かない。
+   - 小さな試行は scratch/ で行い、正式な run は commit 後に行う。
 5. **予想の判定を見る**: `uv run labkit runs list` の `予想:hit|miss|partial`。自由記述の予想だけの run は `labkit runs verdict <id> --say hit|miss|partial --note "..."`（判定の無い run は L024）。
 6. **パラメータを振るとき**: 設定ファイルをコピーせず、`[sweep]` か上書き引数（`filter.cutoff_hz=80`）で振る。複数 run の同名の表は `labkit runs table <name> [--md]` で連結する（集計スクリプトを書かない）。多数なら HPC の配列ジョブ（skill: hpc-job）。
 6b. **比べるなら 1 軸だけ変える**: 手法・設計・設定を比べる run は、run の前に設定へ `[compare.<名>]`（`vary` = 変える 1 軸、`keys` = この比較の指標）、

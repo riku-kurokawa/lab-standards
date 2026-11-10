@@ -18,7 +18,7 @@ from pathlib import Path
 from labkit._util import git, read_json, write_json_atomic
 
 LAB_DIR = ".lab"
-GITIGNORE = "# labkit が生成。queue は手元だけの状態（flows/ と beats/ は git 管理）\nqueue/\n"
+GITIGNORE = "# labkit が生成。queue は手元だけの状態（flows/ と beats/ は git 管理）\nqueue/\nsnapshots/\n"
 
 
 def _now() -> _dt.datetime:
