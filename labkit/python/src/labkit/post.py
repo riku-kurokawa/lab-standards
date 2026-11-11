@@ -8,6 +8,7 @@
 記録（拍・run・台帳）は機械が検証するためのもので、人間は読まない。人間が読むのは投稿だけ（`labkit view` のフィード）。
 だから投稿は少なく、短く、根拠つきに保つ。それを文章の規約ではなくコマンドの拒否で守る:
   - 見出しは TITLE_MAX 字、本文は BODY_MAX 字まで（長い補足は --detail。折りたたまれる）
+  - 見出しと本文に台帳の番号（M012・C185 など）を書かない（人間は覚えていない。中身を言葉で書く）
   - 発見と撤回には根拠が要る: 図・run・本文の引用 `値 [run:<id>:<key>]` のどれか
   - 本文と補足の引用は、その場で metrics.json と照合する（合わない数値は投稿できない）
   - 図には「見るところ」の一言が要る。図とコードの抜粋は投稿の時点の写しを持つ（後から変わらない）
@@ -25,11 +26,14 @@ from labkit._util import git, read_json, write_json_atomic
 POSTS_DIR = ".lab/posts"
 KINDS = {"finding": "発見", "retract": "撤回", "ask": "相談", "milestone": "節目"}
 TITLE_MAX = 60
-BODY_MAX = 500
+BODY_MAX = 700
+# 台帳の番号（M012・C185・Q031 など）。人間はこの番号を覚えていないので、見出しと本文では中身を言葉で書く
+LEDGER_ID_RE = re.compile(r"(?<![A-Za-z0-9])[MCQSNP]\d{3,}(?![A-Za-z0-9])")
 DETAIL_MAX = 3000
 FIG_MAX = 3
 FIG_BYTES = 1_500_000
 CODE_LINES = 60
+CITE_STRIP = re.compile(r"\[run:[^\]]*\]")
 FIG_EXT = {".png", ".jpg", ".jpeg", ".svg", ".gif"}
 
 
@@ -108,8 +112,14 @@ def add_post(
         raise ValueError(
             f"見出しは 1 行、{TITLE_MAX} 字まで（今 {len(title)} 字）。結論を書く（「〜を調べた」ではなく「〜だった」）"
         )
-    if not body or len(body) > BODY_MAX:
-        raise ValueError(f"本文は {BODY_MAX} 字まで（今 {len(body)} 字）。重要なことだけを残し、補足は --detail に回す")
+    shown = len(CITE_STRIP.sub("", body))  # 引用の記号は画面では ✓ になるので、字数に数えない
+    if not body or shown > BODY_MAX:
+        raise ValueError(f"本文は {BODY_MAX} 字まで（今 {shown} 字）。重要なことだけを残し、補足は --detail に回す")
+    if ids := sorted(set(LEDGER_ID_RE.findall(title + "\n" + CITE_STRIP.sub("", body)))):
+        raise ValueError(
+            f"見出しと本文に台帳の番号（{'・'.join(ids)}）があります。人間は番号を覚えていません。"
+            "中身を言葉で書きます（番号は --detail に書ける）"
+        )
     if len(detail) > DETAIL_MAX:
         raise ValueError(f"--detail は {DETAIL_MAX} 字まで。それより長い内容は文書に書いて場所を示す")
     if len(figs) > FIG_MAX:

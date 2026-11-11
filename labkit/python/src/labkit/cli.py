@@ -689,7 +689,7 @@ def build_parser() -> argparse.ArgumentParser:
         "post", help="人間への投稿: 伝える価値があることだけを、結論・根拠・図つきで 1 件（post list で一覧）"
     )
     s.add_argument("title", help="結論の 1 行（60 字まで）。`list` で一覧")
-    s.add_argument("--body", help="何が分かり、なぜ重要で、何を見ればよいか（500 字まで。@path でファイルから）")
+    s.add_argument("--body", help="何が分かり、なぜ重要で、何を見ればよいか（700 字まで。@path でファイルから）")
     s.add_argument("--kind", default="finding", help="finding（発見）/ retract（撤回）/ ask（相談）/ milestone（節目）")
     s.add_argument("--fig", action="append", default=[], help="<図のパス>::<この図で見るところ>（3 枚まで）")
     s.add_argument("--run", action="append", default=[], help="根拠の run ID")

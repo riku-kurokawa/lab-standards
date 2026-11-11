@@ -58,7 +58,8 @@ def test_post_refuses_noise(feed):
     ok = f"e = 5.0 [run:{run.run_id}:e]"
     for kwargs, why in [
         ({"title": "あ" * 61, "body": ok}, "見出し"),
-        ({"title": "t", "body": ok + "あ" * 500}, "本文"),
+        ({"title": "t", "body": ok + "あ" * 700}, "本文"),
+        ({"title": "t", "body": ok + " C185 を撤回"}, "台帳の番号"),
         ({"title": "t", "body": "根拠の無い話"}, "根拠"),
         ({"title": "t", "body": f"e = 9.9 [run:{run.run_id}:e]"}, "一致しません"),
         ({"title": "t", "body": f"値は [run:{run.run_id}:e]"}, "直前に数値"),
