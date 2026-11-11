@@ -167,6 +167,9 @@ def start(root: Path) -> str:
     k = stalled_run(beats)
     if k >= 2:
         out.append(f"- **停滞: 同じ判断・結果の拍が {k} 回続いている。** {STALL_HELP}")
+    from labkit import state
+
+    out += state.note_lines(root)  # 人間の返信（レビュー板から）。この拍で最初に対応する
     out += status_lines(root)
     from labkit.focus import status_lines as focus_lines
 

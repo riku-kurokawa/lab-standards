@@ -336,6 +336,41 @@ def _print_item(it: dict) -> None:
             print(f"      回答: {it['answer']}")
 
 
+def cmd_view(a) -> int:
+    from labkit import view
+    from labkit.config import find_root
+
+    root = find_root()
+    if a.out:
+        data, figs = view.collect(root, a.days)
+        Path(a.out).write_text(view.render(data, figs, embed=True), encoding="utf-8", newline="\n")
+        print(a.out)
+    else:
+        view.serve(root, a.port, a.days)
+    return 0
+
+
+def cmd_note(a) -> int:
+    from labkit import state
+
+    root = _scope_root()
+    if a.action == "done":
+        if not a.id:
+            raise SystemExit('note done <ID> --reply "<人間への答え>"')
+        n = state.close_note(root, a.id, a.reply or "")
+        print(f"{n['id']} に答えました（レビュー板のカードに出る）")
+    else:
+        notes = state.list_notes(root, None if a.all else "open")
+        for n in notes:
+            print(
+                f"{n['id']}  [{n['status']}] {n['verdict']:8s} → {n['target']}  「{n['text']}」"
+                + (f"  ↩ {n['reply']}" if n.get("reply") else "")
+            )
+        if not notes:
+            print("未対応の返信はありません")
+    return 0
+
+
 def cmd_queue(a) -> int:
     from labkit import state
 
@@ -617,6 +652,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("paths", help="現在の LAB_ENV で解決されるパスを表示")
     s.set_defaults(func=cmd_paths)
+
+    s = sub.add_parser("view", help="レビュー板: 証拠つきのカードとタイムラインで仕事を確認し、返信する（127.0.0.1）")
+    s.add_argument("--days", type=float, default=3, help="載せる期間（日。既定 3）")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--out", help="1 枚の HTML に書き出す（図は埋め込み。返信はできない）")
+    s.set_defaults(func=cmd_view)
+
+    s = sub.add_parser("note", help="人間の返信（レビュー板から）: list [--all] / done <ID> --reply ...")
+    s.add_argument("action", choices=["list", "done"])
+    s.add_argument("id", nargs="?")
+    s.add_argument("--reply", help="done: 人間への答え（何を変えたか、変えないなら理由）")
+    s.add_argument("--all", action="store_true", help="list: 対応済みも")
+    s.set_defaults(func=cmd_note)
 
     s = sub.add_parser("queue", help="人間への連絡（list / ask / done）。返事は待たない")
     s.add_argument("action", choices=["list", "ask", "done"])

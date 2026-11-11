@@ -7,6 +7,7 @@ description: lab.toml のあるプロジェクトで長い自律運用の 1 拍�
 
 1. `uv run labkit beat start`。`prompts/current.toml` が指す現行の goal・beat の本文と状態（主線の残り時間・主線の割合・芽・直近 24 時間の資源の使い道、今日の run、open な主張、前の拍の判断）が出る。これを読み直す（/goal の本文を貼り直さない）。
    出力に「拍 N は閉じていない」とあれば、その作業の続きをやり、先に `labkit beat end` でその拍を閉じる（end は start した拍にだけ打てる）。
+   出力の先頭に「人間の返信 N00x」があれば、この拍で最初に対応し、`uv run labkit note done N00x --reply "<何を変えたか。変えないなら理由>"` で答える（人間のレビュー板に出る）。
 2. 出力された beat ファイルの手順を実行する（手順の正本は beat ファイル。計算の完了を待つだけで拍を終えない）。
 3. `uv run labkit beat end --line main:Mxxx|seed:Sxxx|other --predicted "…" --observed "…" --decided "…" [--runs <id> ...]`。各 1 行、`--decided` は必須。
    主線の拍は進めた open の項目を名指しする。進められる項目が無い主線では拍は記録されない（先に `labkit main add`。人間待ちは `labkit main block`）。主線に open の項目があると `--line` が必須で、主線の割合・期限・芽の頻度を満たさない拍は記録されない（理由とやるべきことが出る。従う）。時刻は機械が入れ、開発ログの自動ブロックに「拍（自動）」として写る。

@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>レビュー板</title>
+<style>
+:root { --bg:#f6f5f1; --card:#fff; --ink:#1d1d1b; --mute:#6b6a65; --line:#dedcd3; --accent:#0b6e99;
+  --ok:#2e7d4f; --warn:#b26a00; --bad:#b3382c; --code:#f1efe8; }
+@media (prefers-color-scheme: dark) { :root { --bg:#191918; --card:#232321; --ink:#ecebe6; --mute:#a3a199; --line:#3a3936;
+  --accent:#6cb6d9; --ok:#6fbf8e; --warn:#e0a84f; --bad:#e58275; --code:#2c2b28; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 system-ui, "Yu Gothic UI", "Hiragino Sans", sans-serif; }
+header { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 16px; }
+h1 { font-size:17px; margin:0 0 2px; } .sub { color:var(--mute); font-size:12px; }
+.main { margin:6px 0 0; font-size:13px; max-height:5.2em; overflow:hidden; } .chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+.chip { font-size:11px; padding:1px 7px; border-radius:10px; border:1px solid var(--line); color:var(--mute); white-space:nowrap; }
+.chip.done { color:var(--ok); border-color:var(--ok); } .chip.open { color:var(--accent); border-color:var(--accent); }
+.chip.blocked, .chip.failed, .chip.miss { color:var(--bad); border-color:var(--bad); }
+.chip.hit, .chip.finished { color:var(--ok); border-color:var(--ok); } .chip.partial, .chip.running { color:var(--warn); border-color:var(--warn); }
+nav { display:flex; gap:6px; margin-top:8px; }
+nav button { font:inherit; font-size:13px; padding:4px 12px; border-radius:16px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+nav button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+main { max-width:980px; margin:0 auto; padding:14px 16px 60px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:0 0 12px; border-left:4px solid var(--line); }
+.card.retract { border-left-color:var(--bad); } .card.question { border-left-color:var(--warn); }
+.card.claim { border-left-color:var(--ok); } .card.miss { border-left-color:var(--bad); } .card.beat { border-left-color:var(--accent); }
+.kind { font-size:11px; color:var(--mute); letter-spacing:.04em; } .title { font-weight:600; margin:2px 0 4px; overflow-wrap:anywhere; }
+.body, .meta { font-size:13px; color:var(--mute); overflow-wrap:anywhere; } .meta { margin-top:2px; }
+.figs { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 2px; }
+.figs figure { margin:0; flex:1 1 260px; max-width:460px; } .figs img { width:100%; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:zoom-in; }
+.figs figcaption { font-size:11px; color:var(--mute); }
+details { margin-top:6px; } summary { cursor:pointer; font-size:12px; color:var(--accent); }
+pre { background:var(--code); border-radius:6px; padding:8px 10px; font:12px/1.45 ui-monospace, Consolas, monospace; overflow:auto; max-height:420px; margin:6px 0 0; }
+pre .add { color:var(--ok); } pre .del { color:var(--bad); } pre .hunk { color:var(--accent); }
+.pod { display:grid; grid-template-columns:3.2em 1fr; gap:1px 8px; font-size:13.5px; margin-top:4px; } .pod b { color:var(--mute); font-weight:500; font-size:12px; padding-top:2px; }
+.reply { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; align-items:center; }
+.reply input { flex:1 1 220px; font:inherit; font-size:13px; padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); }
+.reply button { font:inherit; font-size:13px; padding:5px 10px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--ink); cursor:pointer; }
+.reply button:hover { border-color:var(--accent); } .opt { text-align:left; }
+.note { font-size:13px; margin-top:6px; padding:5px 9px; border-radius:6px; background:var(--code); }
+.note .who { font-size:11px; color:var(--mute); margin-right:6px; }
+.item { font-size:13.5px; margin-top:7px; padding-top:6px; border-top:1px dashed var(--line); overflow-wrap:anywhere; }
+.empty { color:var(--mute); text-align:center; padding:40px 0; }
+.commit { font-size:12.5px; margin-top:4px; } .commit code { color:var(--mute); }
+#zoom { position:fixed; inset:0; background:rgba(0,0,0,.82); display:none; align-items:center; justify-content:center; z-index:9; cursor:zoom-out; }
+#zoom img { max-width:96vw; max-height:94vh; background:#fff; border-radius:6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="h1"></h1><div class="sub" id="sub"></div>
+  <div class="main" id="mainline"></div>
+  <nav id="nav"></nav>
+</header>
+<main id="app"></main>
+<div id="zoom"><img alt=""></div>
+<script>
+const S = /*STATE*/null;
+const $ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const KIND = { retract: "撤回", question: "人間への連絡", claim: "主張", miss: "外れ", group: "成果物の束" };
+let tab = "inbox";
+const figSrc = f => S.fig_uris ? S.fig_uris[f.i] : "/fig/" + f.i;
+const notesOf = id => S.notes[id] || [];
+const covered = c => new Set(notesOf(c.id).flatMap(n => n.covers || []));
+// 束は、今ある項目がすべて返信で確認されていれば確認済み（後から主張が足されると要確認に戻る）
+const reviewed = c => c.kind === "group" ? (s => c.items.every(i => s.has(i.id)))(covered(c)) : notesOf(c.id).length > 0;
+
+function figs(list) {
+  const box = $("div", "figs");
+  for (const f of list || []) {
+    const src = figSrc(f); if (!src) continue;
+    const fig = $("figure"), img = $("img"); img.src = src; img.loading = "lazy"; img.alt = f.title;
+    img.onclick = () => { const z = document.getElementById("zoom"); z.firstChild.src = src; z.style.display = "flex"; };
+    fig.append(img, $("figcaption", "", f.title + (f.desc ? " — " + f.desc : ""))); box.append(fig);
+  }
+  return box;
+}
+function runs(list) {
+  const box = $("div", "chips");
+  for (const r of list || []) {
+    box.append($("span", "chip " + r.status, r.name + " " + r.status + (r.min ? " " + r.min + " 分" : "")));
+    if (r.verdict) box.append($("span", "chip " + r.verdict, "予想 " + r.verdict + (r.hit ? " " + r.hit : "")));
+    if (r.serves) box.append($("span", "chip", r.serves));
+  }
+  return box;
+}
+function code(c) {
+  const d = $("details"); d.append($("summary", "", "コード: " + c.label)); d.append($("pre", "", c.text)); return d;
+}
+function diffPre(text) {
+  const pre = $("pre");
+  for (const ln of text.split("\n")) {
+    const cls = ln.startsWith("@@") ? "hunk" : ln.startsWith("+") && !ln.startsWith("+++") ? "add" : ln.startsWith("-") && !ln.startsWith("---") ? "del" : "";
+    pre.append($("span", cls, ln + "\n"));
+  }
+  return pre;
+}
+function commits(list) {
+  const box = $("div");
+  for (const c of list || []) {
+    const d = $("details", "commit");
+    const s = $("summary"); s.append($("code", "", c.h.slice(0, 7) + " "), c.subject + `  (+${c.add} −${c.del}、${c.n_files} ファイル)`); d.append(s);
+    if (c.files.length) d.append($("div", "meta", c.files.join("  ")));
+    if (S.writable) d.addEventListener("toggle", async () => {
+      if (d.open && !d.dataset.loaded) { d.dataset.loaded = 1; d.append(diffPre(await (await fetch("/diff/" + c.h)).text())); }
+    });
+    box.append(d);
+  }
+  return box;
+}
+function thread(id) {
+  const box = $("div");
+  for (const n of notesOf(id)) {
+    const a = $("div", "note"); a.append($("span", "who", "人間 " + n.created.slice(5, 16).replace("T", " ") + (n.verdict ? " [" + n.verdict + "]" : "")), n.text || ""); box.append(a);
+    if (n.reply) { const b = $("div", "note"); b.append($("span", "who", "エージェント"), n.reply); box.append(b); }
+  }
+  return box;
+}
+async function send(target, verdict, text, covers) {
+  const r = await fetch("/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target, verdict, text, covers: covers || [] }) });
+  if (!r.ok) { alert("送れませんでした: " + await r.text()); return; }
+  (S.notes[target] = S.notes[target] || []).push(await r.json()); draw();
+}
+function reply(id, options, covers) {
+  const box = $("div", "reply");
+  if (!S.writable) return box;
+  const input = $("input"); input.placeholder = "一言（任意）。次の拍の先頭に届く";
+  for (const o of options || []) { const b = $("button", "opt", "→ " + o); b.onclick = () => send(id, "choose", o + (input.value ? "。" + input.value : ""), covers); box.append(b); }
+  box.append(input);
+  for (const [v, label] of [["ok", "OK"], ["question", "質問"], ["ng", "違う"]]) { const b = $("button", "", label); b.onclick = () => { if (v !== "ok" && !input.value) { input.placeholder = "何が、を一言書いてください"; input.focus(); return; } send(id, v, input.value, covers); }; box.append(b); }
+  input.onkeydown = e => { if (e.key === "Enter" && input.value) send(id, "comment", input.value, covers); };
+  return box;
+}
+function itemRow(i, fresh) {
+  const row = $("div", "item " + i.kind);
+  row.append($("span", "chip " + (i.kind === "claim" ? "done" : "miss"), KIND[i.kind] + (fresh ? " 新着" : "")), $("span", "", " " + i.text));
+  const full = i.evidence + (i.note ? "  — " + i.note : "");
+  // run ID は長いので末尾 4 桁に縮める（全文はマウスを載せると出る）
+  const short = full.replace(/\[run:\d{8}-\d{6}_[a-z0-9-]+_(?:[0-9a-f]{7}|nogit)_([0-9a-f]{4}):([^\]\s]+)\]/g, "[$1:$2]");
+  const ev = $("div", "meta", short.length > 220 ? short.slice(0, 220) + "…" : short); ev.title = full; row.append(ev); return row;
+}
+function group(c) {
+  const e = $("div", "card " + (c.counts.retract + c.counts.miss ? "retract" : "claim"));
+  const seen = covered(c), any = notesOf(c.id).length > 0;
+  e.append($("div", "kind", KIND.group + "  " + c.time), $("div", "title", c.title));
+  const ch = $("div", "chips");
+  if (c.counts.retract) ch.append($("span", "chip miss", "撤回 " + c.counts.retract));
+  if (c.counts.miss) ch.append($("span", "chip miss", "外れた予想 " + c.counts.miss));
+  if (c.counts.claim) ch.append($("span", "chip done", "新しい主張 " + c.counts.claim));
+  ch.append($("span", "chip", "run " + c.n_runs + " 本")); e.append(ch, figs(c.figs));
+  const todo = c.items.filter(i => !seen.has(i.id)), rest = c.items.filter(i => seen.has(i.id));
+  for (const i of todo.slice(0, 6)) e.append(itemRow(i, any));
+  if (todo.length > 6 || rest.length) {
+    const d = $("details"); d.append($("summary", "", `ほか ${Math.max(todo.length - 6, 0)} 件` + (rest.length ? `、確認済み ${rest.length} 件` : "")));
+    for (const i of todo.slice(6)) d.append(itemRow(i, any)); for (const i of rest) d.append(itemRow(i, false)); e.append(d);
+  }
+  e.append(runs(c.runs)); for (const k of c.codes || []) e.append(code(k));
+  e.append(thread(c.id), reply(c.id, null, c.items.map(i => i.id))); return e;
+}
+function card(c) {
+  if (c.kind === "group") return group(c);
+  const e = $("div", "card " + c.kind);
+  e.append($("div", "kind", KIND[c.kind] + "  " + (c.time || "").replace("T", " ")), $("div", "title", c.title), $("div", "body", c.body));
+  for (const m of c.meta || []) e.append($("div", "meta", m));
+  e.append(runs(c.runs), figs(c.figs)); if (c.code) e.append(code(c.code));
+  e.append(thread(c.id), reply(c.id, c.options)); return e;
+}
+function beat(b) {
+  const e = $("div", "card beat");
+  e.append($("div", "kind", b.time.replace("T", " ") + (b.beat != null ? "  拍 " + b.beat : "") + (b.line ? "  [" + b.line + "]" : "") + (b.stall ? "  停滞: " + b.stall : "")));
+  const pod = $("div", "pod");
+  for (const [k, v] of [["予想", b.predicted], ["結果", b.observed], ["判断", b.decided]]) if (v) pod.append($("b", "", k), $("div", "", v));
+  e.append(pod, runs(b.runs), figs(b.figs), commits(b.commits), thread(b.id), reply(b.id)); return e;
+}
+function draw() {
+  const inbox = S.cards.filter(c => !reviewed(c)), done = S.cards.filter(reviewed);
+  document.getElementById("h1").textContent = S.project + " — レビュー板";
+  document.getElementById("sub").textContent = `${S.generated} 生成、${S.since} 以降、HEAD ${S.head}` + (S.old_questions ? `、期間より前の連絡 ${S.old_questions} 件（labkit queue list）` : "") + (S.writable ? "" : "（書き出し。返信は labkit view で）");
+  const ml = document.getElementById("mainline"); ml.textContent = "";
+  if (S.mainline.sentence) { ml.append("主線: " + S.mainline.sentence); const ch = $("div", "chips");
+    // 進行中の項目だけを出す（done は数だけ。項目が数十あると見出しが画面を埋める）
+    const live = S.mainline.items.filter(i => i.status !== "done"), nDone = S.mainline.items.length - live.length;
+    for (const i of live.slice(0, 6)) { const c = $("span", "chip " + i.status, `${i.id} ${i.what.slice(0, 28)}${i.due && i.due !== "—" ? " 〜" + i.due.slice(5) : ""}`); c.title = i.what; ch.append(c); }
+    if (live.length > 6) ch.append($("span", "chip", `ほか ${live.length - 6} 件`));
+    if (nDone) ch.append($("span", "chip done", `done ${nDone}`));
+    ml.append(ch); }
+  const nav = document.getElementById("nav"); nav.textContent = "";
+  for (const [k, label] of [["inbox", `要確認 ${inbox.length}`], ["timeline", `タイムライン ${S.timeline.length}`], ["done", `確認済み ${done.length}`]]) {
+    const b = $("button", tab === k ? "on" : "", label); b.onclick = () => { tab = k; draw(); window.scrollTo(0, 0); }; nav.append(b); }
+  const app = document.getElementById("app"); app.textContent = "";
+  const list = tab === "inbox" ? inbox.map(card) : tab === "done" ? done.map(card) : S.timeline.map(beat);
+  if (!list.length) app.append($("div", "empty", tab === "inbox" ? "要確認のカードはありません。" : "この期間の記録はありません。"));
+  app.append(...list);
+}
+document.getElementById("zoom").onclick = e => { e.currentTarget.style.display = "none"; };
+draw();
+</script>
+</body>
+</html>

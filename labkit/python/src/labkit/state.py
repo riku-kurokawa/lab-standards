@@ -113,6 +113,62 @@ def question_lines(root: Path, limit: int = 3) -> list[str]:
     return lines
 
 
+# ---- notes: 人間の返信（レビュー板 `labkit view` から。エージェントは読むだけで、`note done --reply` で答える） ----
+NOTE_VERDICTS = ("ok", "question", "ng", "choose", "comment")
+
+
+def list_notes(root: Path, status: str | None = None) -> list[dict]:
+    d = root / LAB_DIR / "notes"
+    out = []
+    for p in sorted(d.glob("N*.json")) if d.is_dir() else []:
+        try:
+            n = read_json(p)
+        except (json.JSONDecodeError, OSError):
+            continue
+        if status is None or n.get("status") == status:
+            out.append(n)
+    return out
+
+
+def add_note(root: Path, target: str, verdict: str, text: str = "", covers: list[str] | None = None) -> dict:
+    """target は板のカードの ID（group:M006・queue:Q031・beat:2026-11-11#7）。verdict は NOTE_VERDICTS.
+    covers は、この返信の時点で束に入っていた項目（claim:C012 など）。後から足された主張は未確認として板に戻る."""
+    if verdict not in NOTE_VERDICTS:
+        raise ValueError(f"verdict は {' / '.join(NOTE_VERDICTS)} のどれか")
+    if not target.strip() or (verdict in ("question", "ng", "comment", "choose") and not text.strip()):
+        raise ValueError("質問・違う・コメントには一言が要ります（何が、を書く）")
+    nums = [int(n["id"][1:]) for n in list_notes(root) if str(n.get("id", "N"))[1:].isdigit()]
+    note = {"id": f"N{(max(nums) + 1) if nums else 1:03d}", "target": target, "verdict": verdict, "text": text.strip()}
+    # OK は確認の印で、エージェントの対応は要らない（open にしない）
+    note.update(created=_iso(_now()), status="done" if verdict == "ok" else "open", reply="", covers=covers or [])
+    write_json_atomic(lab_dir(root) / "notes" / f"{note['id']}.json", note)
+    return note
+
+
+def close_note(root: Path, nid: str, reply: str) -> dict:
+    p = root / LAB_DIR / "notes" / f"{nid}.json"
+    if not p.is_file():
+        raise FileNotFoundError(f"{nid} がありません（`labkit note list`）")
+    if not reply.strip():
+        raise ValueError("--reply（人間への答え。何を変えたか、変えないなら理由）は必須")
+    n = read_json(p)
+    n.update(status="done", reply=reply.strip(), done=_iso(_now()))
+    write_json_atomic(p, n)
+    return n
+
+
+def note_lines(root: Path, limit: int = 5) -> list[str]:
+    """文脈（beat start・SessionStart）の先頭に出す、人間の未対応の返信."""
+    notes = list_notes(root, "open")
+    lines = [
+        f'- **人間の返信 {n["id"]}**（{n["verdict"]} → {n["target"]}）: 「{n["text"]}」 — 対応して `labkit note done {n["id"]} --reply "…"`'
+        for n in notes[:limit]
+    ]
+    if len(notes) > limit:
+        lines.append(f"- 人間の返信はほかに {len(notes) - limit} 件（`labkit note list`）")
+    return lines
+
+
 def pending_summary(root: Path) -> dict[str, list[dict]]:
     """開いている人間への連絡（v1.x の承認待ちは含めない）."""
     q = list_queue(root)

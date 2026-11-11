@@ -114,7 +114,7 @@ def pretool_bash(data: dict, root: Path, kind: str) -> dict | None:
             if not gate.reviewer_allowed(seg):
                 raise Block(f"許可されていないコマンドです: `{seg[:80]}`。{gate.reviewer_allowed_summary()}")
     for seg in segs:
-        if re.search(r"\.lab/(?:queue|flows|delegations|beats)", seg) and _writes(seg):
+        if re.search(r"\.lab/(?:queue|flows|delegations|beats|notes)", seg) and _writes(seg):
             raise Block(".lab/ は直接書き換えません（labkit queue / flow / beat を使う）。")
         if kind == "project" and re.search(r"docs/(?:claims|DIGEST|mainline|seeds)\.md", seg) and _writes(seg):
             raise Block(
@@ -280,6 +280,7 @@ def session(data: dict, root: Path, kind: str) -> str:
                 lines.append(st)
         except Exception as e:
             lines.append(f"- 注意: {CURRENT} か .lab/beats を読めません（`labkit check`）: {type(e).__name__}: {e}")
+    lines += state.note_lines(root)  # 人間の返信が最優先
     lines += state.question_lines(root)
     for st in active_flows(root):
         lines.append("- " + describe(root, st).replace("\n", "\n  "))
