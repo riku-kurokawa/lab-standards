@@ -11,6 +11,7 @@
   - 見出しと本文に台帳の番号（M012・C185 など）を書かない（人間は覚えていない。中身を言葉で書く）
   - 発見と撤回には根拠が要る: 図・run・本文の引用 `値 [run:<id>:<key>]` のどれか
   - 本文と補足の引用は、その場で metrics.json と照合する（合わない数値は投稿できない）
+  - 図は `labkit fig` の出力だけ（隣に figmeta.json がある図。使い捨てのスクリプトの図は投稿できない）
   - 図には「見るところ」の一言が要る。図とコードの抜粋は投稿の時点の写しを持つ（後から変わらない）
   - 1 日の本数に上限（lab.toml の [post] per_day。既定 5）。超えるなら、どれが重要かを選び直す
 """
@@ -34,7 +35,7 @@ FIG_MAX = 3
 FIG_BYTES = 1_500_000
 CODE_LINES = 60
 CITE_STRIP = re.compile(r"\[run:[^\]]*\]")
-FIG_EXT = {".png", ".jpg", ".jpeg", ".svg", ".gif"}
+FIG_EXT = {".png"}
 
 
 def list_posts(root: Path) -> list[dict]:
@@ -150,12 +151,24 @@ def add_post(
             raise ValueError(f"図には見るところの一言が要ります: --fig {path}::<この図で何を見ればよいか>")
         if not src.is_file() or src.suffix.lower() not in FIG_EXT or src.stat().st_size > FIG_BYTES:
             raise ValueError(f"図がありません（{'・'.join(sorted(FIG_EXT))}、{FIG_BYTES // 1000} kB まで）: {path}")
-        parsed.append((src, f"{k + 1}{src.suffix.lower()}", caption.strip()))
+        meta = src.with_name(src.stem + ".figmeta.json")
+        if not meta.is_file() or not read_json(meta).get("template"):
+            raise ValueError(
+                f"{path} は `labkit fig` の出力ではありません（隣に {meta.name} が無い）。投稿の図も figspec と共有の"
+                "テンプレートで作ります（skill: make-figure）。描けない図は、使い捨てのスクリプトではなく "
+                "lab-standards のテンプレートに足します"
+            )
+        parsed.append((src, f"{k + 1}{src.suffix.lower()}", caption.strip(), read_json(meta)))
     snippets = [_code(root, c) for c in code]
     post = {"id": pid, "created": _iso(now), "kind": kind, "title": title, "body": body, "detail": detail}
-    post.update(figs=[{"file": f"{pid}/{name}", "caption": cap} for _, name, cap in parsed])
+    post.update(
+        figs=[
+            {"file": f"{pid}/{name}", "caption": cap, "template": fm["template"], "spec": fm.get("spec_file", "")}
+            for _, name, cap, fm in parsed
+        ]
+    )
     post.update(runs=run_ids, cites=cites, code=snippets, options=[o.strip() for o in options if o.strip()])
-    for src, name, _ in parsed:  # 図は写しを持つ（scratch の図でも、後から描き直されても、投稿は変わらない）
+    for src, name, _, _ in parsed:  # 図は写しを持つ（scratch の図でも、後から描き直されても、投稿は変わらない）
         dest = lab_dir(root) / "posts" / pid / name
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dest)

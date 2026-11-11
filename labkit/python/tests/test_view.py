@@ -25,6 +25,10 @@ def feed(git_project):
         run.log_metric("e", 5.04)
     (p / "scratch").mkdir(exist_ok=True)
     (p / "scratch" / "e.png").write_bytes(PNG)
+    write(
+        p / "scratch" / "e.figmeta.json", '{"template": "bar", "spec_file": "figspecs/e.toml"}'
+    )  # labkit fig の出力の印
+    (p / "scratch" / "raw.png").write_bytes(PNG)  # 使い捨てのスクリプトで描いた図
     write(p / "prompts" / "goal_v1.md", "# 目標\n")
     write(p / "prompts" / "beat_v1.md", "# 1 拍\n")
     beat.ensure_current(p, "goal_v1.md", "beat_v1.md")
@@ -42,7 +46,12 @@ def test_post_keeps_frozen_evidence(feed):
         code=["src/feedpkg/exp.py:5-6"],
     )
     assert made["id"] == "P001" and made["cites"] == [{"run": run.run_id, "key": "e", "value": 5.04}]
-    assert made["runs"] == [run.run_id] and made["figs"] == [{"file": "P001/1.png", "caption": "縦軸の 5 を見る"}]
+    assert made["runs"] == [run.run_id] and made["figs"][0] == {
+        "file": "P001/1.png",
+        "caption": "縦軸の 5 を見る",
+        "template": "bar",
+        "spec": "figspecs/e.toml",
+    }
     assert made["code"][0]["text"].startswith("def run(cfg):") and "exp.py:5-6" in made["code"][0]["label"]
     (p / "scratch" / "e.png").unlink()
     assert (p / ".lab" / "posts" / "P001" / "1.png").read_bytes() == PNG
@@ -65,6 +74,7 @@ def test_post_refuses_noise(feed):
         ({"title": "t", "body": f"値は [run:{run.run_id}:e]"}, "直前に数値"),
         ({"title": "t", "body": ok, "figs": ["scratch/e.png"]}, "見るところ"),
         ({"title": "t", "body": ok, "figs": ["scratch/none.png::x"]}, "図がありません"),
+        ({"title": "t", "body": ok, "figs": ["scratch/raw.png::x"]}, "labkit fig"),
         ({"title": "t", "body": ok, "options": ["A", "B"]}, "ask"),
         ({"title": "t", "body": ok, "code": ["src/feedpkg/exp.py"]}, "--code"),
     ]:

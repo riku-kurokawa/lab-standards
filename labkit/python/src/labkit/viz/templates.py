@@ -66,6 +66,86 @@ def _options(ax, spec):
         ax.grid(True, linewidth=0.3, alpha=0.5)
     if opt.get("aspect"):
         ax.set_aspect(opt["aspect"])
+    _reference(ax, opt)
+
+
+def _series_color(ref: dict, default: str) -> str:
+    """series = 0 なら 1 本目の系列と同じ色（その系列の基準だと分かる）."""
+    return OKABE_ITO[int(ref["series"]) % len(OKABE_ITO)] if "series" in ref else default
+
+
+def _reference(ax, opt: dict) -> None:
+    """比べる相手と、見てほしい所を同じ図に入れる（どのテンプレートでも使える）.
+    hlines = [{y = 8.75, label = "実測", series = 0}]   基準の横線（公表値・予想・既存手法）。名前は線の右端の上に書く
+    vspan  = {x = [0.13, 0.24], label = "文献の幅"}      横軸の範囲の帯
+    notes  = [{text = "+35 %", xy = [0.17, 5.05], at = [0.2, 1.5]}]   注記（at があれば xy から線を引く）"""
+    size = ax.xaxis.label.get_size()
+    for ref in opt.get("hlines", []):
+        c = _series_color(ref, "0.35")
+        ax.axhline(float(ref["y"]), color=c, linestyle="--", linewidth=0.8 * ax.spines["left"].get_linewidth() / 0.6)
+        if ref.get("label"):
+            ax.annotate(
+                str(ref["label"]),
+                xy=(1.0, float(ref["y"])),
+                xycoords=("axes fraction", "data"),
+                xytext=(-2, 2),
+                textcoords="offset points",
+                ha="right",
+                va="bottom",
+                color=c,
+                fontsize=size,
+            )
+    if span := opt.get("vspan"):
+        x0, x1 = span["x"]
+        ax.axvspan(float(x0), float(x1), color="0.5", alpha=0.12, linewidth=0)
+        if span.get("label"):
+            ax.annotate(
+                str(span["label"]),
+                xy=((float(x0) + float(x1)) / 2, 1.0),
+                xycoords=("data", "axes fraction"),
+                xytext=(0, -2),
+                textcoords="offset points",
+                ha="center",
+                va="top",
+                color="0.4",
+                fontsize=size,
+            )
+    for note in opt.get("notes", []):
+        at = note.get("at")
+        ax.annotate(
+            str(note["text"]),
+            xy=tuple(note["xy"]),
+            xytext=tuple(at) if at else (3, 3),
+            textcoords="data" if at else "offset points",
+            arrowprops={"arrowstyle": "-", "color": "0.4", "linewidth": 0.6} if at else None,
+            fontsize=size,
+        )
+
+
+def _direct_labels(ax) -> bool:
+    """系列の名前を、凡例ではなく線の右端の横（軸の外）に、線と同じ色で書く。線の無い図では False."""
+    done = False
+    for h, name in zip(*ax.get_legend_handles_labels(), strict=False):
+        line = h.lines[0] if hasattr(h, "lines") else h
+        if not hasattr(line, "get_ydata"):
+            continue
+        y = np.asarray(line.get_ydata(), dtype=float)
+        y = y[np.isfinite(y)]
+        if not len(y):
+            continue
+        ax.annotate(
+            name,
+            xy=(1.0, y[-1]),
+            xycoords=("axes fraction", "data"),
+            xytext=(4, 0),
+            textcoords="offset points",
+            ha="left",
+            va="center",
+            color=line.get_color(),
+            fontsize=ax.xaxis.label.get_size(),
+        )
+        done = True
+    return done
 
 
 def _get(d: dict, key: str):
@@ -91,6 +171,10 @@ def _legend(ax, spec, n):
     opt = spec.get("options", {})
     if n > 1 or opt.get("legend"):
         loc = opt.get("legend_loc", "best")
+        if loc == "direct" and _direct_labels(ax):
+            return
+        if loc == "direct":
+            loc = "best"
         if loc == "outside":  # データと重ならないよう軸の外（右）に置く
             ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0)
         else:

@@ -52,6 +52,8 @@ RC = {
     "image.cmap": "viridis",
 }
 
+CJK_FONTS = ["Noto Sans CJK JP", "IPAexGothic", "Hiragino Sans", "Yu Gothic", "Meiryo", "MS Gothic", "Noto Sans JP"]
+
 SEQUENTIAL_CMAP = "viridis"
 DIVERGING_CMAP = "RdBu_r"
 
@@ -99,3 +101,9 @@ def apply(kind: str = "paper") -> None:
     if kind == "slide":
         plt.rcParams.update({"lines.linewidth": 2.0, "lines.markersize": 6, "axes.linewidth": 1.0})
     plt.rcParams["axes.prop_cycle"] = cycler(color=OKABE_ITO)
+    # 日本語のラベル: 欧文はこれまでの書体のまま、無い字だけ手元にある日本語の書体で描く（どれも無ければ何もしない）
+    from matplotlib import font_manager
+
+    have = {f.name for f in font_manager.fontManager.ttflist}
+    cjk = next((n for n in CJK_FONTS if n in have), None)
+    plt.rcParams["font.family"] = ["sans-serif", cjk] if cjk else ["sans-serif"]

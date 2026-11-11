@@ -37,7 +37,7 @@ description: lab.toml のあるプロジェクトで図・グラフ・プロッ�
 
    style = "paper"                 # paper（論文の実寸、8 pt）| slide（発表、16 pt）
 
-   [options]                       # xlim, ylim, logx, logy, grid, legend, legend_loc（"outside" で軸の外）, aspect, clim（色の範囲）
+   [options]                       # xlim, ylim, logx, logy, grid, legend, legend_loc（"outside" で軸の外、"direct" で線の横に名前）, hlines / vspan / notes（基準の線・範囲の帯・注記）, aspect, clim（色の範囲）
    xlim = [0, 2]
    ```
    複数パネル:

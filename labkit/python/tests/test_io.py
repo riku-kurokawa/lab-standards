@@ -195,3 +195,38 @@ def test_figures_compare_on_same_scale_and_do_not_overlap(project):
     )
     with pytest.raises(ValueError, match="style"):
         render(fs / "bad.toml", run_id=run.run_id)
+
+
+def test_figure_shows_what_to_compare_against(project):
+    """人間に見せる図: 比べる相手（基準の線）、線の横の名前、範囲の帯、注記を、どのテンプレートでも同じ書式で入れる."""
+    from labkit.viz import render, templates
+
+    t = np.linspace(0, 1, 50)
+    with Run("figref") as run:
+        save(runpath(run, "s.h5"), {"t": t, "u": 2 * t, "v": 4 * t})
+    spec = project / "figspecs" / "ref.toml"
+    spec.write_text(
+        'template = "timeseries"\nname = "ref"\nstyle = "slide"\nsize = "slide"\n'
+        '[data]\nfile = "s.h5"\nx = "t"\ny = ["u", "v"]\nlegend = ["計算 A", "計算 B"]\n'
+        '[labels]\nx = "時間 [s]"\ny = "速さ [m/s]"\n'
+        '[options]\nlegend_loc = "direct"\nhlines = [{y = 3.0, label = "実測 3.0", series = 1}]\n'
+        'vspan = {x = [0.2, 0.4], label = "文献の幅"}\nnotes = [{text = "ここで交わる", xy = [0.75, 3.0], at = [0.5, 3.6]}]\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    seen = {}
+    orig = templates._reference
+
+    def spy(ax, opt):
+        orig(ax, opt)
+        seen["texts"] = [a.get_text() for a in ax.texts]
+        seen["legend"] = ax.get_legend()
+
+    templates._reference = spy
+    try:
+        render(spec, run_id=run.run_id)
+    finally:
+        templates._reference = orig
+    assert {"実測 3.0", "文献の幅", "ここで交わる"} <= set(seen["texts"]) and seen["legend"] is None
+    fm = json.loads((run.dir / "figures" / "ref.figmeta.json").read_text(encoding="utf-8"))
+    assert fm["layout_issues"] == []  # 線の横の名前・基準の線の名前・注記が重ならない
