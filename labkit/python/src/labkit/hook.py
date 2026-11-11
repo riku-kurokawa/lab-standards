@@ -114,7 +114,7 @@ def pretool_bash(data: dict, root: Path, kind: str) -> dict | None:
             if not gate.reviewer_allowed(seg):
                 raise Block(f"許可されていないコマンドです: `{seg[:80]}`。{gate.reviewer_allowed_summary()}")
     for seg in segs:
-        if re.search(r"\.lab/(?:queue|flows|delegations|beats|notes)", seg) and _writes(seg):
+        if re.search(r"\.lab/(?:queue|flows|delegations|beats|notes|posts)", seg) and _writes(seg):
             raise Block(".lab/ は直接書き換えません（labkit queue / flow / beat を使う）。")
         if kind == "project" and re.search(r"docs/(?:claims|DIGEST|mainline|seeds)\.md", seg) and _writes(seg):
             raise Block(
@@ -166,7 +166,9 @@ def pretool_write(data: dict, root: Path, kind: str) -> dict | None:
     except ValueError:
         return None
     if r == ".lab" or r.startswith(".lab/"):
-        raise Block(f"{r} はハーネスの状態です。直接書かず labkit のコマンド（queue ask/done, flow）を使います。")
+        raise Block(
+            f"{r} はハーネスの状態です。直接書かず labkit のコマンド（queue ask/done, flow, post, note done）を使います。"
+        )
     in_reviews = r == REVIEW_DIR or r.startswith(REVIEW_DIR + "/")
     if _is_reviewer(data):
         if not in_reviews:

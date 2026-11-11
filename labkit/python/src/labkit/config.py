@@ -132,6 +132,8 @@ DEFAULTS: dict = {
     },
     # allow_self_stop: /loop を Claude が自分で止めること（CronDelete・ScheduleWakeup の stop）を許すか。止めるのは人間
     "claude": {"require_devlog": True, "max_stop_blocks": 3, "allow_self_stop": False},
+    # 人間への投稿（labkit post）: 1 日の本数の上限（0 で無制限）。人間が読める量に合わせる
+    "post": {"per_day": 5},
     "fig": {"overlap": "warn"},  # 図の体裁の検査（文字・凡例の重なり、小さい文字）。"error" で保存しない
     # 長い自律運用（v2.3.0 で backlog・min_open の関門は廃止。lab.toml に残っていても無視する）
     "autonomy": {

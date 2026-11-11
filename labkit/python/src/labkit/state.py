@@ -113,7 +113,7 @@ def question_lines(root: Path, limit: int = 3) -> list[str]:
     return lines
 
 
-# ---- notes: 人間の返信（レビュー板 `labkit view` から。エージェントは読むだけで、`note done --reply` で答える） ----
+# ---- notes: 人間の返信（フィード `labkit view` から。エージェントは読むだけで、`note done --reply` で答える） ----
 NOTE_VERDICTS = ("ok", "question", "ng", "choose", "comment")
 
 
@@ -130,9 +130,8 @@ def list_notes(root: Path, status: str | None = None) -> list[dict]:
     return out
 
 
-def add_note(root: Path, target: str, verdict: str, text: str = "", covers: list[str] | None = None) -> dict:
-    """target は板のカードの ID（group:M006・queue:Q031・beat:2026-11-11#7）。verdict は NOTE_VERDICTS.
-    covers は、この返信の時点で束に入っていた項目（claim:C012 など）。後から足された主張は未確認として板に戻る."""
+def add_note(root: Path, target: str, verdict: str, text: str = "") -> dict:
+    """target は返信先の投稿（post:P012）。verdict は NOTE_VERDICTS."""
     if verdict not in NOTE_VERDICTS:
         raise ValueError(f"verdict は {' / '.join(NOTE_VERDICTS)} のどれか")
     if not target.strip() or (verdict in ("question", "ng", "comment", "choose") and not text.strip()):
@@ -140,7 +139,7 @@ def add_note(root: Path, target: str, verdict: str, text: str = "", covers: list
     nums = [int(n["id"][1:]) for n in list_notes(root) if str(n.get("id", "N"))[1:].isdigit()]
     note = {"id": f"N{(max(nums) + 1) if nums else 1:03d}", "target": target, "verdict": verdict, "text": text.strip()}
     # OK は確認の印で、エージェントの対応は要らない（open にしない）
-    note.update(created=_iso(_now()), status="done" if verdict == "ok" else "open", reply="", covers=covers or [])
+    note.update(created=_iso(_now()), status="done" if verdict == "ok" else "open", reply="")
     write_json_atomic(lab_dir(root) / "notes" / f"{note['id']}.json", note)
     return note
 

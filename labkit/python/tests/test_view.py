@@ -1,12 +1,15 @@
-"""レビュー板（labkit view）と人間の返信（notes）."""
+"""人間への投稿（labkit post）、フィード（labkit view）、人間の返信（notes）."""
 
 import json
 
 import pytest
 
-from labkit import Run, beat, claims, state, view
+from labkit import Run, beat, post, state, view
 
-from .conftest import git
+PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000d49444154789c6360000002000001e221bc330000000049454e44ae426082"
+)
 
 
 def write(p, text):
@@ -15,86 +18,111 @@ def write(p, text):
 
 
 @pytest.fixture
-def board(git_project):
+def feed(git_project):
     p = git_project
-    write(p / "src" / "boardpkg" / "__init__.py", "")
-    write(p / "src" / "boardpkg" / "exp.py", "def helper():\n    return 0\n\n\ndef run(cfg):\n    return {'e': 5.0}\n")
-    git(p, "add", "-A")
-    git(p, "commit", "-q", "-m", "exp を足す")
-    pred = {"basis": "桁の見積もり", "claims": [{"key": "e", "range": [0, 1]}]}
-    cfg = {"seed": 0, "entry": "boardpkg.exp:run", "prediction": pred, "report": {"noncomparative": ["e", "f"]}}
-    with Run("arr-one", cfg) as run:
-        run.log_metric("e", 5.0)
-        run.log_metric("f", 1.0)
-    claims.add_claim(p, "e は 5", [f"{run.run_id}:e"])
-    state.ask_question(p, "A か B か", options=["A", "B"], assumed="A で進める")
+    write(p / "src" / "feedpkg" / "exp.py", "def helper():\n    return 0\n\n\ndef run(cfg):\n    return {'e': 5.0}\n")
+    with Run("arr-one", {"seed": 0}) as run:
+        run.log_metric("e", 5.04)
+    (p / "scratch").mkdir(exist_ok=True)
+    (p / "scratch" / "e.png").write_bytes(PNG)
     write(p / "prompts" / "goal_v1.md", "# 目標\n")
     write(p / "prompts" / "beat_v1.md", "# 1 拍\n")
     beat.ensure_current(p, "goal_v1.md", "beat_v1.md")
-    beat.start(p)
-    beat.end(p, predicted="e は 1 以下", observed="e = 5", decided="外れ。原因を調べる", runs=[run.run_id])
     return p, run
 
 
-def test_board_bundles_evidence_per_deliverable(board):
-    """主張 1 件 1 枚にしない: 同じ実験の主張・外れた予想を 1 枚に束ね、生んだコード（その commit の entry）を付ける."""
-    p, run = board
-    data, figs = view.collect(p, days=1)
-    groups = [c for c in data["cards"] if c["kind"] == "group"]
-    assert len(groups) == 1 and groups[0]["counts"] == {"retract": 0, "miss": 1, "claim": 1}
-    assert {i["id"] for i in groups[0]["items"]} == {"claim:C001", f"miss:{run.run_id}"}
-    code = groups[0]["codes"][0]
-    assert code["label"].startswith("src/boardpkg/exp.py:5 @ ") and code["text"].startswith("def run(cfg):")
-    assert [c["title"] for c in data["cards"] if c["kind"] == "question"] == ["Q001 A か B か"]
-    b = data["timeline"][-1]
-    assert b["decided"] == "外れ。原因を調べる" and b["runs"][0]["verdict"] == "miss"
-    assert any("exp を足す" in c["subject"] for t in data["timeline"] for c in t["commits"])
-    html = view.render(data, figs, embed=True)
-    assert "<title>レビュー板</title>" in html and "claim:C001" in html and "/*STATE*/null" not in html
-    assert view.commit_diff(p, "zzz") == "" and "def run(cfg)" in view.commit_diff(
-        p, git(p, "rev-parse", "HEAD~0")[:10]
+def test_post_keeps_frozen_evidence(feed):
+    """投稿は、照合した引用・図の写し・コードの抜粋を持つ（後から図やコードが変わっても投稿は変わらない）."""
+    p, run = feed
+    made = post.add_post(
+        p,
+        "e は 5.0 で、予想の 5 倍だった",
+        f"桁の見積もりが外れた。e = 5.0 [run:{run.run_id}:e]",
+        figs=["scratch/e.png::縦軸の 5 を見る"],
+        code=["src/feedpkg/exp.py:5-6"],
     )
+    assert made["id"] == "P001" and made["cites"] == [{"run": run.run_id, "key": "e", "value": 5.04}]
+    assert made["runs"] == [run.run_id] and made["figs"] == [{"file": "P001/1.png", "caption": "縦軸の 5 を見る"}]
+    assert made["code"][0]["text"].startswith("def run(cfg):") and "exp.py:5-6" in made["code"][0]["label"]
+    (p / "scratch" / "e.png").unlink()
+    assert (p / ".lab" / "posts" / "P001" / "1.png").read_bytes() == PNG
+    data = view.collect(p)
+    assert [x["id"] for x in data["posts"]] == ["P001"] and data["older"] == 0
+    html = view.render(p, data, embed=True)
+    assert "data:image/png;base64," in html and "/*STATE*/null" not in html and "予想の 5 倍" in html
 
 
-def test_human_reply_reaches_the_next_beat_and_agent_answers(board):
-    """人間の返信は次の拍の先頭に出る。エージェントは答えて閉じる。OK は確認の印で、対応を求めない."""
-    p, run = board
-    ok = state.add_note(p, "group:arr-one", "ok", covers=["claim:C001", f"miss:{run.run_id}"])
+def test_post_refuses_noise(feed):
+    """少なく・短く・根拠つきを、コマンドの拒否で守る."""
+    p, run = feed
+    ok = f"e = 5.0 [run:{run.run_id}:e]"
+    for kwargs, why in [
+        ({"title": "あ" * 61, "body": ok}, "見出し"),
+        ({"title": "t", "body": ok + "あ" * 500}, "本文"),
+        ({"title": "t", "body": "根拠の無い話"}, "根拠"),
+        ({"title": "t", "body": f"e = 9.9 [run:{run.run_id}:e]"}, "一致しません"),
+        ({"title": "t", "body": f"値は [run:{run.run_id}:e]"}, "直前に数値"),
+        ({"title": "t", "body": ok, "figs": ["scratch/e.png"]}, "見るところ"),
+        ({"title": "t", "body": ok, "figs": ["scratch/none.png::x"]}, "図がありません"),
+        ({"title": "t", "body": ok, "options": ["A", "B"]}, "ask"),
+        ({"title": "t", "body": ok, "code": ["src/feedpkg/exp.py"]}, "--code"),
+    ]:
+        with pytest.raises(ValueError, match=why):
+            post.add_post(p, kwargs.pop("title"), kwargs.pop("body"), **kwargs)
+    assert not post.list_posts(p)
+    post.add_post(p, "A か B か", "いまは A で進めている", kind="ask", options=["A", "B"])  # 相談は根拠なしでよい
+    for k in range(4):
+        post.add_post(p, f"節目 {k}", "項目を閉じた", kind="milestone")
+    with pytest.raises(ValueError, match="上限"):  # 1 日 5 本（[post] per_day）
+        post.add_post(p, "6 本目", "多すぎる", kind="milestone")
+
+
+def test_human_reply_reaches_the_next_beat_and_agent_answers(feed):
+    """人間の返信は次の拍の先頭に出る。エージェントは答えて閉じる。了解は確認の印で、対応を求めない."""
+    p, run = feed
+    post.add_post(p, "e は 5.0 だった", "外れた", runs=[run.run_id])
+    ok = state.add_note(p, "post:P001", "ok")
     assert ok["status"] == "done" and not state.note_lines(p)
     with pytest.raises(ValueError, match="一言"):
-        state.add_note(p, "group:arr-one", "ng")
-    n = state.add_note(p, "group:arr-one", "question", "e の単位は何か")
+        state.add_note(p, "post:P001", "comment")
+    n = state.add_note(p, "post:P001", "comment", "e の単位は何か")
     out = beat.start(p)
     assert out.index("人間の返信 N002") < out.index("今日の run") and "e の単位は何か" in out
     with pytest.raises(ValueError, match="--reply"):
         state.close_note(p, n["id"], "")
+    before = view.collect(p)["stamp"]
     state.close_note(p, n["id"], "無次元。figspec のラベルに [1] を足した")
     assert not state.note_lines(p)
-    data, _ = view.collect(p, days=1)
-    thread = data["notes"]["group:arr-one"]
-    assert [x["verdict"] for x in thread] == ["ok", "question"] and thread[1]["reply"].startswith("無次元")
-    assert thread[0]["covers"] == ["claim:C001", f"miss:{run.run_id}"]  # 後から足された主張は未確認として板に戻る
+    data = view.collect(p)
+    thread = data["notes"]["post:P001"]
+    assert [x["verdict"] for x in thread] == ["ok", "comment"] and thread[1]["reply"].startswith("無次元")
+    assert data["stamp"] != before  # 画面は答えが来たことに気づく
 
 
-def test_agent_cannot_write_notes_directly(board):
+def test_agent_cannot_write_posts_or_notes_directly(feed):
     from labkit.hook import handle
 
     from .test_hook import bash
     from .test_hook import write as hook_write
 
-    p, _ = board
+    p, _ = feed
     assert handle("pretool", bash("echo x > .lab/notes/N009.json", p))[0] == 2
-    assert handle("pretool", hook_write(".lab/notes/N009.json", p))[0] == 2
+    assert handle("pretool", bash("echo x > .lab/posts/P009.json", p))[0] == 2
+    assert handle("pretool", hook_write(".lab/posts/P009.json", p))[0] == 2
     assert handle("pretool", bash('uv run labkit note done N001 --reply "直した"', p))[0] == 0
+    assert handle("pretool", bash('uv run labkit post "結論" --body @scratch/post.md', p))[0] == 0
 
 
-def test_board_serves_and_accepts_a_note(board):
-    """127.0.0.1 の板: ページ・図・差分を返し、返信を .lab/notes/ に書く."""
+def test_feed_serves_and_accepts_a_reply(feed):
+    """127.0.0.1 のフィード: ページ・図・更新の印を返し、返信を .lab/notes/ に書く。投稿の図以外のファイルは渡さない."""
     import threading
+    import time
+    import urllib.error
     import urllib.request
     from http.server import ThreadingHTTPServer
 
-    p, _ = board
+    p, run = feed
+    post.add_post(p, "e は 5.0 だった", "外れた", figs=["scratch/e.png::5 を見る"])
     made = {}
     orig = ThreadingHTTPServer.serve_forever
 
@@ -104,25 +132,29 @@ def test_board_serves_and_accepts_a_note(board):
 
     ThreadingHTTPServer.serve_forever = capture
     try:
-        t = threading.Thread(target=view.serve, args=(p, 0, 1), daemon=True)
-        t.start()
+        threading.Thread(target=view.serve, args=(p, 0, 1), daemon=True).start()
         for _ in range(100):
             if "srv" in made:
                 break
-            import time
-
             time.sleep(0.05)
-        port = made["srv"].server_address[1]
-        base = f"http://127.0.0.1:{port}"
+        base = f"http://127.0.0.1:{made['srv'].server_address[1]}"
         page = urllib.request.urlopen(base + "/").read().decode("utf-8")
-        assert '"writable": true' in page and "claim:C001" in page
-        req = urllib.request.Request(
-            base + "/note",
-            data=json.dumps({"target": "queue:Q001", "verdict": "choose", "text": "B"}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        note = json.loads(urllib.request.urlopen(req).read())
-        assert note["id"] == "N001" and state.list_notes(p, "open")[0]["text"] == "B"
+        assert '"writable": true' in page and "e は 5.0 だった" in page
+        assert urllib.request.urlopen(base + "/fig/P001/1.png").read() == PNG
+        for bad in ("/fig/P001/../../lab.toml", "/fig/P001.json"):
+            with pytest.raises(urllib.error.HTTPError):
+                urllib.request.urlopen(base + bad)
+        stamp = urllib.request.urlopen(base + "/stamp").read()
+
+        def send(target):
+            body = json.dumps({"target": target, "verdict": "comment", "text": "図の縦軸は対数か"}).encode("utf-8")
+            req = urllib.request.Request(base + "/note", data=body, headers={"Content-Type": "application/json"})
+            return json.loads(urllib.request.urlopen(req).read())
+
+        with pytest.raises(urllib.error.HTTPError):
+            send("queue:Q001")
+        assert send("post:P001")["id"] == "N001" and state.list_notes(p, "open")[0]["text"] == "図の縦軸は対数か"
+        assert urllib.request.urlopen(base + "/stamp").read() != stamp
     finally:
         ThreadingHTTPServer.serve_forever = orig
         if "srv" in made:

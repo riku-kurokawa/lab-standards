@@ -3,197 +3,167 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>レビュー板</title>
+<title>フィード</title>
 <style>
-:root { --bg:#f6f5f1; --card:#fff; --ink:#1d1d1b; --mute:#6b6a65; --line:#dedcd3; --accent:#0b6e99;
-  --ok:#2e7d4f; --warn:#b26a00; --bad:#b3382c; --code:#f1efe8; }
-@media (prefers-color-scheme: dark) { :root { --bg:#191918; --card:#232321; --ink:#ecebe6; --mute:#a3a199; --line:#3a3936;
-  --accent:#6cb6d9; --ok:#6fbf8e; --warn:#e0a84f; --bad:#e58275; --code:#2c2b28; } }
-* { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 system-ui, "Yu Gothic UI", "Hiragino Sans", sans-serif; }
-header { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 16px; }
-h1 { font-size:17px; margin:0 0 2px; } .sub { color:var(--mute); font-size:12px; }
-.main { margin:6px 0 0; font-size:13px; max-height:5.2em; overflow:hidden; } .chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
-.chip { font-size:11px; padding:1px 7px; border-radius:10px; border:1px solid var(--line); color:var(--mute); white-space:nowrap; }
-.chip.done { color:var(--ok); border-color:var(--ok); } .chip.open { color:var(--accent); border-color:var(--accent); }
-.chip.blocked, .chip.failed, .chip.miss { color:var(--bad); border-color:var(--bad); }
-.chip.hit, .chip.finished { color:var(--ok); border-color:var(--ok); } .chip.partial, .chip.running { color:var(--warn); border-color:var(--warn); }
-nav { display:flex; gap:6px; margin-top:8px; }
-nav button { font:inherit; font-size:13px; padding:4px 12px; border-radius:16px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
-nav button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
-main { max-width:980px; margin:0 auto; padding:14px 16px 60px; }
-.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:0 0 12px; border-left:4px solid var(--line); }
-.card.retract { border-left-color:var(--bad); } .card.question { border-left-color:var(--warn); }
-.card.claim { border-left-color:var(--ok); } .card.miss { border-left-color:var(--bad); } .card.beat { border-left-color:var(--accent); }
-.kind { font-size:11px; color:var(--mute); letter-spacing:.04em; } .title { font-weight:600; margin:2px 0 4px; overflow-wrap:anywhere; }
-.body, .meta { font-size:13px; color:var(--mute); overflow-wrap:anywhere; } .meta { margin-top:2px; }
-.figs { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 2px; }
-.figs figure { margin:0; flex:1 1 260px; max-width:460px; } .figs img { width:100%; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:zoom-in; }
-.figs figcaption { font-size:11px; color:var(--mute); }
-details { margin-top:6px; } summary { cursor:pointer; font-size:12px; color:var(--accent); }
-pre { background:var(--code); border-radius:6px; padding:8px 10px; font:12px/1.45 ui-monospace, Consolas, monospace; overflow:auto; max-height:420px; margin:6px 0 0; }
-pre .add { color:var(--ok); } pre .del { color:var(--bad); } pre .hunk { color:var(--accent); }
-.pod { display:grid; grid-template-columns:3.2em 1fr; gap:1px 8px; font-size:13.5px; margin-top:4px; } .pod b { color:var(--mute); font-weight:500; font-size:12px; padding-top:2px; }
-.reply { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; align-items:center; }
-.reply input { flex:1 1 220px; font:inherit; font-size:13px; padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); }
-.reply button { font:inherit; font-size:13px; padding:5px 10px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--ink); cursor:pointer; }
-.reply button:hover { border-color:var(--accent); } .opt { text-align:left; }
-.note { font-size:13px; margin-top:6px; padding:5px 9px; border-radius:6px; background:var(--code); }
-.note .who { font-size:11px; color:var(--mute); margin-right:6px; }
-.item { font-size:13.5px; margin-top:7px; padding-top:6px; border-top:1px dashed var(--line); overflow-wrap:anywhere; }
-.empty { color:var(--mute); text-align:center; padding:40px 0; }
-.commit { font-size:12.5px; margin-top:4px; } .commit code { color:var(--mute); }
-#zoom { position:fixed; inset:0; background:rgba(0,0,0,.82); display:none; align-items:center; justify-content:center; z-index:9; cursor:zoom-out; }
-#zoom img { max-width:96vw; max-height:94vh; background:#fff; border-radius:6px; }
+:root { --bg:#f4f3ef; --card:#fff; --ink:#1b1b19; --mute:#77756e; --line:#e3e1d9; --accent:#0b6e99; --soft:#eef5f8;
+  --finding:#2e7d4f; --retract:#b3382c; --ask:#b26a00; --milestone:#5b4bb5; --code:#f3f1ea; }
+@media (prefers-color-scheme: dark) { :root { --bg:#161615; --card:#201f1d; --ink:#edece7; --mute:#99978f; --line:#34332f;
+  --accent:#6cb6d9; --soft:#1d2a30; --finding:#6fbf8e; --retract:#e58275; --ask:#e0a84f; --milestone:#a99cf0; --code:#2a2926; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.7 system-ui, "Yu Gothic UI", "Hiragino Sans", sans-serif; -webkit-text-size-adjust:100%; }
+header { position:sticky; top:0; z-index:5; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+.bar { max-width:700px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+.bar h1 { font-size:16px; margin:0; white-space:nowrap; } .goal { flex:1; min-width:0; font-size:12.5px; color:var(--mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tabs { display:flex; gap:4px; } .tabs button { font:inherit; font-size:13px; padding:3px 12px; border-radius:14px; border:1px solid transparent; background:none; color:var(--mute); cursor:pointer; white-space:nowrap; }
+.tabs button.on { background:var(--card); border-color:var(--line); color:var(--ink); font-weight:600; }
+main { max-width:700px; margin:0 auto; padding:8px 16px 80px; }
+.day { text-align:center; font-size:12px; color:var(--mute); margin:22px 0 10px; }
+.post { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px 14px; margin:0 0 14px; }
+.head { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--mute); }
+.tag { font-weight:600; font-size:12px; padding:0 9px; border-radius:10px; color:#fff; line-height:1.75; }
+.tag.finding { background:var(--finding); } .tag.retract { background:var(--retract); } .tag.ask { background:var(--ask); } .tag.milestone { background:var(--milestone); }
+@media (prefers-color-scheme: dark) { .tag { color:#161615; } }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--accent); margin-left:auto; } .seen { margin-left:auto; }
+h2 { font-size:20px; line-height:1.45; margin:8px 0 6px; overflow-wrap:anywhere; letter-spacing:.01em; }
+.body p { margin:0 0 8px; overflow-wrap:anywhere; } .body ul { margin:0 0 8px; padding-left:1.3em; } .body li { margin:2px 0; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.cite { display:inline-block; font-size:11px; line-height:1.5; color:var(--finding); border:1px solid currentColor; border-radius:8px; padding:0 5px; margin-left:3px; vertical-align:2px; cursor:help; }
+figure { margin:12px 0 4px; } figure img { display:block; width:100%; border:1px solid var(--line); border-radius:10px; background:#fff; cursor:zoom-in; }
+figcaption { font-size:13.5px; margin-top:5px; } figcaption::before { content:"見るところ  "; color:var(--mute); font-size:11.5px; }
+details { margin-top:8px; border-top:1px solid var(--line); padding-top:7px; } summary { cursor:pointer; font-size:13px; color:var(--mute); list-style-position:outside; }
+summary:hover { color:var(--accent); } details .body { font-size:14.5px; margin-top:6px; }
+pre { background:var(--code); border-radius:8px; padding:10px 12px; font:12.5px/1.5 ui-monospace, Consolas, monospace; overflow:auto; max-height:440px; margin:8px 0 0; }
+.runs { font:12px/1.6 ui-monospace, Consolas, monospace; color:var(--mute); margin-top:6px; overflow-wrap:anywhere; }
+.thread { margin-top:10px; } .msg { display:flex; gap:8px; margin-top:8px; font-size:14.5px; }
+.who { flex:none; width:2.1em; height:2.1em; border-radius:50%; display:grid; place-items:center; font-size:11px; font-weight:600; background:var(--soft); color:var(--accent); margin-top:1px; }
+.msg.agent .who { background:var(--code); color:var(--mute); } .msg .t { font-size:11.5px; color:var(--mute); margin-left:6px; } .msg div { min-width:0; overflow-wrap:anywhere; }
+.pending { font-size:12px; color:var(--mute); margin:4px 0 0 2.9em; }
+.reply { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; align-items:flex-end; }
+.reply textarea { flex:1 1 240px; font:inherit; font-size:14.5px; line-height:1.5; padding:7px 11px; height:38px; max-height:160px; resize:none; border:1px solid var(--line); border-radius:19px; background:var(--bg); color:var(--ink); outline:none; }
+.reply textarea:focus { border-color:var(--accent); }
+.btn { font:inherit; font-size:13.5px; height:38px; padding:0 15px; border-radius:19px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; white-space:nowrap; }
+.btn:hover { border-color:var(--accent); color:var(--accent); } .btn.go { background:var(--accent); border-color:var(--accent); color:#fff; } .btn.go:hover { color:#fff; opacity:.9; }
+.opts { display:flex; flex-direction:column; gap:6px; margin-top:12px; } .opts .btn { height:auto; min-height:38px; padding:7px 15px; text-align:left; white-space:normal; border-color:var(--ask); }
+.empty { color:var(--mute); text-align:center; padding:70px 0; font-size:14.5px; } .empty b { display:block; color:var(--ink); font-size:16px; margin-bottom:6px; }
+.foot { text-align:center; font-size:12px; color:var(--mute); margin-top:24px; }
+#fresh { position:fixed; top:58px; left:50%; transform:translateX(-50%); z-index:6; display:none; box-shadow:0 2px 10px rgba(0,0,0,.18); }
+#zoom { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:9; cursor:zoom-out; }
+#zoom img { max-width:97vw; max-height:95vh; background:#fff; border-radius:6px; }
+@media (max-width:560px) { .goal { display:none; } .bar h1 { flex:1; } .post { padding:14px 14px 12px; border-radius:12px; } h2 { font-size:18px; } }
 </style>
 </head>
 <body>
-<header>
-  <h1 id="h1"></h1><div class="sub" id="sub"></div>
-  <div class="main" id="mainline"></div>
-  <nav id="nav"></nav>
-</header>
+<header><div class="bar"><h1 id="h1"></h1><div class="goal" id="goal"></div><div class="tabs" id="tabs"></div></div></header>
+<button class="btn go" id="fresh">新しい投稿があります</button>
 <main id="app"></main>
 <div id="zoom"><img alt=""></div>
 <script>
 const S = /*STATE*/null;
 const $ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const KIND = { retract: "撤回", question: "人間への連絡", claim: "主張", miss: "外れ", group: "成果物の束" };
-let tab = "inbox";
-const figSrc = f => S.fig_uris ? S.fig_uris[f.i] : "/fig/" + f.i;
-const notesOf = id => S.notes[id] || [];
-const covered = c => new Set(notesOf(c.id).flatMap(n => n.covers || []));
-// 束は、今ある項目がすべて返信で確認されていれば確認済み（後から主張が足されると要確認に戻る）
-const reviewed = c => c.kind === "group" ? (s => c.items.every(i => s.has(i.id)))(covered(c)) : notesOf(c.id).length > 0;
+let tab = "all";
+const notesOf = p => S.notes["post:" + p.id] || [];
+const unread = p => notesOf(p).length === 0;
+const figSrc = f => S.fig_uris ? S.fig_uris[f.file] : "/fig/" + f.file;
 
-function figs(list) {
-  const box = $("div", "figs");
-  for (const f of list || []) {
-    const src = figSrc(f); if (!src) continue;
-    const fig = $("figure"), img = $("img"); img.src = src; img.loading = "lazy"; img.alt = f.title;
-    img.onclick = () => { const z = document.getElementById("zoom"); z.firstChild.src = src; z.style.display = "flex"; };
-    fig.append(img, $("figcaption", "", f.title + (f.desc ? " — " + f.desc : ""))); box.append(fig);
+function ago(iso) {
+  const d = new Date(iso), s = (Date.now() - d) / 1000, hm = d.toTimeString().slice(0, 5);
+  if (s < 90) return "たった今"; if (s < 3600) return Math.round(s / 60) + " 分前"; if (s < 6 * 3600) return Math.round(s / 3600) + " 時間前";
+  return hm;
+}
+function dayLabel(iso) {
+  const d = new Date(iso), t = new Date(); const diff = Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  return diff === 0 ? "今日" : diff === 1 ? "昨日" : `${d.getMonth() + 1}月${d.getDate()}日（${"日月火水木金土"[d.getDay()]}）`;
+}
+// 本文: 段落・箇条書き・**強調**・`コード`・引用 [run:…]（投稿の時点で metrics.json と照合済み → ✓）
+function inline(parent, text) {
+  const re = /\*\*(.+?)\*\*|`([^`]+)`|\s*\[run:([^:\]\s]+):([^\]\s]+)\]/g; let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) parent.append(text.slice(last, m.index));
+    if (m[1] != null) { const b = $("b"); inline(b, m[1]); parent.append(b); } else if (m[2] != null) parent.append($("code", "", m[2]));
+    else { const c = $("span", "cite", "✓"); c.title = `run ${m[3]} の ${m[4]} と照合済み`; parent.append(c); }
+    last = re.lastIndex;
+  }
+  if (last < text.length) parent.append(text.slice(last));
+}
+function prose(text) {
+  const box = $("div", "body");
+  for (const block of text.split(/\n\s*\n/)) {
+    const lines = block.split("\n").filter(l => l.trim()); if (!lines.length) continue;
+    if (lines.every(l => /^\s*[-・]\s+/.test(l))) { const ul = $("ul"); for (const l of lines) { const li = $("li"); inline(li, l.replace(/^\s*[-・]\s+/, "")); ul.append(li); } box.append(ul); }
+    else { const p = $("p"); lines.forEach((l, k) => { if (k) p.append($("br")); inline(p, l); }); box.append(p); }
   }
   return box;
 }
-function runs(list) {
-  const box = $("div", "chips");
-  for (const r of list || []) {
-    box.append($("span", "chip " + r.status, r.name + " " + r.status + (r.min ? " " + r.min + " 分" : "")));
-    if (r.verdict) box.append($("span", "chip " + r.verdict, "予想 " + r.verdict + (r.hit ? " " + r.hit : "")));
-    if (r.serves) box.append($("span", "chip", r.serves));
-  }
-  return box;
-}
-function code(c) {
-  const d = $("details"); d.append($("summary", "", "コード: " + c.label)); d.append($("pre", "", c.text)); return d;
-}
-function diffPre(text) {
-  const pre = $("pre");
-  for (const ln of text.split("\n")) {
-    const cls = ln.startsWith("@@") ? "hunk" : ln.startsWith("+") && !ln.startsWith("+++") ? "add" : ln.startsWith("-") && !ln.startsWith("---") ? "del" : "";
-    pre.append($("span", cls, ln + "\n"));
-  }
-  return pre;
-}
-function commits(list) {
-  const box = $("div");
-  for (const c of list || []) {
-    const d = $("details", "commit");
-    const s = $("summary"); s.append($("code", "", c.h.slice(0, 7) + " "), c.subject + `  (+${c.add} −${c.del}、${c.n_files} ファイル)`); d.append(s);
-    if (c.files.length) d.append($("div", "meta", c.files.join("  ")));
-    if (S.writable) d.addEventListener("toggle", async () => {
-      if (d.open && !d.dataset.loaded) { d.dataset.loaded = 1; d.append(diffPre(await (await fetch("/diff/" + c.h)).text())); }
-    });
-    box.append(d);
-  }
-  return box;
-}
-function thread(id) {
-  const box = $("div");
-  for (const n of notesOf(id)) {
-    const a = $("div", "note"); a.append($("span", "who", "人間 " + n.created.slice(5, 16).replace("T", " ") + (n.verdict ? " [" + n.verdict + "]" : "")), n.text || ""); box.append(a);
-    if (n.reply) { const b = $("div", "note"); b.append($("span", "who", "エージェント"), n.reply); box.append(b); }
-  }
-  return box;
-}
-async function send(target, verdict, text, covers) {
-  const r = await fetch("/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target, verdict, text, covers: covers || [] }) });
+function fold(label, node) { const d = $("details"); d.append($("summary", "", label), node); return d; }
+async function send(p, verdict, text) {
+  const r = await fetch("/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target: "post:" + p.id, verdict, text }) });
   if (!r.ok) { alert("送れませんでした: " + await r.text()); return; }
-  (S.notes[target] = S.notes[target] || []).push(await r.json()); draw();
+  (S.notes["post:" + p.id] = notesOf(p)).push(await r.json()); stamp = null; draw();
 }
-function reply(id, options, covers) {
-  const box = $("div", "reply");
-  if (!S.writable) return box;
-  const input = $("input"); input.placeholder = "一言（任意）。次の拍の先頭に届く";
-  for (const o of options || []) { const b = $("button", "opt", "→ " + o); b.onclick = () => send(id, "choose", o + (input.value ? "。" + input.value : ""), covers); box.append(b); }
-  box.append(input);
-  for (const [v, label] of [["ok", "OK"], ["question", "質問"], ["ng", "違う"]]) { const b = $("button", "", label); b.onclick = () => { if (v !== "ok" && !input.value) { input.placeholder = "何が、を一言書いてください"; input.focus(); return; } send(id, v, input.value, covers); }; box.append(b); }
-  input.onkeydown = e => { if (e.key === "Enter" && input.value) send(id, "comment", input.value, covers); };
+function thread(p) {
+  const box = $("div", "thread");
+  for (const n of notesOf(p)) {
+    const a = $("div", "msg"), body = $("div"); body.append(n.verdict === "ok" && !n.text ? "了解" : n.text, $("span", "t", ago(n.created)));
+    a.append($("span", "who", "私"), body); box.append(a);
+    if (n.reply) { const b = $("div", "msg agent"), rb = $("div"); rb.append(n.reply, $("span", "t", n.done ? ago(n.done) : "")); b.append($("span", "who", "AI"), rb); box.append(b); }
+    else if (n.status === "open") box.append($("div", "pending", "次の拍でエージェントに届きます"));
+  }
   return box;
 }
-function itemRow(i, fresh) {
-  const row = $("div", "item " + i.kind);
-  row.append($("span", "chip " + (i.kind === "claim" ? "done" : "miss"), KIND[i.kind] + (fresh ? " 新着" : "")), $("span", "", " " + i.text));
-  const full = i.evidence + (i.note ? "  — " + i.note : "");
-  // run ID は長いので末尾 4 桁に縮める（全文はマウスを載せると出る）
-  const short = full.replace(/\[run:\d{8}-\d{6}_[a-z0-9-]+_(?:[0-9a-f]{7}|nogit)_([0-9a-f]{4}):([^\]\s]+)\]/g, "[$1:$2]");
-  const ev = $("div", "meta", short.length > 220 ? short.slice(0, 220) + "…" : short); ev.title = full; row.append(ev); return row;
-}
-function group(c) {
-  const e = $("div", "card " + (c.counts.retract + c.counts.miss ? "retract" : "claim"));
-  const seen = covered(c), any = notesOf(c.id).length > 0;
-  e.append($("div", "kind", KIND.group + "  " + c.time), $("div", "title", c.title));
-  const ch = $("div", "chips");
-  if (c.counts.retract) ch.append($("span", "chip miss", "撤回 " + c.counts.retract));
-  if (c.counts.miss) ch.append($("span", "chip miss", "外れた予想 " + c.counts.miss));
-  if (c.counts.claim) ch.append($("span", "chip done", "新しい主張 " + c.counts.claim));
-  ch.append($("span", "chip", "run " + c.n_runs + " 本")); e.append(ch, figs(c.figs));
-  const todo = c.items.filter(i => !seen.has(i.id)), rest = c.items.filter(i => seen.has(i.id));
-  for (const i of todo.slice(0, 6)) e.append(itemRow(i, any));
-  if (todo.length > 6 || rest.length) {
-    const d = $("details"); d.append($("summary", "", `ほか ${Math.max(todo.length - 6, 0)} 件` + (rest.length ? `、確認済み ${rest.length} 件` : "")));
-    for (const i of todo.slice(6)) d.append(itemRow(i, any)); for (const i of rest) d.append(itemRow(i, false)); e.append(d);
+function reply(p) {
+  const wrap = $("div"); if (!S.writable) return wrap;
+  const answered = notesOf(p).some(n => n.verdict === "choose");
+  if (p.options && p.options.length && !answered) {
+    const o = $("div", "opts"); for (const t of p.options) { const b = $("button", "btn", t); b.onclick = () => send(p, "choose", t); o.append(b); } wrap.append(o);
   }
-  e.append(runs(c.runs)); for (const k of c.codes || []) e.append(code(k));
-  e.append(thread(c.id), reply(c.id, null, c.items.map(i => i.id))); return e;
+  const box = $("div", "reply"), ta = $("textarea"); ta.rows = 1; ta.placeholder = "返信（Enter で送る。Shift+Enter で改行）";
+  ta.oninput = () => { ta.style.height = "38px"; ta.style.height = Math.min(ta.scrollHeight + 2, 160) + "px"; };
+  ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (ta.value.trim()) send(p, "comment", ta.value); } };
+  box.append(ta);
+  if (unread(p)) { const ok = $("button", "btn", "了解"); ok.title = "読んだ印。エージェントの対応は求めない"; ok.onclick = () => ta.value.trim() ? send(p, "comment", ta.value) : send(p, "ok", ""); box.append(ok); }
+  wrap.append(box); return wrap;
 }
-function card(c) {
-  if (c.kind === "group") return group(c);
-  const e = $("div", "card " + c.kind);
-  e.append($("div", "kind", KIND[c.kind] + "  " + (c.time || "").replace("T", " ")), $("div", "title", c.title), $("div", "body", c.body));
-  for (const m of c.meta || []) e.append($("div", "meta", m));
-  e.append(runs(c.runs), figs(c.figs)); if (c.code) e.append(code(c.code));
-  e.append(thread(c.id), reply(c.id, c.options)); return e;
-}
-function beat(b) {
-  const e = $("div", "card beat");
-  e.append($("div", "kind", b.time.replace("T", " ") + (b.beat != null ? "  拍 " + b.beat : "") + (b.line ? "  [" + b.line + "]" : "") + (b.stall ? "  停滞: " + b.stall : "")));
-  const pod = $("div", "pod");
-  for (const [k, v] of [["予想", b.predicted], ["結果", b.observed], ["判断", b.decided]]) if (v) pod.append($("b", "", k), $("div", "", v));
-  e.append(pod, runs(b.runs), figs(b.figs), commits(b.commits), thread(b.id), reply(b.id)); return e;
+function post(p) {
+  const e = $("article", "post"), head = $("div", "head");
+  const when = $("span", "", ago(p.created)); when.title = p.created.replace("T", " ").slice(0, 16);
+  head.append($("span", "tag " + p.kind, S.kinds[p.kind] || p.kind), when, $("span", "", p.id));
+  if (unread(p)) { const d = $("span", "dot"); d.title = "未読"; head.append(d); }
+  e.append(head, $("h2", "", p.title), prose(p.body));
+  for (const f of p.figs || []) {
+    const src = figSrc(f); if (!src) continue;
+    const fig = $("figure"), img = $("img"); img.src = src; img.loading = "lazy"; img.alt = f.caption;
+    img.onclick = () => { const z = document.getElementById("zoom"); z.firstChild.src = src; z.style.display = "flex"; };
+    const cap = $("figcaption"); inline(cap, f.caption); fig.append(img, cap); e.append(fig);
+  }
+  if (p.detail) e.append(fold("補足", prose(p.detail)));
+  for (const c of p.code || []) e.append(fold("コード  " + c.label, $("pre", "", c.text)));
+  if ((p.runs || []).length) e.append(fold(`根拠の run ${p.runs.length} 本`, $("div", "runs", p.runs.join("\n"))));
+  e.append(thread(p), reply(p)); return e;
 }
 function draw() {
-  const inbox = S.cards.filter(c => !reviewed(c)), done = S.cards.filter(reviewed);
-  document.getElementById("h1").textContent = S.project + " — レビュー板";
-  document.getElementById("sub").textContent = `${S.generated} 生成、${S.since} 以降、HEAD ${S.head}` + (S.old_questions ? `、期間より前の連絡 ${S.old_questions} 件（labkit queue list）` : "") + (S.writable ? "" : "（書き出し。返信は labkit view で）");
-  const ml = document.getElementById("mainline"); ml.textContent = "";
-  if (S.mainline.sentence) { ml.append("主線: " + S.mainline.sentence); const ch = $("div", "chips");
-    // 進行中の項目だけを出す（done は数だけ。項目が数十あると見出しが画面を埋める）
-    const live = S.mainline.items.filter(i => i.status !== "done"), nDone = S.mainline.items.length - live.length;
-    for (const i of live.slice(0, 6)) { const c = $("span", "chip " + i.status, `${i.id} ${i.what.slice(0, 28)}${i.due && i.due !== "—" ? " 〜" + i.due.slice(5) : ""}`); c.title = i.what; ch.append(c); }
-    if (live.length > 6) ch.append($("span", "chip", `ほか ${live.length - 6} 件`));
-    if (nDone) ch.append($("span", "chip done", `done ${nDone}`));
-    ml.append(ch); }
-  const nav = document.getElementById("nav"); nav.textContent = "";
-  for (const [k, label] of [["inbox", `要確認 ${inbox.length}`], ["timeline", `タイムライン ${S.timeline.length}`], ["done", `確認済み ${done.length}`]]) {
-    const b = $("button", tab === k ? "on" : "", label); b.onclick = () => { tab = k; draw(); window.scrollTo(0, 0); }; nav.append(b); }
+  document.title = S.project + " — フィード";
+  document.getElementById("h1").textContent = S.project;
+  document.getElementById("goal").textContent = S.goal || "";
+  const nUnread = S.posts.filter(unread).length, tabs = document.getElementById("tabs"); tabs.textContent = "";
+  for (const [k, label] of [["all", "すべて"], ["unread", "未読 " + nUnread]]) { const b = $("button", tab === k ? "on" : "", label); b.onclick = () => { tab = k; draw(); window.scrollTo(0, 0); }; tabs.append(b); }
   const app = document.getElementById("app"); app.textContent = "";
-  const list = tab === "inbox" ? inbox.map(card) : tab === "done" ? done.map(card) : S.timeline.map(beat);
-  if (!list.length) app.append($("div", "empty", tab === "inbox" ? "要確認のカードはありません。" : "この期間の記録はありません。"));
-  app.append(...list);
+  const list = tab === "unread" ? S.posts.filter(unread) : S.posts;
+  if (!list.length) { const m = $("div", "empty"); m.append($("b", "", tab === "unread" ? "すべて読みました" : "まだ投稿はありません"), tab === "unread" ? "" : "エージェントが伝える価値があると判断したことだけが、ここに届きます。"); app.append(m); }
+  let day = "";
+  for (const p of list) { const d = dayLabel(p.created); if (d !== day) { app.append($("div", "day", d)); day = d; } app.append(post(p)); }
+  if (S.older || !S.writable) app.append($("div", "foot", (S.older ? `これより前の投稿 ${S.older} 件（labkit view --days で期間を延ばす）` : "") + (S.writable ? "" : `  ${S.generated} に書き出し（返信は labkit view で）`)));
 }
 document.getElementById("zoom").onclick = e => { e.currentTarget.style.display = "none"; };
+// 新しい投稿・エージェントの答えが来たら知らせる（書きかけの返信が無ければ、そのまま読み込み直す）
+let stamp = S.stamp;
+if (S.writable) setInterval(async () => {
+  try {
+    const now = await (await fetch("/stamp")).text(); if (stamp === null) { stamp = now; return; } if (now === stamp) return;
+    const typing = [...document.querySelectorAll("textarea")].some(t => t.value.trim());
+    if (!typing && window.scrollY < 200) location.reload(); else document.getElementById("fresh").style.display = "block";
+  } catch (e) {}
+}, 15000);
+document.getElementById("fresh").onclick = () => location.reload();
 draw();
 </script>
 </body>

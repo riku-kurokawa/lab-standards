@@ -342,11 +342,43 @@ def cmd_view(a) -> int:
 
     root = find_root()
     if a.out:
-        data, figs = view.collect(root, a.days)
-        Path(a.out).write_text(view.render(data, figs, embed=True), encoding="utf-8", newline="\n")
+        page = view.render(root, view.collect(root, a.days), embed=True)
+        Path(a.out).write_text(page, encoding="utf-8", newline="\n")
         print(a.out)
     else:
         view.serve(root, a.port, a.days)
+    return 0
+
+
+def cmd_post(a) -> int:
+    from labkit import post
+
+    root = _scope_root()
+    if a.title == "list" and not a.body:
+        for p in post.list_posts(root):
+            print(f"{p['id']}  {p['created'][:16]}  [{post.KINDS.get(p['kind'], p['kind'])}] {p['title']}")
+        return 0
+
+    def text(v: str) -> str:  # @path はファイルから読む（複数行の本文をシェルの引用で壊さない）
+        return Path(v[1:]).read_text(encoding="utf-8") if v.startswith("@") else v
+
+    try:
+        p = post.add_post(
+            root,
+            a.title,
+            text(a.body or ""),
+            kind=a.kind,
+            figs=a.fig,
+            runs=a.run,
+            code=a.code,
+            options=a.option,
+            detail=text(a.detail or ""),
+        )
+    except (ValueError, FileNotFoundError) as e:
+        raise SystemExit(f"投稿できません: {e}") from None
+    print(
+        f"{p['id']} を投稿しました（人間は `labkit view` のフィードで読む。返信は次の `labkit beat start` の先頭に出る）"
+    )
     return 0
 
 
@@ -358,7 +390,7 @@ def cmd_note(a) -> int:
         if not a.id:
             raise SystemExit('note done <ID> --reply "<人間への答え>"')
         n = state.close_note(root, a.id, a.reply or "")
-        print(f"{n['id']} に答えました（レビュー板のカードに出る）")
+        print(f"{n['id']} に答えました（フィードの同じ投稿のスレッドに出る）")
     else:
         notes = state.list_notes(root, None if a.all else "open")
         for n in notes:
@@ -653,13 +685,26 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("paths", help="現在の LAB_ENV で解決されるパスを表示")
     s.set_defaults(func=cmd_paths)
 
-    s = sub.add_parser("view", help="レビュー板: 証拠つきのカードとタイムラインで仕事を確認し、返信する（127.0.0.1）")
-    s.add_argument("--days", type=float, default=3, help="載せる期間（日。既定 3）")
+    s = sub.add_parser(
+        "post", help="人間への投稿: 伝える価値があることだけを、結論・根拠・図つきで 1 件（post list で一覧）"
+    )
+    s.add_argument("title", help="結論の 1 行（60 字まで）。`list` で一覧")
+    s.add_argument("--body", help="何が分かり、なぜ重要で、何を見ればよいか（500 字まで。@path でファイルから）")
+    s.add_argument("--kind", default="finding", help="finding（発見）/ retract（撤回）/ ask（相談）/ milestone（節目）")
+    s.add_argument("--fig", action="append", default=[], help="<図のパス>::<この図で見るところ>（3 枚まで）")
+    s.add_argument("--run", action="append", default=[], help="根拠の run ID")
+    s.add_argument("--code", action="append", default=[], help="<path>:<開始行>-<終了行>（その時点の抜粋を持つ）")
+    s.add_argument("--option", action="append", default=[], help="ask: 人間が押して選ぶ選択肢")
+    s.add_argument("--detail", help="折りたたむ補足（@path でファイルから）")
+    s.set_defaults(func=cmd_post)
+
+    s = sub.add_parser("view", help="フィード: エージェントの投稿を新しい順に読み、その場で返信する（127.0.0.1）")
+    s.add_argument("--days", type=float, default=14, help="載せる期間（日。既定 14）")
     s.add_argument("--port", type=int, default=8765)
     s.add_argument("--out", help="1 枚の HTML に書き出す（図は埋め込み。返信はできない）")
     s.set_defaults(func=cmd_view)
 
-    s = sub.add_parser("note", help="人間の返信（レビュー板から）: list [--all] / done <ID> --reply ...")
+    s = sub.add_parser("note", help="人間の返信（フィードから）: list [--all] / done <ID> --reply ...")
     s.add_argument("action", choices=["list", "done"])
     s.add_argument("id", nargs="?")
     s.add_argument("--reply", help="done: 人間への答え（何を変えたか、変えないなら理由）")
